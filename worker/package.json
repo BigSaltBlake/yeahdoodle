@@ -1,0 +1,25 @@
+{
+  "name": "yeahdoodle-worker",
+  "version": "1.0.0",
+  "description": "YeahDoodle background worker -- syncs event sources into Supabase",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node --esm src/index.ts",
+    "dev:watch": "ts-node-dev --respawn src/index.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.7",
+    "axios": "^1.7.2",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "@types/node-cron": "^3.0.11",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.3"
+  }
+}

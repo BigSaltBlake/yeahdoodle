@@ -1,0 +1,59 @@
+@import url('https://fonts.googleapis.com/css2?family=Righteous&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --yd-bg:     #121321;
+  --yd-navy:   #1D1E2F;
+  --yd-card:   #2D2E43;
+  --yd-orange: #F66C31;
+  --yd-yellow: #FBC318;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--yd-bg);
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--yd-navy); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--yd-orange);
+  outline-offset: 2px;
+}
+
+/* Dot pattern overlay for hero sections */
+.dot-pattern {
+  background-image: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Orange gradient glow for hero */
+.hero-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(246,108,49,0.35) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+@layer utilities {
+  .font-display { font-family: 'Righteous', cursive; }
+  .text-yd-muted { color: rgba(255,255,255,0.5); }
+  .border-yd { border-color: rgba(255,255,255,0.08); }
+}
