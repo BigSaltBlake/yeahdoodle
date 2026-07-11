@@ -1,7 +1,7 @@
 {
   "name": "yeahdoodle-worker",
   "version": "1.0.0",
-  "description": "YeahDoodle background worker -- syncs event sources into Supabase",
+  "description": "YeahDoodle background worker",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -10,6 +10,7 @@
     "dev:watch": "ts-node-dev --respawn src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0",
     "@supabase/supabase-js": "^2.39.7",
     "axios": "^1.7.2",
     "node-cron": "^3.0.3",
