@@ -1,6 +1,5 @@
 /**
- * YeahDoodle Worker -- main entry point
- * Runs as a long-lived process on Railway.
+ * YeahDoodle Worker — main entry point
  */
 
 import 'dotenv/config'
@@ -9,6 +8,7 @@ import { createDb } from './lib/db'
 import { syncTicketmaster, DEFAULT_CITIES } from './sources/ticketmaster'
 import { syncGoogleEvents } from './sources/google-events'
 import { syncMeetup } from './sources/meetup'
+import { syncSeatGeek } from './sources/seatgeek'
 
 const CITIES = process.env.CITIES
   ? process.env.CITIES.split(',').map(c => c.trim())
@@ -29,6 +29,7 @@ async function runSync(name: string, fn: () => Promise<void>) {
 async function bootSync() {
   const db = createDb()
   await runSync('Ticketmaster', () => syncTicketmaster(db, CITIES))
+  await runSync('SeatGeek',     () => syncSeatGeek(db, CITIES))
   await runSync('Google Events', () => syncGoogleEvents(db, CITIES))
   await runSync('Meetup',        () => syncMeetup(db, CITIES))
 }
@@ -38,24 +39,27 @@ function startScheduler() {
     const db = createDb()
     await runSync('Ticketmaster', () => syncTicketmaster(db, CITIES))
   })
-
+  cron.schedule('0 1,13 * * *', async () => {
+    const db = createDb()
+    await runSync('SeatGeek', () => syncSeatGeek(db, CITIES))
+  })
   cron.schedule('0 3,15 * * *', async () => {
     const db = createDb()
     await runSync('Google Events', () => syncGoogleEvents(db, CITIES))
   })
-
   cron.schedule('0 4,16 * * *', async () => {
     const db = createDb()
     await runSync('Meetup', () => syncMeetup(db, CITIES))
   })
-
   console.log('Scheduler running. Syncing cities:', CITIES.join(', '))
+  console.log('Schedule: Ticketmaster every 6h | SeatGeek every 12h | Google Events every 12h | Meetup every 12h')
 }
 
 ;(async () => {
   console.log('YeahDoodle Worker starting...')
   console.log(`Supabase: ${process.env.SUPABASE_URL ?? '(not set)'}`)
-  console.log(`Ticketmaster API key: ${process.env.TICKETMASTER_API_KEY ? 'set' : 'NOT SET'}`)
+  console.log(`Ticketmaster API key: ${process.env.TICKETMASTER_API_KEY ? '✓ set' : '✗ NOT SET'}`)
+  console.log(`SeatGeek client ID:   ${process.env.SEATGEEK_CLIENT_ID   ? '✓ set' : '✗ NOT SET'}`)
   await bootSync()
   startScheduler()
 })()
