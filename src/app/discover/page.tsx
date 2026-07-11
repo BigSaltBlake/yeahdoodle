@@ -14,12 +14,18 @@ function DiscoverContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
+  // City state
   const [cityInput, setCityInput] = useState(searchParams.get('city') ?? '')
   const [activeCity, setActiveCity] = useState(searchParams.get('city') ?? '')
+  const [locating, setLocating] = useState(false)
+
+  // Filter state
   const [categories, setCategories] = useState<EventCategory[]>([])
   const [groups, setGroups] = useState<GroupType[]>([])
   const [ageGroups, setAgeGroups] = useState<AgeGroup[]>([])
   const [when, setWhen] = useState<WhenFilter>('')
+
+  // Data + UI state
   const [events, setEvents] = useState<YDEvent[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -27,8 +33,48 @@ function DiscoverContent() {
   const [page, setPage] = useState(0)
   const [modalEvent, setModalEvent] = useState<YDEvent | null>(null)
   const [vibeOpen, setVibeOpen] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false) // mobile
+
   const fetchRef = useRef(0)
+
+  // Auto-detect location on first load if no city in URL
+  useEffect(() => {
+    if (!searchParams.get('city') && typeof navigator !== 'undefined' && navigator.geolocation) {
+      handleLocate()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleLocate() {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    setLocating(true)
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
+      )
+      const { latitude, longitude } = pos.coords
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+        { headers: { 'User-Agent': 'YeahDoodle/1.0' } }
+      )
+      const data = await res.json()
+      const city =
+        data.address?.city ||
+        data.address?.town ||
+        data.address?.village ||
+        data.address?.county ||
+        ''
+      if (city) {
+        setCityInput(city)
+        setActiveCity(city)
+        trackCitySearch(city)
+        router.replace(`/discover?city=${encodeURIComponent(city)}`, { scroll: false })
+      }
+    } catch {
+      // User denied or timed out — silently fall back to manual search
+    } finally {
+      setLocating(false)
+    }
+  }
 
   const fetchEvents = useCallback(async (
     city: string, cats: EventCategory[], grps: GroupType[],
@@ -51,16 +97,17 @@ function DiscoverContent() {
       const res = await fetch(url.toString())
       if (!res.ok) throw new Error('Failed to load events')
       const data = await res.json()
-      if (fetchId !== fetchRef.current) return
+      if (fetchId !== fetchRef.current) return // stale
       setEvents(pg === 0 ? data.events : prev => [...prev, ...data.events])
       setTotal(data.total ?? 0)
     } catch {
-      if (fetchId === fetchRef.current) setError("Couldn't load events. Check your connection.")
+      if (fetchId === fetchRef.current) setError('Couldn\'t load events. Check your connection.')
     } finally {
       if (fetchId === fetchRef.current) setLoading(false)
     }
   }, [])
 
+  // Fetch on filter/city change
   useEffect(() => {
     setPage(0)
     fetchEvents(activeCity, categories, groups, ageGroups, when, 0)
@@ -101,6 +148,7 @@ function DiscoverContent() {
       <EventModal event={modalEvent} onClose={() => setModalEvent(null)} onVibePrompt={handleVibePrompt} />
       <VibeModal open={vibeOpen} onClose={() => setVibeOpen(false)} />
 
+      {/* Page header */}
       <div className="bg-yd-navy border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 py-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -115,13 +163,22 @@ function DiscoverContent() {
               )}
             </div>
 
+            {/* City search */}
             <form onSubmit={handleSearch} className="flex gap-2">
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none text-sm">📍</span>
+                <button
+                  type="button"
+                  onClick={handleLocate}
+                  disabled={locating}
+                  title="Use my location"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-yd-orange disabled:opacity-50 transition-colors text-sm px-1 py-1"
+                >
+                  {locating ? '⏳' : '📍'}
+                </button>
                 <input
                   value={cityInput}
                   onChange={e => setCityInput(e.target.value)}
-                  placeholder="Change city..."
+                  placeholder={locating ? 'Detecting...' : 'City...'}
                   className="pl-8 pr-4 py-2.5 bg-yd-card border border-white/10 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-yd-orange transition-colors w-44"
                 />
               </div>
@@ -137,6 +194,7 @@ function DiscoverContent() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Mobile filter toggle */}
         <button
           className="sm:hidden mb-4 flex items-center gap-2 text-sm text-white/60 hover:text-white border border-white/10 rounded-xl px-4 py-2.5 transition-colors"
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -151,6 +209,7 @@ function DiscoverContent() {
         </button>
 
         <div className="flex gap-8">
+          {/* Sidebar */}
           <div className={`${sidebarOpen ? 'block' : 'hidden'} sm:block`}>
             <FilterSidebar
               categories={categories}
@@ -165,21 +224,42 @@ function DiscoverContent() {
             />
           </div>
 
+          {/* Main content */}
           <div className="flex-1 min-w-0">
+            {/* No city prompt */}
             {!activeCity && (
               <div className="text-center py-20">
-                <div className="text-5xl mb-4">🗺️</div>
-                <h2 className="font-display text-xl text-white mb-2">Where are you headed?</h2>
-                <p className="text-white/50 text-sm">Search a city above to start exploring events.</p>
+                {locating ? (
+                  <>
+                    <div className="text-5xl mb-4 animate-pulse">📍</div>
+                    <h2 className="font-display text-xl text-white mb-2">Finding your location…</h2>
+                    <p className="text-white/50 text-sm">Allow location access to see events near you.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-5xl mb-4">🗺️</div>
+                    <h2 className="font-display text-xl text-white mb-2">What&apos;s happening near you?</h2>
+                    <p className="text-white/50 text-sm mb-6">Allow location access or search a city to find events.</p>
+                    <button
+                      onClick={handleLocate}
+                      className="bg-yd-orange hover:bg-yd-orangeHover text-white font-semibold px-6 py-3 rounded-xl transition-colors inline-flex items-center gap-2 mb-4"
+                    >
+                      📍 Use my location
+                    </button>
+                    <p className="text-white/30 text-xs">or type a city in the search box above</p>
+                  </>
+                )}
               </div>
             )}
 
+            {/* Error */}
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl px-4 py-3 text-sm mb-6">
                 {error}
               </div>
             )}
 
+            {/* Active filter chips */}
             {(categories.length + groups.length + ageGroups.length + (when ? 1 : 0)) > 0 && (
               <div className="flex flex-wrap gap-2 mb-5">
                 {when && (
@@ -209,6 +289,7 @@ function DiscoverContent() {
               </div>
             )}
 
+            {/* Loading skeleton */}
             {loading && events.length === 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => (
@@ -224,6 +305,7 @@ function DiscoverContent() {
               </div>
             )}
 
+            {/* Events grid */}
             {events.length > 0 && (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -237,6 +319,7 @@ function DiscoverContent() {
                   ))}
                 </div>
 
+                {/* Load more */}
                 {hasMore && (
                   <div className="text-center mt-8">
                     <button
@@ -244,21 +327,39 @@ function DiscoverContent() {
                       disabled={loading}
                       className="bg-yd-card border border-white/10 hover:border-white/20 text-white/70 hover:text-white text-sm px-8 py-3 rounded-xl transition-colors disabled:opacity-50"
                     >
-                      {loading ? 'Loading...' : 'Load more events'}
+                      {loading ? 'Loading...' : `Load more events`}
                     </button>
                   </div>
                 )}
               </>
             )}
 
+            {/* No results */}
             {!loading && activeCity && events.length === 0 && !error && (
               <div className="text-center py-20">
                 <div className="text-5xl mb-4">🎭</div>
-                <h2 className="font-display text-xl text-white mb-2">Nothing turned up</h2>
-                <p className="text-white/50 text-sm mb-4">Try removing some filters or searching a different date range.</p>
-                <button onClick={handleReset} className="text-yd-orange hover:underline text-sm font-medium">
-                  Clear all filters
-                </button>
+                <h2 className="font-display text-xl text-white mb-2">Nothing turned up for {activeCity}</h2>
+                <p className="text-white/50 text-sm mb-4">
+                  {(categories.length + groups.length + ageGroups.length + (when ? 1 : 0)) > 0
+                    ? 'Try removing some filters, or check back as we add more events daily.'
+                    : "We may not have synced this city yet — check back soon, or try a nearby major city."}
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  {['New York', 'Los Angeles', 'Chicago', 'Austin', 'Nashville', 'Denver'].map(c => (
+                    <button
+                      key={c}
+                      onClick={() => { setCityInput(c); setActiveCity(c); trackCitySearch(c); router.replace(`/discover?city=${encodeURIComponent(c)}`, { scroll: false }) }}
+                      className="text-xs bg-yd-card border border-white/10 hover:border-yd-orange/40 text-white/60 hover:text-white px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+                {(categories.length + groups.length + ageGroups.length + (when ? 1 : 0)) > 0 && (
+                  <button onClick={handleReset} className="text-yd-orange hover:underline text-sm font-medium">
+                    Clear all filters
+                  </button>
+                )}
               </div>
             )}
           </div>
