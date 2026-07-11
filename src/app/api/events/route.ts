@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { mapEventRow } from '@/lib/events'
 import type { EventCategory, GroupType, AgeGroup, WhenFilter } from '@/types'
 
 const PAGE_SIZE = 20
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json(
-    { events: data ?? [], total: count ?? 0 },
+    { events: (data ?? []).map(mapEventRow), total: count ?? 0 },
     { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30' } }
   )
 }

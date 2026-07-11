@@ -4,6 +4,8 @@ import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import type { YDEvent } from '@/types'
 import { saveEvent, unsaveEvent, isEventSaved, trackEventView, shouldPromptVibe } from '@/lib/history'
+import { useAuth } from './AuthProvider'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
 
 interface Props {
   event: YDEvent
@@ -49,19 +51,32 @@ function formatPrice(min?: number, max?: number, isFree?: boolean): string {
 
 export default function EventCard({ event, onOpenDetail, onVibePrompt }: Props) {
   const [saved, setSaved] = useState(false)
+  const { user } = useAuth()
 
   useEffect(() => {
     setSaved(isEventSaved(event.id))
   }, [event.id])
+
+  async function syncToSupabase(action: 'save' | 'unsave') {
+    if (!user) return
+    const sb = getSupabaseBrowser()
+    if (action === 'save') {
+      await sb.from('saved_events').upsert({ user_id: user.id, event_id: event.id })
+    } else {
+      await sb.from('saved_events').delete().match({ user_id: user.id, event_id: event.id })
+    }
+  }
 
   function handleSave(e: React.MouseEvent) {
     e.stopPropagation()
     if (saved) {
       unsaveEvent(event.id)
       setSaved(false)
+      syncToSupabase('unsave')
     } else {
       saveEvent(event.id, event.category, event.groupSuitability)
       setSaved(true)
+      syncToSupabase('save')
       if (shouldPromptVibe()) onVibePrompt?.()
     }
   }

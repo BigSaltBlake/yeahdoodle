@@ -4,6 +4,8 @@ import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import type { YDEvent } from '@/types'
 import { saveEvent, unsaveEvent, isEventSaved } from '@/lib/history'
+import { useAuth } from './AuthProvider'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
 
 interface Props {
   event: YDEvent | null
@@ -50,10 +52,21 @@ const AGE_LABELS: Record<string, string> = {
 
 export default function EventModal({ event, onClose, onVibePrompt }: Props) {
   const [saved, setSaved] = useState(false)
+  const { user } = useAuth()
 
   useEffect(() => {
     if (event) setSaved(isEventSaved(event.id))
   }, [event])
+
+  async function syncToSupabase(eventId: string, action: 'save' | 'unsave') {
+    if (!user) return
+    const sb = getSupabaseBrowser()
+    if (action === 'save') {
+      await sb.from('saved_events').upsert({ user_id: user.id, event_id: eventId })
+    } else {
+      await sb.from('saved_events').delete().match({ user_id: user.id, event_id: eventId })
+    }
+  }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
@@ -74,9 +87,11 @@ export default function EventModal({ event, onClose, onVibePrompt }: Props) {
     if (saved) {
       unsaveEvent(event.id)
       setSaved(false)
+      syncToSupabase(event.id, 'unsave')
     } else {
       saveEvent(event.id, event.category, event.groupSuitability)
       setSaved(true)
+      syncToSupabase(event.id, 'save')
       onVibePrompt?.()
     }
   }
