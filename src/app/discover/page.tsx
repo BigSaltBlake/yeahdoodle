@@ -7,7 +7,7 @@ import FilterSidebar from '@/components/FilterSidebar'
 import EventCard from '@/components/EventCard'
 import EventModal from '@/components/EventModal'
 import VibeModal from '@/components/VibeModal'
-import { trackCitySearch, shouldPromptVibe } from '@/lib/history'
+import { trackCitySearch, shouldPromptVibe, getVibePreferences } from '@/lib/history'
 import type { YDEvent, EventCategory, GroupType, AgeGroup, WhenFilter } from '@/types'
 
 function DiscoverContent() {
@@ -41,6 +41,17 @@ function DiscoverContent() {
   useEffect(() => {
     if (!searchParams.get('city') && typeof navigator !== 'undefined' && navigator.geolocation) {
       handleLocate()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-populate filters from survey vibe on first load (only if no filters already active)
+  useEffect(() => {
+    const { categories: vibeCats, group: vibeGroup } = getVibePreferences()
+    if (vibeCats.length > 0 && categories.length === 0) {
+      setCategories(vibeCats)
+    }
+    if (vibeGroup && groups.length === 0) {
+      setGroups([vibeGroup])
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
