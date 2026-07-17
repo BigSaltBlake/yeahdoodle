@@ -19,10 +19,42 @@ export default function HomePage() {
   const [city, setCity] = useState('')
   const [recentCities, setRecentCities] = useState<string[]>([])
   const [vibeOpen, setVibeOpen] = useState(false)
+  const [locating, setLocating] = useState(false)
+
+  async function handleLocate() {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    setLocating(true)
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
+      )
+      const { latitude, longitude } = pos.coords
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+        { headers: { 'User-Agent': 'YeahDoodle/1.0' } }
+      )
+      const data = await res.json()
+      const detected =
+        data.address?.city ||
+        data.address?.town ||
+        data.address?.village ||
+        data.address?.county ||
+        ''
+      if (detected) {
+        trackCitySearch(detected)
+        router.push(`/discover?city=${encodeURIComponent(detected)}`)
+      }
+    } catch {
+      // User denied or timed out — silently fall back
+    } finally {
+      setLocating(false)
+    }
+  }
 
   useEffect(() => {
     const profile = getProfile()
     setRecentCities(profile.cityHistory.slice(0, 4))
+    // Show vibe prompt on return visits if they have history
     if (profile.interactionCount > 0 && shouldPromptVibe()) {
       setTimeout(() => setVibeOpen(true), 2000)
     }
@@ -51,7 +83,10 @@ export default function HomePage() {
 
       {/* Hero */}
       <section className="relative bg-yd-orange overflow-hidden">
+        {/* Dot pattern */}
         <div className="absolute inset-0 dot-pattern opacity-40 pointer-events-none" />
+
+        {/* Decorative circles */}
         <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-white/5 pointer-events-none" />
         <div className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full bg-black/10 pointer-events-none" />
 
@@ -68,13 +103,22 @@ export default function HomePage() {
             Real local events. Hidden gems. Picks that actually match your vibe.
           </p>
 
+          {/* Search */}
           <form onSubmit={handleSearch} className="flex gap-2 max-w-xl mx-auto">
             <div className="flex-1 relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-yd-orange pointer-events-none">📍</span>
+              <button
+                type="button"
+                onClick={handleLocate}
+                disabled={locating}
+                title="Use my location"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-yd-orange hover:text-yd-orangeHover disabled:opacity-50 transition-colors px-1"
+              >
+                {locating ? '⏳' : '📍'}
+              </button>
               <input
                 value={city}
                 onChange={e => setCity(e.target.value)}
-                placeholder="Enter a city..."
+                placeholder={locating ? 'Detecting your location...' : 'Enter a city...'}
                 className="w-full pl-10 pr-4 py-4 rounded-xl bg-white text-yd-navy placeholder-yd-navy/40 font-medium text-base focus:outline-none focus:ring-2 focus:ring-white/50"
               />
             </div>
@@ -86,6 +130,7 @@ export default function HomePage() {
             </button>
           </form>
 
+          {/* City chips */}
           <div className="flex flex-wrap justify-center gap-2 mt-5">
             <span className="text-white/60 text-sm self-center">
               {recentCities.length > 0 ? 'Recent:' : 'Popular:'}
@@ -103,6 +148,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* What you'll find */}
       <section className="max-w-7xl mx-auto px-4 py-14">
         <h2 className="font-display text-2xl text-white text-center mb-8">What&apos;s waiting for you</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -118,13 +164,15 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Vibe teaser — prompts account/survey if no vibe set yet */}
       <section className="max-w-7xl mx-auto px-4 pb-14">
         <div className="relative bg-yd-card rounded-2xl p-8 sm:p-10 flex flex-col sm:flex-row items-center justify-between gap-6 overflow-hidden border border-white/5">
+          {/* Background glow */}
           <div className="absolute inset-0 bg-gradient-to-br from-yd-orange/10 to-transparent pointer-events-none" />
           <div className="relative">
             <h3 className="font-display text-2xl text-white mb-2">Unlock your personalized picks</h3>
             <p className="text-white/50 text-sm max-w-sm leading-relaxed">
-              Tell us your scene and we&apos;ll surface events that actually fit -- not just whatever&apos;s popular.
+              Tell us your scene and we&apos;ll surface events that actually fit — not just whatever&apos;s popular.
             </p>
           </div>
           <button
@@ -136,12 +184,13 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* How it works */}
       <section className="bg-yd-navy py-14">
         <div className="max-w-7xl mx-auto px-4">
           <h2 className="font-display text-2xl text-white text-center mb-10">How YeahDoodle works</h2>
           <div className="grid sm:grid-cols-3 gap-6">
             {[
-              { step: '01', title: 'Search your city', body: 'Type any city and see what\'s happening -- from tonight to next week.' },
+              { step: '01', title: 'Search your city', body: 'Type any city and see what\'s happening — from tonight to next week.' },
               { step: '02', title: 'Filter your vibe', body: 'Narrow by category, who you\'re going with, age groups, and when.' },
               { step: '03', title: 'Go do the thing', body: 'Save events you love, share with your crew, and show up.' },
             ].map(item => (
