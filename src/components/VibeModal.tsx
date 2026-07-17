@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { deriveVibe, markVibeSetup, getProfile } from '@/lib/history'
+import { deriveVibe, markVibeSetup, saveVibePreferences, getProfile } from '@/lib/history'
 import type { EventCategory, GroupType } from '@/types'
 
 interface Props {
@@ -51,7 +51,7 @@ export default function VibeModal({ open, onClose }: Props) {
   }, [open])
 
   function handleDismiss() {
-    markVibeSetup()
+    markVibeSetup() // Don't prompt again this session
     onClose()
   }
 
@@ -84,8 +84,10 @@ export default function VibeModal({ open, onClose }: Props) {
         className="relative w-full max-w-sm bg-yd-navy rounded-2xl overflow-hidden animate-slideUp border border-white/10"
         onClick={e => e.stopPropagation()}
       >
+        {/* Orange top accent bar */}
         <div className="h-1 bg-gradient-to-r from-yd-orange via-yd-yellow to-yd-orange" />
 
+        {/* Dismiss */}
         <button
           onClick={handleDismiss}
           className="absolute top-3 right-3 text-white/30 hover:text-white/70 text-xl leading-none transition-colors"
@@ -95,6 +97,7 @@ export default function VibeModal({ open, onClose }: Props) {
         </button>
 
         <div className="p-6">
+          {/* STEP: Intro */}
           {step === 'intro' && (
             <div className="text-center">
               <div className="text-4xl mb-3">🎯</div>
@@ -103,7 +106,7 @@ export default function VibeModal({ open, onClose }: Props) {
               </h2>
               <p className="text-sm text-white/60 mb-6 leading-relaxed">
                 {saveCount > 0
-                  ? `You've saved ${saveCount} event${saveCount > 1 ? 's' : ''} -- we can use that to find you better picks.`
+                  ? `You've saved ${saveCount} event${saveCount > 1 ? 's' : ''} — we can use that to find you better picks.`
                   : "We've noticed what you're browsing. Let's make your recommendations actually good."}
               </p>
               <button
@@ -121,11 +124,13 @@ export default function VibeModal({ open, onClose }: Props) {
             </div>
           )}
 
+          {/* STEP: Pick interests */}
           {step === 'interests' && (
             <div>
               <h2 className="font-display text-lg text-white mb-1">What&apos;s your scene?</h2>
               <p className="text-sm text-white/50 mb-4">Pick everything that sounds like a good time.</p>
 
+              {/* Categories */}
               <div className="grid grid-cols-3 gap-2 mb-4">
                 {CATEGORY_OPTIONS.map(cat => (
                   <button
@@ -143,6 +148,7 @@ export default function VibeModal({ open, onClose }: Props) {
                 ))}
               </div>
 
+              {/* Group type */}
               <p className="text-xs text-white/40 uppercase tracking-widest mb-2">Usually going as</p>
               <div className="flex gap-2 mb-5">
                 {GROUP_OPTIONS.map(g => (
@@ -162,7 +168,7 @@ export default function VibeModal({ open, onClose }: Props) {
               </div>
 
               <button
-                onClick={() => setStep('account')}
+                onClick={() => { saveVibePreferences(selectedCats, selectedGroup); setStep('account') }}
                 disabled={selectedCats.length === 0}
                 className="w-full bg-yd-orange hover:bg-yd-orangeHover disabled:opacity-40 text-white font-semibold py-3 rounded-xl transition-colors mb-2"
               >
@@ -171,11 +177,12 @@ export default function VibeModal({ open, onClose }: Props) {
             </div>
           )}
 
+          {/* STEP: Account (optional) */}
           {step === 'account' && (
             <div>
               <h2 className="font-display text-lg text-white mb-1">Save your vibe?</h2>
               <p className="text-sm text-white/50 mb-4 leading-relaxed">
-                Create an account to keep your picks across devices. Totally optional -- we&apos;ll remember you on this browser either way.
+                Create an account to keep your picks across devices. Totally optional — we&apos;ll remember you on this browser either way.
               </p>
 
               <form onSubmit={handleSetupAccount} className="space-y-3 mb-4">
@@ -204,6 +211,7 @@ export default function VibeModal({ open, onClose }: Props) {
             </div>
           )}
 
+          {/* STEP: Done */}
           {step === 'done' && (
             <div className="text-center py-2">
               <div className="text-4xl mb-3">✅</div>

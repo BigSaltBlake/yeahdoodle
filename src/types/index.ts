@@ -60,12 +60,14 @@ export interface FilterState {
 
 // Anonymous user profile stored in localStorage
 export interface LocalProfile {
-  categoryScores: Record<string, number>   // category -> click/save count
-  groupScores: Record<string, number>      // group type -> inferred score
+  categoryScores: Record<string, number>   // category → click/save count
+  groupScores: Record<string, number>      // group type → inferred score
   cityHistory: string[]                    // searched cities, most recent first
   savedEventIds: string[]                  // saved event IDs
   interactionCount: number                 // total interactions tracked
   vibeSetup: boolean                       // did user complete the vibe modal?
+  vibeCategories: EventCategory[]          // explicit survey choices
+  vibeGroup: GroupType | null              // explicit survey group choice
   lastSeen: number                         // unix timestamp
 }
 

@@ -11,6 +11,8 @@ const DEFAULT_PROFILE: LocalProfile = {
   savedEventIds: [],
   interactionCount: 0,
   vibeSetup: false,
+  vibeCategories: [],
+  vibeGroup: null,
   lastSeen: Date.now(),
 }
 
@@ -30,7 +32,7 @@ function saveProfile(profile: LocalProfile): void {
   try {
     localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
   } catch {
-    // storage full or unavailable -- silently skip
+    // storage full or unavailable — silently skip
   }
 }
 
@@ -66,7 +68,7 @@ export function saveEvent(eventId: string, category: string, groups: string[]): 
   if (!profile.savedEventIds.includes(eventId)) {
     profile.savedEventIds = [eventId, ...profile.savedEventIds]
   }
-  // Saving is a strong signal -- weight it 3x
+  // Saving is a strong signal — weight it 3x
   profile.categoryScores[category] = (profile.categoryScores[category] ?? 0) + 3
   groups.forEach(g => {
     profile.groupScores[g] = (profile.groupScores[g] ?? 0) + 3
@@ -95,6 +97,26 @@ export function markVibeSetup(): void {
   const profile = getProfile()
   profile.vibeSetup = true
   saveProfile(profile)
+}
+
+export function saveVibePreferences(categories: EventCategory[], group: GroupType | null): void {
+  const profile = getProfile()
+  profile.vibeCategories = categories
+  profile.vibeGroup = group
+  profile.vibeSetup = true
+  // Also boost category/group scores so deriveVibe() reflects explicit choices
+  categories.forEach(cat => {
+    profile.categoryScores[cat] = (profile.categoryScores[cat] ?? 0) + 5
+  })
+  if (group) {
+    profile.groupScores[group] = (profile.groupScores[group] ?? 0) + 5
+  }
+  saveProfile(profile)
+}
+
+export function getVibePreferences(): { categories: EventCategory[]; group: GroupType | null } {
+  const profile = getProfile()
+  return { categories: profile.vibeCategories ?? [], group: profile.vibeGroup ?? null }
 }
 
 /** Derive top interests from accumulated scores */
@@ -129,7 +151,7 @@ export function shouldPromptVibe(): boolean {
   return saveCount >= 2 || categoryInteractions >= 3 || profile.interactionCount >= 5
 }
 
-/** Wipe everything -- the "Fresh Slate" action */
+/** Wipe everything — the "Fresh Slate" action */
 export function wipeHistory(): void {
   if (typeof window === 'undefined') return
   localStorage.removeItem(PROFILE_KEY)
