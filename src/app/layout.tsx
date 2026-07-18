@@ -40,6 +40,9 @@ export const metadata: Metadata = {
     icon: '/favicon.svg',
     apple: '/apple-touch-icon.png',
   },
+  verification: {
+    google: 'YOlmXY-40nlg-SGdS8zMi07R-UXKzH_ZsIgAqVUS2S8',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
