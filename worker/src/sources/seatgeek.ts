@@ -14,6 +14,9 @@ import type { Db } from '../lib/db'
 
 const SG_BASE = 'https://api.seatgeek.com/2'
 
+// ---------------------------------------------------------------------------
+// Type definitions for SeatGeek API response
+// ---------------------------------------------------------------------------
 interface SGVenue {
   name: string
   address: string | null
@@ -50,18 +53,21 @@ interface SGEvent {
   type: string
 }
 
+// ---------------------------------------------------------------------------
+// Category mapping from SeatGeek taxonomy
+// ---------------------------------------------------------------------------
 const TAXONOMY_TO_CATEGORY: Record<string, string> = {
-  concert:           'Music',
-  music_festival:    'Music',
-  sports:            'Sports',
-  theater:           'Arts & Culture',
-  comedy:            'Arts & Culture',
-  classical:         'Arts & Culture',
+  concert:       'Music',
+  music_festival: 'Music',
+  sports:        'Sports',
+  theater:       'Arts & Culture',
+  comedy:        'Arts & Culture',
+  classical:     'Arts & Culture',
   dance_performance: 'Arts & Culture',
-  opera:             'Arts & Culture',
-  family:            'Community',
-  cirque_du_soleil:  'Arts & Culture',
-  magic:             'Arts & Culture',
+  opera:         'Arts & Culture',
+  family:        'Community',
+  cirque_du_soleil: 'Arts & Culture',
+  magic:         'Arts & Culture',
 }
 
 function inferCategory(event: SGEvent): string {
@@ -95,9 +101,13 @@ function inferAgeGroups(event: SGEvent): string[] {
   return ['all-ages']
 }
 
+// ---------------------------------------------------------------------------
+// Map a raw SeatGeek event to our Supabase events table row
+// ---------------------------------------------------------------------------
 function mapToRow(raw: SGEvent) {
   const priceMin = raw.stats?.lowest_price ?? null
   const priceMax = raw.stats?.highest_price ?? null
+
   return {
     external_id:       String(raw.id),
     source:            'seatgeek',
@@ -113,19 +123,28 @@ function mapToRow(raw: SGEvent) {
     state:             raw.venue?.state ?? null,
     lat:               raw.venue?.location?.lat ?? null,
     lng:               raw.venue?.location?.lon ?? null,
-    image_url:         null,
+    image_url:         null, // SeatGeek doesn't return images in list endpoint
     ticket_url:        raw.url ?? null,
     price_min:         priceMin,
     price_max:         priceMax,
     is_free:           priceMin === 0 || priceMin === null,
     group_suitability: inferGroupSuitability(raw),
     age_groups:        inferAgeGroups(raw),
+    dedupe_key:        raw.venue?.name && raw.venue?.city && (raw.datetime_local ?? raw.datetime_utc)
+                         ? `${raw.venue.name.toLowerCase().trim()}|${(raw.datetime_local ?? raw.datetime_utc ?? '').slice(0, 10)}|${raw.venue.city.toLowerCase().trim()}`
+                         : null,
     updated_at:        new Date().toISOString(),
   }
 }
 
+// ---------------------------------------------------------------------------
+// Sleep helper for rate limiting
+// ---------------------------------------------------------------------------
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
+// ---------------------------------------------------------------------------
+// Fetch one page of events for a city
+// ---------------------------------------------------------------------------
 async function fetchPage(
   city: string,
   page: number,
@@ -135,6 +154,7 @@ async function fetchPage(
   const now = new Date()
   const future = new Date(now)
   future.setDate(future.getDate() + 30)
+
   const params: Record<string, string> = {
     client_id:            clientId,
     'venue.city':         city,
@@ -146,6 +166,7 @@ async function fetchPage(
     'datetime_local.lte': future.toISOString().slice(0, 10),
   }
   if (clientSecret) params.client_secret = clientSecret
+
   const res = await axios.get(`${SG_BASE}/events`, { params })
   return {
     events: res.data.events ?? [],
@@ -153,10 +174,16 @@ async function fetchPage(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Main sync function — call this from the scheduler
+// ---------------------------------------------------------------------------
 export async function syncSeatGeek(db: Db, cities: string[]): Promise<void> {
   const clientId = process.env.SEATGEEK_CLIENT_ID
-  const clientSecret = process.env.SEATGEEK_CLIENT_SECRET
-  if (!clientId) throw new Error('SEATGEEK_CLIENT_ID env var not set')
+  const clientSecret = process.env.SEATGEEK_CLIENT_SECRET // optional
+
+  if (!clientId) {
+    throw new Error('SEATGEEK_CLIENT_ID env var not set')
+  }
 
   let totalUpserted = 0
   let totalErrors   = 0
@@ -168,10 +195,13 @@ export async function syncSeatGeek(db: Db, cities: string[]): Promise<void> {
       for (let page = 1; page <= MAX_PAGES; page++) {
         const { events, total } = await fetchPage(city, page, clientId, clientSecret)
         if (!events.length) break
+
         const rows = events.map(mapToRow)
+
         const { error } = await db
           .from('events')
           .upsert(rows, { onConflict: 'external_id,source', ignoreDuplicates: false })
+
         if (error) {
           console.error(`[SG] Upsert error for ${city} page ${page}:`, error.message)
           totalErrors++
@@ -179,15 +209,19 @@ export async function syncSeatGeek(db: Db, cities: string[]): Promise<void> {
           totalUpserted += rows.length
           console.log(`[SG]   page ${page}: +${rows.length} (${totalUpserted} total, ${total} available)`)
         }
+
         const totalPages = Math.ceil(total / 500)
         if (page >= totalPages || page >= MAX_PAGES) break
+
         await sleep(300)
       }
     } catch (err) {
       console.error(`[SG] Error syncing ${city}:`, (err as Error).message)
       totalErrors++
     }
+
     await sleep(500)
   }
+
   console.log(`[SG] Sync complete. ${totalUpserted} events upserted, ${totalErrors} errors.`)
 }

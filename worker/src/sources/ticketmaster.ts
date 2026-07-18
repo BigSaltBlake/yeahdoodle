@@ -155,6 +155,9 @@ function mapToRow(raw: TMEvent) {
     is_free:           priceMin === 0 || priceMin === null,
     group_suitability: inferGroupSuitability(raw),
     age_groups:        inferAgeGroups(raw),
+    dedupe_key:        venue?.name && dateStart && venue?.city?.name
+                         ? `${venue.name.toLowerCase().trim()}|${dateStart.slice(0, 10)}|${venue.city.name.toLowerCase().trim()}`
+                         : null,
     updated_at:        new Date().toISOString(),
   }
 }
