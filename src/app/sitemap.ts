@@ -1,11 +1,21 @@
 import type { MetadataRoute } from 'next'
+import { CITIES } from '@/lib/cities'
+
 const SITE_URL = 'https://www.yeahdoodle.com'
-const TOP_CITIES = ['New York','Los Angeles','Chicago','Houston','Phoenix','San Diego','Dallas','San Jose','Philadelphia','San Antonio','Austin','Nashville','Denver','Seattle','Miami','Atlanta','Boston','Las Vegas','Portland','Minneapolis','San Francisco','New Orleans','Detroit','Baltimore','Salt Lake City','Raleigh','Tampa','Orlando','Cincinnati','Pittsburgh','Kansas City','Columbus','Indianapolis','Charlotte','Sacramento']
+const CATEGORY_SLUGS = ['music','food-drink','arts-culture','sports','nightlife','outdoors','community','other']
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date()
-  return [
-    { url: SITE_URL, lastModified: now, changeFrequency: 'daily', priority: 1 },
-    { url: SITE_URL + '/discover', lastModified: now, changeFrequency: 'hourly', priority: 0.9 },
-    ...TOP_CITIES.map(city => ({ url: SITE_URL + '/discover?city=' + encodeURIComponent(city), lastModified: now, changeFrequency: 'hourly' as const, priority: 0.7 })),
+  const staticPages: MetadataRoute.Sitemap = [
+    { url: SITE_URL, lastModified: now, changeFrequency: 'daily', priority: 1.0 },
+    { url: `${SITE_URL}/discover`, lastModified: now, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${SITE_URL}/saved`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
   ]
+  const cityPages: MetadataRoute.Sitemap = CITIES.map(city => ({
+    url: `${SITE_URL}/events/${city.slug}`, lastModified: now, changeFrequency: 'daily' as const, priority: 0.8,
+  }))
+  const categoryPages: MetadataRoute.Sitemap = CITIES.flatMap(city =>
+    CATEGORY_SLUGS.map(cat => ({ url: `${SITE_URL}/events/${city.slug}/${cat}`, lastModified: now, changeFrequency: 'daily' as const, priority: 0.7 }))
+  )
+  return [...staticPages, ...cityPages, ...categoryPages]
 }
