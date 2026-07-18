@@ -71,14 +71,27 @@ const SEGMENT_TO_CATEGORY: Record<string, string> = {
   'Family':         'Community',
 }
 
-function inferCategory(name: string): string {
-  const n = name.toLowerCase()
-  if (n.includes('concert') || n.includes('music') || n.includes('band') || n.includes('festival')) return 'Music'
-  if (n.includes('food') || n.includes('drink') || n.includes('wine') || n.includes('beer')) return 'Food & Drink'
-  if (n.includes('art') || n.includes('museum') || n.includes('gallery') || n.includes('comedy')) return 'Arts & Culture'
-  if (n.includes('sport') || n.includes('game') || n.includes('match') || n.includes('run')) return 'Sports'
-  if (n.includes('club') || n.includes('night') || n.includes('dj') || n.includes('bar')) return 'Nightlife'
-  if (n.includes('hike') || n.includes('outdoor') || n.includes('park') || n.includes('trail')) return 'Outdoors'
+function inferCategory(event: TMEvent): string {
+  const segment  = event.classifications?.[0]?.segment?.name ?? ''
+  const genre    = event.classifications?.[0]?.genre?.name ?? ''
+  const n        = event.name.toLowerCase()
+
+  // 1. Segment — most reliable TM signal
+  if (SEGMENT_TO_CATEGORY[segment]) return SEGMENT_TO_CATEGORY[segment]
+
+  // 2. Genre-level overrides for things TM lumps under Miscellaneous
+  const g = genre.toLowerCase()
+  if (g.includes('night') || g.includes('club') || g.includes('edm') || g.includes('electronic') || g.includes('dance')) return 'Nightlife'
+  if (g.includes('food') || g.includes('culinary') || g.includes('wine') || g.includes('beer') || g.includes('festival') && n.includes('food')) return 'Food & Drink'
+
+  // 3. Title keyword fallback
+  if (n.includes('food') || n.includes('wine') || n.includes('beer') || n.includes('tast') || n.includes('brunch') || n.includes('cocktail') || n.includes('culinary') || n.includes('dine') || n.includes('dining') || n.includes('whiskey') || n.includes('whisky') || n.includes('bourbon') || n.includes('distillery') || n.includes('brewery') || n.includes('winery') || n.includes('restaurant')) return 'Food & Drink'
+  if (n.includes('hike') || n.includes('outdoor') || n.includes('trail') || n.includes('kayak') || n.includes('camp') || n.includes('cycling') || n.includes('marathon') || n.includes('5k') || n.includes('10k') || n.includes('run') && n.includes('park')) return 'Outdoors'
+  if (n.includes('nightclub') || n.includes(' dj ') || n.includes('rave') || n.includes('edm') || n.includes('techno') || n.includes('afterparty') || n.includes('after party')) return 'Nightlife'
+  if (n.includes('concert') || n.includes('band') || n.includes('festival') || n.includes('live music') || n.includes('tour')) return 'Music'
+  if (n.includes('comedy') || n.includes('improv') || n.includes('stand-up') || n.includes('standup')) return 'Arts & Culture'
+  if (n.includes('game') || n.includes('match') || n.includes('championship') || n.includes('tournament') || n.includes('league')) return 'Sports'
+
   return 'Other'
 }
 
@@ -119,8 +132,7 @@ function bestImage(images: TMEvent['images']): string | null {
 // ---------------------------------------------------------------------------
 function mapToRow(raw: TMEvent) {
   const venue    = raw._embedded?.venues?.[0]
-  const segment  = raw.classifications?.[0]?.segment?.name ?? ''
-  const category = SEGMENT_TO_CATEGORY[segment] ?? inferCategory(raw.name)
+  const category = inferCategory(raw)
   const priceMin = raw.priceRanges?.[0]?.min ?? null
   const priceMax = raw.priceRanges?.[0]?.max ?? null
 
@@ -197,11 +209,9 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 // ---------------------------------------------------------------------------
 // Main sync function — call this from the scheduler
 // ---------------------------------------------------------------------------
-export async function syncTicketmaster(db: Db, cities = DEFAULT_CITIES): Promise<void> {
+export async function syncTicketmaster(db: Db, cities: string[]): Promise<void> {
   const apiKey = process.env.TICKETMASTER_API_KEY
-  if (!apiKey) {
-    throw new Error('TICKETMASTER_API_KEY env var not set')
-  }
+  if (!apiKey) throw new Error('TICKETMASTER_API_KEY env var not set')
 
   let totalUpserted = 0
   let totalErrors   = 0
@@ -209,15 +219,15 @@ export async function syncTicketmaster(db: Db, cities = DEFAULT_CITIES): Promise
   for (const city of cities) {
     console.log(`[TM] Syncing ${city}...`)
     try {
-      // Fetch up to 3 pages (600 events) per city — stays well within daily limits
-      const MAX_PAGES = 3
-      for (let page = 0; page < MAX_PAGES; page++) {
+      const MAX_PAGES = 5
+      let page = 0
+
+      while (page < MAX_PAGES) {
         const { events, total } = await fetchPage(city, page, apiKey)
         if (!events.length) break
 
         const rows = events.map(mapToRow)
 
-        // Upsert: if external_id + source already exists, update it
         const { error } = await db
           .from('events')
           .upsert(rows, { onConflict: 'external_id,source', ignoreDuplicates: false })
@@ -227,23 +237,21 @@ export async function syncTicketmaster(db: Db, cities = DEFAULT_CITIES): Promise
           totalErrors++
         } else {
           totalUpserted += rows.length
-          console.log(`[TM]   page ${page}: +${rows.length} (${totalUpserted} total so far, ${total} available)`)
+          console.log(`[TM]   page ${page}: +${rows.length} (${totalUpserted} total, ${total} available)`)
         }
 
-        // Stop if we've fetched all available pages
         const totalPages = Math.ceil(total / 200)
-        if (page + 1 >= totalPages || page + 1 >= MAX_PAGES) break
+        page++
+        if (page >= totalPages || page >= MAX_PAGES) break
 
-        // Rate limit: 5 req/sec — wait 250ms between page requests
-        await sleep(250)
+        await sleep(200) // respect 5 req/sec limit
       }
     } catch (err) {
       console.error(`[TM] Error syncing ${city}:`, (err as Error).message)
       totalErrors++
     }
 
-    // Polite pause between cities
-    await sleep(500)
+    await sleep(300)
   }
 
   console.log(`[TM] Sync complete. ${totalUpserted} events upserted, ${totalErrors} errors.`)

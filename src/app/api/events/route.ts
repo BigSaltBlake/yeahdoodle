@@ -18,12 +18,23 @@ function getDateRange(when: WhenFilter): { start: string; end: string } | null {
   }
 
   if (when === 'weekend') {
-    const day = now.getDay()
-    // Next Friday (or today if it's already Friday)
-    const daysToFri = (5 - day + 7) % 7 || (day === 5 ? 0 : 7)
-    const fri = new Date(now); fri.setDate(now.getDate() + daysToFri); fri.setHours(0, 0, 0, 0)
-    const sun = new Date(fri); sun.setDate(fri.getDate() + 2); sun.setHours(23, 59, 59, 999)
-    return { start: fri.toISOString(), end: sun.toISOString() }
+    const day = now.getDay() // 0=Sun, 1=Mon … 5=Fri, 6=Sat
+    let start: Date, end: Date
+    if (day === 6) {
+      // Saturday: rest of this weekend (today + Sunday)
+      start = new Date(now)
+      end   = new Date(now); end.setDate(now.getDate() + 1); end.setHours(23, 59, 59, 999)
+    } else if (day === 0) {
+      // Sunday: rest of today
+      start = new Date(now)
+      end   = new Date(now); end.setHours(23, 59, 59, 999)
+    } else {
+      // Mon–Fri: upcoming Friday through Sunday
+      const daysToFri = 5 - day
+      start = new Date(now); start.setDate(now.getDate() + daysToFri); start.setHours(0, 0, 0, 0)
+      end   = new Date(start); end.setDate(start.getDate() + 2); end.setHours(23, 59, 59, 999)
+    }
+    return { start: start.toISOString(), end: end.toISOString() }
   }
 
   if (when === 'week') {

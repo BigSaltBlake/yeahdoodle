@@ -7,7 +7,7 @@ import FilterSidebar from '@/components/FilterSidebar'
 import EventCard from '@/components/EventCard'
 import EventModal from '@/components/EventModal'
 import VibeModal from '@/components/VibeModal'
-import { trackCitySearch, shouldPromptVibe, getVibePreferences } from '@/lib/history'
+import { trackCitySearch, shouldPromptVibe, getVibePreferences, getProfile } from '@/lib/history'
 import type { YDEvent, EventCategory, GroupType, AgeGroup, WhenFilter } from '@/types'
 
 function DiscoverContent() {
@@ -36,6 +36,7 @@ function DiscoverContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false) // mobile
 
   const fetchRef = useRef(0)
+  const vibePromptedRef = useRef(false) // show vibe modal once on first successful load
 
   // Auto-detect location on first load if no city in URL
   useEffect(() => {
@@ -54,6 +55,15 @@ function DiscoverContent() {
       setGroups([vibeGroup])
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show vibe modal 2s after first successful event load for brand-new users
+  useEffect(() => {
+    if (events.length > 0 && !vibePromptedRef.current && !getProfile().vibeSetup) {
+      vibePromptedRef.current = true
+      const timer = setTimeout(() => setVibeOpen(true), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [events.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleLocate() {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
@@ -184,7 +194,7 @@ function DiscoverContent() {
                   title="Use my location"
                   className="absolute left-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-yd-orange disabled:opacity-50 transition-colors text-sm px-1 py-1"
                 >
-                  {locating ? '⏳' : '📍'}
+                  {locating ? '\u23F3' : '\uD83D\uDCCD'}
                 </button>
                 <input
                   value={cityInput}
@@ -210,7 +220,7 @@ function DiscoverContent() {
           className="sm:hidden mb-4 flex items-center gap-2 text-sm text-white/60 hover:text-white border border-white/10 rounded-xl px-4 py-2.5 transition-colors"
           onClick={() => setSidebarOpen(!sidebarOpen)}
         >
-          <span>⚙️</span>
+          <span>\u2699\uFE0F</span>
           Filters
           {(categories.length + groups.length + ageGroups.length + (when ? 1 : 0)) > 0 && (
             <span className="bg-yd-orange text-white text-xs rounded-full w-5 h-5 flex items-center justify-center ml-1">
@@ -222,6 +232,19 @@ function DiscoverContent() {
         <div className="flex gap-8">
           {/* Sidebar */}
           <div className={`${sidebarOpen ? 'block' : 'hidden'} sm:block`}>
+            {/* Personalized indicator */}
+            {getProfile().vibeSetup && getVibePreferences().categories.length > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-white/40 mb-3 bg-yd-orange/5 border border-yd-orange/15 rounded-lg px-3 py-2">
+                <span>\u2728</span>
+                <span className="text-white/50">Personalized for you</span>
+                <button
+                  onClick={() => setVibeOpen(true)}
+                  className="ml-auto text-yd-orange hover:underline"
+                >
+                  Edit vibe
+                </button>
+              </div>
+            )}
             <FilterSidebar
               categories={categories}
               groups={groups}
@@ -242,20 +265,20 @@ function DiscoverContent() {
               <div className="text-center py-20">
                 {locating ? (
                   <>
-                    <div className="text-5xl mb-4 animate-pulse">📍</div>
-                    <h2 className="font-display text-xl text-white mb-2">Finding your location…</h2>
+                    <div className="text-5xl mb-4 animate-pulse">\uD83D\uDCCD</div>
+                    <h2 className="font-display text-xl text-white mb-2">Finding your location\u2026</h2>
                     <p className="text-white/50 text-sm">Allow location access to see events near you.</p>
                   </>
                 ) : (
                   <>
-                    <div className="text-5xl mb-4">🗺️</div>
+                    <div className="text-5xl mb-4">\uD83D\uDDFA\uFE0F</div>
                     <h2 className="font-display text-xl text-white mb-2">What&apos;s happening near you?</h2>
                     <p className="text-white/50 text-sm mb-6">Allow location access or search a city to find events.</p>
                     <button
                       onClick={handleLocate}
                       className="bg-yd-orange hover:bg-yd-orangeHover text-white font-semibold px-6 py-3 rounded-xl transition-colors inline-flex items-center gap-2 mb-4"
                     >
-                      📍 Use my location
+                      \uD83D\uDCCD Use my location
                     </button>
                     <p className="text-white/30 text-xs">or type a city in the search box above</p>
                   </>
@@ -276,25 +299,25 @@ function DiscoverContent() {
                 {when && (
                   <span className="flex items-center gap-1.5 bg-yd-orange/15 text-yd-orange text-xs px-3 py-1.5 rounded-full border border-yd-orange/30">
                     {when === 'today' ? 'Today' : when === 'weekend' ? 'This Weekend' : 'This Week'}
-                    <button onClick={() => setWhen('')} className="ml-0.5 hover:text-white">×</button>
+                    <button onClick={() => setWhen('')} className="ml-0.5 hover:text-white">\u00D7</button>
                   </span>
                 )}
                 {categories.map(c => (
                   <span key={c} className="flex items-center gap-1.5 bg-yd-orange/15 text-yd-orange text-xs px-3 py-1.5 rounded-full border border-yd-orange/30">
                     {c}
-                    <button onClick={() => setCategories(categories.filter(x => x !== c))} className="ml-0.5 hover:text-white">×</button>
+                    <button onClick={() => setCategories(categories.filter(x => x !== c))} className="ml-0.5 hover:text-white">\u00D7</button>
                   </span>
                 ))}
                 {groups.map(g => (
                   <span key={g} className="flex items-center gap-1.5 bg-yd-orange/15 text-yd-orange text-xs px-3 py-1.5 rounded-full border border-yd-orange/30">
                     {g.replace('-', ' ')}
-                    <button onClick={() => setGroups(groups.filter(x => x !== g))} className="ml-0.5 hover:text-white">×</button>
+                    <button onClick={() => setGroups(groups.filter(x => x !== g))} className="ml-0.5 hover:text-white">\u00D7</button>
                   </span>
                 ))}
                 {ageGroups.map(a => (
                   <span key={a} className="flex items-center gap-1.5 bg-yd-orange/15 text-yd-orange text-xs px-3 py-1.5 rounded-full border border-yd-orange/30">
                     {a.replace('-', ' ')}
-                    <button onClick={() => setAgeGroups(ageGroups.filter(x => x !== a))} className="ml-0.5 hover:text-white">×</button>
+                    <button onClick={() => setAgeGroups(ageGroups.filter(x => x !== a))} className="ml-0.5 hover:text-white">\u00D7</button>
                   </span>
                 ))}
               </div>
@@ -348,12 +371,12 @@ function DiscoverContent() {
             {/* No results */}
             {!loading && activeCity && events.length === 0 && !error && (
               <div className="text-center py-20">
-                <div className="text-5xl mb-4">🎭</div>
+                <div className="text-5xl mb-4">\uD83C\uDFAD</div>
                 <h2 className="font-display text-xl text-white mb-2">Nothing turned up for {activeCity}</h2>
                 <p className="text-white/50 text-sm mb-4">
                   {(categories.length + groups.length + ageGroups.length + (when ? 1 : 0)) > 0
                     ? 'Try removing some filters, or check back as we add more events daily.'
-                    : "We may not have synced this city yet — check back soon, or try a nearby major city."}
+                    : "We may not have synced this city yet \u2014 check back soon, or try a nearby major city."}
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 mb-6">
                   {['New York', 'Los Angeles', 'Chicago', 'Austin', 'Nashville', 'Denver'].map(c => (

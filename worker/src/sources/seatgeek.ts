@@ -71,14 +71,21 @@ const TAXONOMY_TO_CATEGORY: Record<string, string> = {
 }
 
 function inferCategory(event: SGEvent): string {
+  // 1. Taxonomy (most reliable SeatGeek signal)
   for (const tax of event.taxonomies ?? []) {
     const key = tax.name?.toLowerCase().replace(/\s+/g, '_')
     if (key && TAXONOMY_TO_CATEGORY[key]) return TAXONOMY_TO_CATEGORY[key]
   }
+
+  // 2. Title keyword matching — expanded set
   const title = (event.title ?? '').toLowerCase()
-  if (title.includes('food') || title.includes('wine') || title.includes('beer') || title.includes('tast')) return 'Food & Drink'
-  if (title.includes('hike') || title.includes('outdoor') || title.includes('trail') || title.includes('park')) return 'Outdoors'
-  if (title.includes('club') || title.includes('night') || title.includes('dj') || title.includes('rave')) return 'Nightlife'
+  if (title.includes('food') || title.includes('wine') || title.includes('beer') || title.includes('tast') || title.includes('brunch') || title.includes('cocktail') || title.includes('culinary') || title.includes('dine') || title.includes('dining') || title.includes('whiskey') || title.includes('whisky') || title.includes('bourbon') || title.includes('distillery') || title.includes('brewery') || title.includes('winery') || title.includes('restaurant')) return 'Food & Drink'
+  if (title.includes('hike') || title.includes('outdoor') || title.includes('trail') || title.includes('kayak') || title.includes('camp') || title.includes('cycling') || title.includes('marathon') || title.includes('5k') || title.includes('10k')) return 'Outdoors'
+  if (title.includes('nightclub') || title.includes(' dj ') || title.includes('rave') || title.includes('edm') || title.includes('techno') || title.includes('afterparty') || title.includes('after party') || title.includes('club night')) return 'Nightlife'
+  if (title.includes('concert') || title.includes('live music') || title.includes('tour')) return 'Music'
+  if (title.includes('comedy') || title.includes('improv') || title.includes('stand-up') || title.includes('standup')) return 'Arts & Culture'
+  if (title.includes('game') || title.includes('match') || title.includes('championship') || title.includes('tournament')) return 'Sports'
+
   return 'Other'
 }
 
