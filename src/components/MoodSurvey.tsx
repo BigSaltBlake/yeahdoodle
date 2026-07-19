@@ -317,6 +317,13 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
               {picks.map((pick, i) => (
                 <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors">
+                  {pick.imageUrl && (
+                    <img
+                      src={pick.imageUrl}
+                      alt={pick.title}
+                      className="block w-[calc(100%+2rem)] h-36 object-cover -mx-4 -mt-4 mb-4 rounded-t-xl"
+                    />
+                  )}
                   <div className="flex items-start gap-3">
                     <span className="text-2xl shrink-0 mt-0.5">{MEDALS[i]}</span>
                     <div className="flex-1 min-w-0">
