@@ -23,7 +23,7 @@ function formatPrice(
   isFree: boolean,
 ): string {
   if (isFree || priceMin === 0 || priceMin === null) return 'Free'
-  if (priceMax && priceMax > priceMin) return `$${Math.round(priceMin)}–$${Math.round(priceMax)}`
+  if (priceMax && priceMax > priceMin) return `$${Math.round(priceMin)}â$${Math.round(priceMax)}`
   return `$${Math.round(priceMin)}`
 }
 
@@ -141,7 +141,7 @@ ${eventList}
 
 Pick the 3 BEST events that match this person's vibe. Consider their energy level, group size, experience preference, scene, and budget.
 
-Return ONLY a valid JSON array — no other text, no markdown, no explanation:
+Return ONLY a valid JSON array â no other text, no markdown, no explanation:
 [
   {"id":"<exact event UUID from the list above>","rank":1,"pitch":"<one punchy sentence, max 25 words, why this is perfect for them tonight>"},
   {"id":"<uuid>","rank":2,"pitch":"<...>"},
@@ -221,7 +221,7 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
       const fallback = dedupedRows.slice(0, 3).map((r, i) => ({
         id:             r.id,
         rank:           i + 1,
-        pitch:          r.ai_description?.slice(0, 120) ?? 'A great local event happening soon.',
+        pitch:          r.ai_description?.slice(0, 120) ?? `${r.category ? r.category.charAt(0).toUpperCase() + r.category.slice(1) : 'Live event'} at ${r.venue_name || 'a local venue'}`,
         title:          r.title,
         venue:          r.venue_name ?? '',
         dateFormatted:  formatDate(r.date_start),
