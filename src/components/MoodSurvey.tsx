@@ -2,6 +2,22 @@
 
 import { useState, useEffect } from 'react'
 
+
+const CITIES = [
+  'Albuquerque, NM', 'Anchorage, AK', 'Arlington, TX', 'Atlanta, GA', 'Austin, TX',
+  'Baltimore, MD', 'Boise, ID', 'Boston, MA', 'Buffalo, NY', 'Charlotte, NC',
+  'Chicago, IL', 'Cincinnati, OH', 'Cleveland, OH', 'Colorado Springs, CO', 'Columbus, OH',
+  'Dallas, TX', 'Denver, CO', 'Detroit, MI', 'El Paso, TX', 'Fort Worth, TX',
+  'Fresno, CA', 'Honolulu, HI', 'Houston, TX', 'Indianapolis, IN', 'Jacksonville, FL',
+  'Kansas City, MO', 'Las Vegas, NV', 'Long Beach, CA', 'Los Angeles, CA', 'Louisville, KY',
+  'Memphis, TN', 'Mesa, AZ', 'Miami, FL', 'Milwaukee, WI', 'Minneapolis, MN',
+  'Nashville, TN', 'New Orleans, LA', 'New York, NY', 'Oakland, CA', 'Oklahoma City, OK',
+  'Omaha, NE', 'Orlando, FL', 'Philadelphia, PA', 'Phoenix, AZ', 'Pittsburgh, PA',
+  'Portland, OR', 'Raleigh, NC', 'Reno, NV', 'Sacramento, CA', 'Salt Lake City, UT',
+  'San Antonio, TX', 'San Diego, CA', 'San Francisco, CA', 'San Jose, CA', 'Seattle, WA',
+  'St. Louis, MO', 'Tampa, FL', 'Tucson, AZ', 'Tulsa, OK', 'Virginia Beach, VA',
+  'Washington, DC', 'Wichita, KS',
+]
 interface Pick {
   id: string
   rank: number
@@ -89,6 +105,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [loadingMsg, setLoadingMsg] = useState(0)
   const [picks, setPicks] = useState<Pick[]>([])
   const [animating, setAnimating] = useState(false)
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([])
 
   // Reset on close
   useEffect(() => {
@@ -178,14 +195,41 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             <div className="text-5xl mb-4">{'\u{1F3AF}'}</div>
             <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
             <p className="text-white/50 text-sm mb-7">5 quick questions &#x2192; your 3 best picks tonight</p>
-            <input
-              autoFocus
-              value={city}
-              onChange={e => setCity(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && city.trim() && setPhase('question')}
-              placeholder="What city are you in?"
-              className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-white/30 border border-white/20 focus:outline-none focus:border-yd-orange mb-4 text-base"
-            />
+            <div className="relative w-full mb-4">
+              <input
+                autoFocus
+                value={city}
+                onChange={e => {
+                  const val = e.target.value
+                  setCity(val)
+                  if (val.length >= 1) {
+                    const matches = CITIES.filter(c => c.toLowerCase().startsWith(val.toLowerCase())).slice(0, 6)
+                    setCitySuggestions(matches)
+                  } else {
+                    setCitySuggestions([])
+                  }
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && city.trim()) { setCitySuggestions([]); setPhase('question') }
+                  if (e.key === 'Escape') setCitySuggestions([])
+                }}
+                placeholder="What city are you in?"
+                className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-white/30 border border-white/20 focus:outline-none focus:border-yd-orange text-base"
+              />
+              {citySuggestions.length > 0 && (
+                <ul className="absolute top-full left-0 right-0 bg-[#1a1a2e] border border-white/20 rounded-xl mt-1 overflow-hidden z-50 shadow-xl">
+                  {citySuggestions.map(c => (
+                    <li
+                      key={c}
+                      className="px-4 py-2.5 text-white text-left cursor-pointer hover:bg-white/10 transition-colors text-sm"
+                      onMouseDown={() => { setCity(c); setCitySuggestions([]); setPhase('question') }}
+                    >
+                      {c}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <button
               onClick={() => city.trim() && setPhase('question')}
               disabled={!city.trim()}
