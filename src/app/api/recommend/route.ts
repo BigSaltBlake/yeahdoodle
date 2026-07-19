@@ -85,6 +85,15 @@ export async function POST(req: NextRequest) {
 
     let rows = primaryRows ?? []
 
+    // Deduplicate by artist name (prevent same act appearing twice)
+    const seenArtists = new Set<string>()
+    const dedupedRows = rows.filter((row: any) => {
+      const artist = row.title?.split(/ w\/| with | feat\./i)[0]?.trim()?.toLowerCase() || ''
+      if (seenArtists.has(artist)) return false
+      seenArtists.add(artist)
+      return true
+    })
+
     // Fallback: drop filters if primary returned fewer than 3 results
     if (primaryErr || rows.length < 3) {
       const { data: fallbackRows } = await supabase
