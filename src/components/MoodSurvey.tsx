@@ -13,6 +13,7 @@ interface Pick {
   ticketUrl: string | null
   imageUrl: string | null
   category: string
+  dateIso?: string
 }
 
 interface Props {
@@ -281,7 +282,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                         {pick.dateFormatted} &middot; {pick.priceFormatted}
                       </p>
                       <p className="text-yd-orange/80 text-xs italic leading-relaxed mb-3">
-                        &ldquo;{pick.pitch}&rdquo;
+                        &ldquo;{pick.pitch || 'Check this one out tonight!'}&rdquo;
                       </p>
                       {pick.ticketUrl ? (
                         <a

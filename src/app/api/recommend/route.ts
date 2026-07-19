@@ -13,6 +13,7 @@ function formatDate(isoDate: string | null): string {
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: 'UTC',
   })
 }
 
@@ -142,7 +143,7 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
 
     // No API key: return top 3 by date with fallback pitch
     if (!anthropicKey) {
-      const top3 = rows.slice(0, 3).map((r, i) => ({
+      const top3 = dedupedRows.slice(0, 3).map((r, i) => ({
         id:             r.id,
         rank:           i + 1,
         pitch:          r.ai_description?.slice(0, 120) ?? r.description?.slice(0, 120) ?? 'A great local event happening soon.',
@@ -185,7 +186,7 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
 
     const aiPicks = JSON.parse(jsonMatch[0]) as Array<{ id: string; rank: number; pitch: string }>
 
-    const eventById = Object.fromEntries(rows.map(r => [r.id, r]))
+    const eventById = Object.fromEntries(dedupedRows.map(r => [r.id, r]))
 
     const picks = aiPicks
       .filter(p => eventById[p.id])
@@ -195,7 +196,7 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
         return {
           id:             p.id,
           rank:           p.rank,
-          pitch:          p.pitch,
+          pitch: p.pitch || 'A great pick for tonight!',
           title:          r.title,
           venue:          r.venue_name ?? '',
           dateFormatted:  formatDate(r.date_start),
@@ -208,7 +209,7 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
 
     // If AI returned bad IDs, fall back to top 3
     if (picks.length === 0) {
-      const fallback = rows.slice(0, 3).map((r, i) => ({
+      const fallback = dedupedRows.slice(0, 3).map((r, i) => ({
         id:             r.id,
         rank:           i + 1,
         pitch:          r.ai_description?.slice(0, 120) ?? 'A great local event happening soon.',
