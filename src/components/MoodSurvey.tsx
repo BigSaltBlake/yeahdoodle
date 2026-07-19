@@ -114,6 +114,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   }, [phase])
 
   async function handleAnswer(answer: string) {
+    if (phase !== 'question') return
     const newAnswers = [...answers, answer]
     setAnswers(newAnswers)
 
@@ -155,6 +156,8 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   }
 
   if (!open) return null
+
+  const safeQIndex = Math.min(qIndex, QUESTIONS.length - 1)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/80 backdrop-blur-sm">
@@ -210,14 +213,14 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             </div>
 
             <p className="text-white/30 text-xs mb-1.5">Question {qIndex + 1} of {QUESTIONS.length}</p>
-            <h2 className="font-display text-xl text-white mb-1">{QUESTIONS[qIndex].question}</h2>
-            {QUESTIONS[qIndex].subtitle && (
-              <p className="text-white/40 text-sm mb-5">{QUESTIONS[qIndex].subtitle}</p>
+            <h2 className="font-display text-xl text-white mb-1">{QUESTIONS[safeQIndex].question}</h2>
+            {QUESTIONS[safeQIndex].subtitle && (
+              <p className="text-white/40 text-sm mb-5">{QUESTIONS[safeQIndex].subtitle}</p>
             )}
-            {!QUESTIONS[qIndex].subtitle && <div className="mb-5" />}
+            {!QUESTIONS[safeQIndex].subtitle && <div className="mb-5" />}
 
             <div className="space-y-2.5">
-              {QUESTIONS[qIndex].options.map(opt => (
+              {QUESTIONS[safeQIndex].options.map(opt => (
                 <button
                   key={opt.label}
                   onClick={() => handleAnswer(opt.label)}
