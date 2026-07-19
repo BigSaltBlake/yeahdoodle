@@ -179,7 +179,11 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full sm:max-w-lg bg-yd-card rounded-t-2xl sm:rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+      <div className="relative w-full sm:max-w-lg bg-yd-card rounded-t-2xl sm:rounded-2xl border border-white/10 shadow-2xl overflow-y-auto max-h-[88vh] sm:max-h-[90vh]">
+        {/* Drag handle - mobile bottom sheet */}
+        <div className="sm:hidden flex justify-center pt-3 -mb-1">
+          <div className="w-10 h-1 rounded-full bg-white/25" />
+        </div>
         {/* Close */}
         <button
           onClick={onClose}
