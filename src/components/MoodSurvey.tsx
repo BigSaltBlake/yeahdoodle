@@ -171,7 +171,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {/* City phase */}
         {phase === 'city' && (
           <div className="p-8 text-center">
-            <div className="text-5xl mb-4">\u{1F3AF}</div>
+            <div className="text-5xl mb-4">{'\u{1F3AF}'}</div>
             <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
             <p className="text-white/50 text-sm mb-7">5 quick questions &#x2192; your 3 best picks tonight</p>
             <input
@@ -250,7 +250,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {/* Loading phase */}
         {phase === 'loading' && (
           <div className="p-8 text-center py-16">
-            <div className="text-5xl mb-6 animate-bounce">\u{1F3AF}</div>
+            <div className="text-5xl mb-6 animate-bounce">{'\u{1F3AF}'}</div>
             <h2 className="font-display text-xl text-white mb-3">Finding your perfect picks...</h2>
             <p className="text-white/40 text-sm min-h-5 transition-all duration-300">
               {LOADING_MESSAGES[loadingMsg]}
@@ -316,7 +316,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {/* Empty phase */}
         {phase === 'empty' && (
           <div className="p-8 text-center py-14">
-            <div className="text-4xl mb-4">\u{1F937}</div>
+            <div className="text-4xl mb-4">{'\u{1F937}'}</div>
             <h2 className="font-display text-xl text-white mb-2">Nothing matched right now</h2>
             <p className="text-white/40 text-sm mb-6">
               Try a different city or check back soon &#x2014; events update daily.
