@@ -226,7 +226,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     <li
                       key={c}
                       className="px-4 py-2.5 text-white text-left cursor-pointer hover:bg-white/10 transition-colors text-sm"
-                      onMouseDown={() => { setCity(c); setCitySuggestions([]); setPhase('question') }}
+                      onMouseDown={() => { setCity(c.split(',')[0].trim()); setCitySuggestions([]); setPhase('question') }}
                     >
                       {c}
                     </li>
