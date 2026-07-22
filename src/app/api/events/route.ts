@@ -13,26 +13,23 @@ function getDateRange(when: WhenFilter): { start: string; end: string } | null {
 
   if (when === 'today') {
     const start = new Date(now); start.setHours(0, 0, 0, 0)
-    const end   = new Date(now); end.setHours(23, 59, 59, 999)
+    const end = new Date(now); end.setHours(23, 59, 59, 999)
     return { start: start.toISOString(), end: end.toISOString() }
   }
 
   if (when === 'weekend') {
-    const day = now.getDay() // 0=Sun, 1=Mon … 5=Fri, 6=Sat
+    const day = now.getDay()
     let start: Date, end: Date
     if (day === 6) {
-      // Saturday: rest of this weekend (today + Sunday)
       start = new Date(now)
-      end   = new Date(now); end.setDate(now.getDate() + 1); end.setHours(23, 59, 59, 999)
+      end = new Date(now); end.setDate(now.getDate() + 1); end.setHours(23, 59, 59, 999)
     } else if (day === 0) {
-      // Sunday: rest of today
       start = new Date(now)
-      end   = new Date(now); end.setHours(23, 59, 59, 999)
+      end = new Date(now); end.setHours(23, 59, 59, 999)
     } else {
-      // Mon–Fri: upcoming Friday through Sunday
       const daysToFri = 5 - day
       start = new Date(now); start.setDate(now.getDate() + daysToFri); start.setHours(0, 0, 0, 0)
-      end   = new Date(start); end.setDate(start.getDate() + 2); end.setHours(23, 59, 59, 999)
+      end = new Date(start); end.setDate(start.getDate() + 2); end.setHours(23, 59, 59, 999)
     }
     return { start: start.toISOString(), end: end.toISOString() }
   }
@@ -46,36 +43,89 @@ function getDateRange(when: WhenFilter): { start: string; end: string } | null {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/events — reads from Supabase events table
+// GET /api/events
+// ?city=SaltLakeCity           — city-based search (default)
+// ?lat=40.76&lng=-111.89&radius=5  — GPS radius search (miles)
 // ---------------------------------------------------------------------------
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
 
-  const city       = searchParams.get('city') ?? ''
-  const categories = searchParams.getAll('category') as EventCategory[]
-  const groups     = searchParams.getAll('group') as GroupType[]
-  const ageGroups  = searchParams.getAll('age') as AgeGroup[]
-  const when       = (searchParams.get('when') ?? '') as WhenFilter
-  const page       = parseInt(searchParams.get('page') ?? '0', 10)
+  const city = searchParams.get('city') ?? ''
+  const latParam = searchParams.get('lat')
+  const lngParam = searchParams.get('lng')
+  const radiusParam = searchParams.get('radius')
 
-  if (!city.trim()) {
+  const lat = latParam ? parseFloat(latParam) : NaN
+  const lng = lngParam ? parseFloat(lngParam) : NaN
+  const radius = radiusParam ? parseFloat(radiusParam) : 10
+  const hasCoords = !isNaN(lat) && !isNaN(lng)
+
+  const categories = searchParams.getAll('category') as EventCategory[]
+  const groups = searchParams.getAll('group') as GroupType[]
+  const ageGroups = searchParams.getAll('age') as AgeGroup[]
+  const when = (searchParams.get('when') ?? '') as WhenFilter
+  const page = parseInt(searchParams.get('page') ?? '0', 10)
+
+  if (!city.trim() && !hasCoords) {
     return NextResponse.json({ events: [], total: 0 })
   }
 
-  // Supabase not wired up yet — return a helpful empty response
   if (!isSupabaseConfigured()) {
     return NextResponse.json({
       events: [],
       total: 0,
-      message: 'Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local, then run the worker to populate events.',
+      message: 'Supabase not configured.',
     })
   }
 
-  const offset    = page * PAGE_SIZE
-  const nowIso    = new Date().toISOString()
+  const offset = page * PAGE_SIZE
+  const nowIso = new Date().toISOString()
   const dateRange = getDateRange(when)
 
-  // Build query
+  // GPS radius search via events_near RPC
+  if (hasCoords) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: nearData, error: nearErr } = await (supabase as any).rpc('events_near', {
+        user_lat: lat,
+        user_lng: lng,
+        radius_miles: radius,
+      })
+
+      if (!nearErr && Array.isArray(nearData) && nearData.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let filtered: any[] = nearData
+
+        if (dateRange) {
+          filtered = filtered.filter(e => e.date_start >= dateRange.start && e.date_start <= dateRange.end)
+        } else {
+          filtered = filtered.filter(e => e.date_start >= nowIso)
+        }
+        if (categories.length > 0) filtered = filtered.filter(e => categories.includes(e.category))
+        if (groups.length > 0) {
+          filtered = filtered.filter(e => groups.some(g => (e.group_suitability ?? []).includes(g)))
+        }
+        if (ageGroups.length > 0) {
+          filtered = filtered.filter(e => ageGroups.some(a => (e.age_groups ?? []).includes(a)))
+        }
+
+        const total = filtered.length
+        const paged = filtered.slice(offset, offset + PAGE_SIZE)
+        return NextResponse.json(
+          { events: paged.map(mapEventRow), total, mode: 'gps' },
+          { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=15' } }
+        )
+      }
+    } catch {
+      // RPC not yet created — fall through to city search
+    }
+  }
+
+  // City-based search (default / fallback)
+  if (!city.trim()) {
+    return NextResponse.json({ events: [], total: 0 })
+  }
+
   let query = supabase
     .from('events')
     .select('*', { count: 'exact' })
@@ -84,27 +134,14 @@ export async function GET(req: NextRequest) {
     .order('date_start', { ascending: true })
     .range(offset, offset + PAGE_SIZE - 1)
 
-  // Only show future events unless 'today' starts at midnight (covers ongoing today events)
   if (dateRange) {
-    query = query
-      .gte('date_start', dateRange.start)
-      .lte('date_start', dateRange.end)
+    query = query.gte('date_start', dateRange.start).lte('date_start', dateRange.end)
   } else {
-    // Default: anything from now forward
     query = query.gte('date_start', nowIso)
   }
-
-  if (categories.length > 0) {
-    query = query.in('category', categories)
-  }
-
-  if (groups.length > 0) {
-    query = query.overlaps('group_suitability', groups)
-  }
-
-  if (ageGroups.length > 0) {
-    query = query.overlaps('age_groups', ageGroups)
-  }
+  if (categories.length > 0) query = query.in('category', categories)
+  if (groups.length > 0) query = query.overlaps('group_suitability', groups)
+  if (ageGroups.length > 0) query = query.overlaps('age_groups', ageGroups)
 
   const { data, count, error } = await query
 
