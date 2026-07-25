@@ -8,6 +8,7 @@ import EventCard from '@/components/EventCard'
 import EventModal from '@/components/EventModal'
 import VibeModal from '@/components/VibeModal'
 import { trackCitySearch, shouldPromptVibe, getVibePreferences, getProfile } from '@/lib/history'
+import { capture } from '@/lib/analytics'
 import type { YDEvent, EventCategory, GroupType, AgeGroup, WhenFilter } from '@/types'
 
 const RADIUS_OPTIONS = [1, 2, 5, 10, 25]
@@ -98,6 +99,7 @@ if (city) {
 setCityInput(city)
 setActiveCity(city)
 trackCitySearch(city)
+capture('gps_located', { city, lat: latitude, lng: longitude })
 router.replace(`/discover?city=${encodeURIComponent(city)}`, { scroll: false })
 }
 } catch { /* reverse geocode failed — GPS coords still set */ }
