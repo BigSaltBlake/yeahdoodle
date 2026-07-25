@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
+import CategoryPlaceholder from './CategoryPlaceholder'
 
 const CITIES = [
   'Albuquerque, NM', 'Anchorage, AK', 'Arlington, TX', 'Atlanta, GA', 'Austin, TX',
@@ -231,16 +233,43 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             </div>
             <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
               {picks.map((pick, i) => (
-                <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors">
-                  {pick.imageUrl && <img src={pick.imageUrl} alt={pick.title} className="block w-[calc(100%+2rem)] h-36 object-cover -mx-4 -mt-4 mb-4 rounded-t-xl" />}
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl shrink-0 mt-0.5">{MEDALS[i]}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-white text-sm leading-snug mb-1 line-clamp-2">{pick.title}</p>
-                      <p className="text-white/40 text-xs mb-2">{pick.venue && <span>{pick.venue} &middot; </span>}{pick.dateFormatted} &middot; {pick.priceFormatted}</p>
-                      <p className="text-yd-orange/80 text-xs italic leading-relaxed mb-3">&ldquo;{pick.pitch || 'Check this one out tonight!'}&rdquo;</p>
-                      {pick.ticketUrl && <a href={pick.ticketUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 bg-yd-orange hover:bg-yd-orangeHover text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors">Let&apos;s go &#x2192;</a>}
-                    </div>
+                <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors">
+                  {/* Image / placeholder slot */}
+                  <div className="relative w-full h-36">
+                    {pick.imageUrl ? (
+                      <Image
+                        src={pick.imageUrl}
+                        alt={pick.title}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 640px) 100vw, 512px"
+                      />
+                    ) : (
+                      <CategoryPlaceholder category={pick.category} />
+                    )}
+                    {/* Medal badge overlay */}
+                    <span className="absolute top-2 left-2 text-xl leading-none drop-shadow-lg">{MEDALS[i]}</span>
+                  </div>
+                  {/* Text content */}
+                  <div className="p-3">
+                    <p className="font-semibold text-white text-sm leading-snug mb-1 line-clamp-2">{pick.title}</p>
+                    <p className="text-white/40 text-xs mb-2">
+                      {pick.venue && <span>{pick.venue} · </span>}
+                      {pick.dateFormatted} · {pick.priceFormatted}
+                    </p>
+                    <p className="text-yd-orange/80 text-xs italic leading-relaxed mb-3">
+                      &ldquo;{pick.pitch}&rdquo;
+                    </p>
+                    {pick.ticketUrl ? (
+                      <a
+                        href={pick.ticketUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 bg-yd-orange hover:bg-yd-orangeHover text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
+                      >
+                        Let&apos;s go →
+                      </a>
+                    ) : null}
                   </div>
                 </div>
               ))}
