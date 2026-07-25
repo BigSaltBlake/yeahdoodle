@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     const seenArtists = new Set<string>()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dedupedRows = rows.filter((row: any) => {
-      const artist = row.title?.split(/ w/| with | feat./i)[0]?.trim()?.toLowerCase() || ''
+      const artist = (row.title ?? '').split(/ w\/| with | feat\./i)[0]?.trim()?.toLowerCase() || ''
       if (seenArtists.has(artist)) return false
       seenArtists.add(artist); return true
     })
