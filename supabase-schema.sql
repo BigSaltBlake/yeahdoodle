@@ -124,3 +124,31 @@ AS $$
   ) ASC
   LIMIT 200;
 $$;
+
+
+-- ============================================================
+-- Geohash cache: tracks GPS cells that have been crawled via
+-- /api/crawl. Prevents redundant SerpAPI calls for the same
+-- ~4.9km × 4.9km area within a 6-hour window.
+-- Run this block in Supabase SQL Editor.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS geohash_cache (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  geohash         TEXT NOT NULL UNIQUE,          -- precision-5 ≈ 4.9km × 4.9km
+  lat_center      DOUBLE PRECISION,
+  lng_center      DOUBLE PRECISION,
+  crawl_status    TEXT NOT NULL DEFAULT 'pending', -- pending | crawling | done | failed
+  event_count     INT DEFAULT 0,
+  last_crawled_at TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_geohash_cache_geohash      ON geohash_cache(geohash);
+CREATE INDEX IF NOT EXISTS idx_geohash_cache_last_crawled ON geohash_cache(last_crawled_at);
+
+-- Service role can read/write (called from /api/crawl with service key)
+ALTER TABLE geohash_cache ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Service can manage geohash_cache" ON geohash_cache
+  FOR ALL USING (true);
