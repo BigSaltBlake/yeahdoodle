@@ -191,7 +191,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                   style={{ background: i <= qIndex ? 'var(--color-yd-orange, #f97316)' : 'rgba(255,255,255,0.1)' }} />
               ))}
             </div>
-            <p className="text-white/30 text-xs mb-1.5">Question {qIndex + 1} of {QUESTIONS.length}</p>
+            <p className="text-white/30 text-xs mb-1.5">Question {Math.min(qIndex + 1, QUESTIONS.length)} of {QUESTIONS.length}</p>
             <h2 className="font-display text-xl text-white mb-1">{QUESTIONS[safeQIndex].question}</h2>
             {QUESTIONS[safeQIndex].subtitle && <p className="text-white/40 text-sm mb-5">{QUESTIONS[safeQIndex].subtitle}</p>}
             {!QUESTIONS[safeQIndex].subtitle && <div className="mb-5" />}
