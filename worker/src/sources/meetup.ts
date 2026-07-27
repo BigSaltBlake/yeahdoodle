@@ -109,7 +109,7 @@ async function fetchEventsForCity(city: string): Promise<MeetupEvent[]> {
       signal: AbortSignal.timeout(15_000),
     })
     if (!res.ok) { console.warn(`[meetup] HTTP ${res.status} for ${city}`); return [] }
-    const data: MeetupResponse = await res.json()
+    const data = await res.json() as MeetupResponse
     const events = data.events ?? data.results ?? []
     const now = Date.now()
     return events.filter(e => e.status !== 'cancelled' && e.time > now)
