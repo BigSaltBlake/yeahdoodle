@@ -75,7 +75,6 @@ function parseEventDate(event: SerpEvent): string {
   return new Date().toISOString()
 }
 
-import crypto from 'crypto'
 function mapToRow(event: SerpEvent, city: string) {
   const title = event.title ?? 'Untitled Event'
   const venueName = event.venue?.name ?? event.address?.[0] ?? null
@@ -92,7 +91,7 @@ async function fetchEventsForCity(ctiy: string): Promise<SerpEvent[]> {
   try {
     const res = await fetch(`${BASE_URL}?${params}`, { signal: AbortSignal.timeout(15_000) })
     if (!res.ok) { console.error(`[google-events] HTTP ${res.status} for ${ctiy}`); return [] }
-    const data: SerpResponse = await res.json()
+    const data = await res.json() as SerpResponse
     if (data.error) { console.error(`[google-events] API error: ${data.error}`); return [] }
     return data.events_results ?? []
   } catch (err) { console.error(`[google-events] Failed for ${ctiy}:`, err); return [] }
