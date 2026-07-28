@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 
+interface EventRow {
+  id: string; title: string; venue_name: string | null; date_start: string | null
+  is_free: boolean; price_min: number | null; price_max: number | null; category: string
+  ticket_url: string | null; image_url: string | null; description: string | null; ai_description: string | null
+}
+
 function formatDate(isoDate: string | null): string {
   if (!isoDate) return 'TBD'
   const d = new Date(isoDate)
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 function formatPrice(priceMin: number | null, priceMax: number | null, isFree: boolean): string {
@@ -27,102 +33,147 @@ function categoryHints(answers: string[]): string[] | null {
   return null
 }
 
-// POST /api/recommend
-// Body: { city: string, answers: string[], lat?: number, lng?: number }
+function inferCategory(text: string): string {
+  const t = text.toLowerCase()
+  if (/music|concert|band|jazz|rock|hip.?hop|festival|dj|live show/.test(t)) return 'Music'
+  if (/comedy|standup|stand-up|open.?mic|improv/.test(t)) return 'Comedy'
+  if (/art|gallery|exhibit|museum|theater|theatre|dance|ballet|opera/.test(t)) return 'Arts & Culture'
+  if (/food|drink|wine|beer|tasting|dinner|brunch|restaurant|cocktail|bar/.test(t)) return 'Food & Drink'
+  if (/sport|game|race|fitness|yoga|run|hike|outdoor|climb/.test(t)) return 'Sports & Outdoors'
+  if (/night|club|lounge|dj|party/.test(t)) return 'Nightlife'
+  return 'Community'
+}
+
+function parseGoogleEventDate(dateStr: string | undefined): string | null {
+  if (!dateStr) return null
+  try {
+    const d = new Date(dateStr)
+    if (!isNaN(d.getTime())) return d.toISOString()
+    const d2 = new Date(`${dateStr} ${new Date().getFullYear()}`)
+    if (!isNaN(d2.getTime())) return d2.toISOString()
+  } catch { /* */ }
+  return null
+}
+
+function parseSerpPrice(ticketInfo: Array<{ source?: string; link?: string; price?: string }> | undefined): number | null {
+  if (!ticketInfo?.length) return null
+  for (const t of ticketInfo) {
+    if (!t.price) continue
+    if (t.price.toLowerCase().includes('free')) return 0
+    const m = t.price.match(/\$(\d+)/)
+    if (m) return parseInt(m[1], 10)
+  }
+  return null
+}
+
+async function fetchLiveSerpEvents(cityName: string): Promise<EventRow[]> {
+  const serpKey = process.env.SERPAPI_KEY
+  if (!serpKey) return []
+  const queries = [`events tonight in ${cityName}`, `things to do this weekend in ${cityName}`]
+  const results: EventRow[] = []
+  const seen = new Set<string>()
+  await Promise.all(queries.map(async (q, qi) => {
+    try {
+      const url = `https://serpapi.com/search.json?engine=google_events&q=${encodeURIComponent(q)}&hl=en&gl=us&api_key=${serpKey}`
+      const res = await fetch(url, { cache: 'no-store' })
+      if (!res.ok) return
+      const data = await res.json()
+      const events: unknown[] = data.events_results ?? []
+      for (let i = 0; i < events.length; i++) {
+        const e = events[i] as Record<string, unknown>
+        const title = (e.title as string) ?? 'Local Event'
+        const key = title.toLowerCase().slice(0, 40)
+        if (seen.has(key)) continue
+        seen.add(key)
+        const ticketInfo = e.ticket_info as Array<{ source?: string; link?: string; price?: string }> | undefined
+        const date = e.date as Record<string, string> | undefined
+        const venue = e.venue as Record<string, string> | undefined
+        const address = e.address as string[] | undefined
+        const price = parseSerpPrice(ticketInfo)
+        const isFree = price === 0 || (e.description as string ?? '').toLowerCase().includes('free')
+        results.push({
+          id: `live_${qi}_${i}`, title,
+          venue_name: venue?.name ?? address?.[0] ?? null,
+          date_start: parseGoogleEventDate(date?.start_date ?? date?.when),
+          is_free: isFree, price_min: isFree ? 0 : price, price_max: null,
+          category: inferCategory(title + ' ' + ((e.description as string) ?? '')),
+          ticket_url: (ticketInfo?.[0]?.link ?? e.link ?? null) as string | null,
+          image_url: (e.thumbnail ?? null) as string | null,
+          description: (e.description ?? null) as string | null,
+          ai_description: null,
+        })
+      }
+    } catch (err) { console.error('[recommend] SerpAPI fetch error:', err) }
+  }))
+  return results
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { city: string; answers: string[]; lat?: number; lng?: number }
-    const { city, answers } = body
-    const lat = typeof body.lat === 'number' ? body.lat : NaN
-    const lng = typeof body.lng === 'number' ? body.lng : NaN
-    const hasCoords = !isNaN(lat) && !isNaN(lng)
+    const body = await req.json() as { city?: string; answers: string[]; lat?: number; lng?: number }
+    const { city = '', answers, lat, lng } = body
+    const hasGps = typeof lat === 'number' && typeof lng === 'number'
 
-    if (!city?.trim() && !hasCoords) return NextResponse.json({ error: 'city or coordinates required' }, { status: 400 })
-    if (!Array.isArray(answers) || answers.length === 0) return NextResponse.json({ error: 'answers required' }, { status: 400 })
-    if (!isSupabaseConfigured()) return NextResponse.json({ picks: [] })
+    if (!Array.isArray(answers) || answers.length === 0)
+      return NextResponse.json({ error: 'answers required' }, { status: 400 })
 
     const now = new Date()
-    const weekOut = new Date(now); weekOut.setDate(weekOut.getDate() + 7)
+    const weekOut = new Date(now)
+    weekOut.setDate(weekOut.getDate() + 7)
     const maxBudget = budgetMax(answers)
     const catHints = categoryHints(answers)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let rows: any[] = []
+    const liveEventsPromise = (city.trim() || hasGps)
+      ? fetchLiveSerpEvents(city.trim() || 'nearby')
+      : Promise.resolve([] as EventRow[])
 
-    // GPS radius search
-    if (hasCoords) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: nearData, error: nearErr } = await (supabase as any).rpc('events_near', {
-          user_lat: lat, user_lng: lng, radius_miles: 10,
-        })
-        if (!nearErr && Array.isArray(nearData) && nearData.length > 0) rows = nearData
-      } catch { /* RPC not yet created */ }
-    }
-
-    // City-based fallback
-    if (rows.length === 0 && city?.trim()) {
+    let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
+    if (isSupabaseConfigured() && city.trim()) {
       let q = supabase.from('events').select('*')
         .ilike('city', `%${city.trim()}%`).eq('is_duplicate', false)
         .gte('date_start', now.toISOString()).lte('date_start', weekOut.toISOString())
-        .order('date_start', { ascending: true }).limit(50)
+        .order('date_start', { ascending: true }).limit(40)
       if (catHints) q = q.in('category', catHints)
       if (maxBudget !== null) q = q.or(`is_free.eq.true,price_min.lte.${maxBudget}`)
-      const { data: primaryRows, error: primaryErr } = await q
-      rows = primaryRows ?? []
-      if (primaryErr || rows.length < 3) {
-        const { data: fallbackRows } = await supabase.from('events').select('*')
-          .ilike('city', `%${city.trim()}%`).eq('is_duplicate', false)
-          .gte('date_start', now.toISOString()).order('date_start', { ascending: true }).limit(50)
-        if ((fallbackRows ?? []).length > rows.length) rows = fallbackRows ?? []
-      }
+      dbRowsPromise = q.then(({ data }) => (data ?? []) as EventRow[])
+    }
+
+    const [liveEvents, dbRows] = await Promise.all([liveEventsPromise, dbRowsPromise])
+    const dbTitles = new Set(dbRows.map(r => r.title.toLowerCase().slice(0, 40)))
+    const uniqueLive = liveEvents.filter(e => !dbTitles.has(e.title.toLowerCase().slice(0, 40)))
+    let rows: EventRow[] = [...uniqueLive, ...dbRows]
+
+    if (rows.length < 3 && isSupabaseConfigured() && city.trim()) {
+      const { data: fallback } = await supabase.from('events').select('*')
+        .ilike('city', `%${city.trim()}%`).eq('is_duplicate', false)
+        .gte('date_start', now.toISOString()).order('date_start', { ascending: true }).limit(40)
+      const fallbackRows = (fallback ?? []) as EventRow[]
+      if (fallbackRows.length > rows.length) rows = [...uniqueLive, ...fallbackRows]
     }
 
     if (rows.length === 0) return NextResponse.json({ picks: [] })
 
-    const seenArtists = new Set<string>()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dedupedRows = rows.filter((row: any) => {
-      const artist = (row.title ?? '').split(/ w\/| with | feat\./i)[0]?.trim()?.toLowerCase() || ''
-      if (seenArtists.has(artist)) return false
-      seenArtists.add(artist); return true
-    })
-
-    const locationDesc = hasCoords && city?.trim() ? `near ${city}` : hasCoords ? 'near your location' : `in ${city}`
-    const eventList = dedupedRows.map((r, i) => {
+    const locationLabel = hasGps ? `near your location (${city || 'GPS coordinates'})` : `in ${city}`
+    const eventList = rows.map((r, i) => {
       const price = r.is_free ? 'Free' : r.price_min ? `$${r.price_min}` : 'Price TBD'
       const date = r.date_start ? new Date(r.date_start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric' }) : 'TBD'
       const desc = r.ai_description ?? r.description?.slice(0, 120) ?? ''
-      return `${i + 1}. ID:${r.id} | ${r.title} | ${r.venue_name ?? 'Unknown venue'} | ${date} | ${price} | ${r.category}${desc ? ` | ${desc}` : ''}`
+      const src = r.id.startsWith('live_') ? '[live]' : '[db]'
+      return `${i + 1}. ID:${r.id} ${src} | ${r.title} | ${r.venue_name ?? 'Local venue'} | ${date} | ${price} | ${r.category}${desc ? ` | ${desc}` : ''}`
     }).join('\n')
 
     const labelMap = ['Energy level', 'Group size', 'Experience type', 'Scene/crowd', 'Budget']
     const answerSummary = answers.map((a, i) => `- ${labelMap[i] ?? `Q${i + 1}`}: ${a}`).join('\n')
 
-    const prompt = `You are a local event expert helping someone find their perfect night out.
-
-User preferences:
-${answerSummary}
-
-Events available ${locationDesc} this week:
-${eventList}
-
-Pick the 3 BEST events that match this person's vibe. Consider their energy level, group size, experience preference, scene, and budget.
-
-Return ONLY a valid JSON array — no other text, no markdown, no explanation:
-[
-  {"id":"<exact event UUID from the list above>","rank":1,"pitch":"<one punchy sentence, max 25 words, why this is perfect for them tonight>"},
-  {"id":"<uuid>","rank":2,"pitch":"<...>"},
-  {"id":"<uuid>","rank":3,"pitch":"<...>"}
-]`
+    const prompt = `You are a local event expert helping someone find their perfect night out.\n\nUser preferences:\n${answerSummary}\n\nEvents available ${locationLabel} tonight/this week:\n${eventList}\n\nPick the 3 BEST events that match this person's vibe. Prefer events happening TODAY or TONIGHT. Consider energy level, group size, experience preference, scene, and budget. Prioritise variety — don't pick 3 of the same type.\n\nReturn ONLY a valid JSON array — no other text, no markdown, no explanation:\n[\n  {"id":"<exact event ID from the list above>","rank":1,"pitch":"<one punchy sentence, max 25 words, why this is perfect for them tonight>"},\n  {"id":"<id>","rank":2,"pitch":"<...>"},\n  {"id":"<id>","rank":3,"pitch":"<...>"}\n]`
 
     const anthropicKey = process.env.ANTHROPIC_API_KEY
     if (!anthropicKey) {
-      const top3 = dedupedRows.slice(0, 3).map((r, i) => ({
+      const top3 = rows.slice(0, 3).map((r, i) => ({
         id: r.id, rank: i + 1,
-        pitch: r.ai_description?.slice(0, 120) || r.description?.slice(0, 120) || `${r.category ? r.category.charAt(0).toUpperCase() + r.category.slice(1) : 'Live event'} at ${r.venue_name || 'a local venue'}`,
-        title: r.title, venue: r.venue_name ?? '',
-        dateFormatted: formatDate(r.date_start), priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
+        pitch: r.ai_description?.slice(0, 120) ?? r.description?.slice(0, 120) ?? 'A great local event happening soon.',
+        title: r.title, venue: r.venue_name ?? '', dateFormatted: formatDate(r.date_start),
+        priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl: r.ticket_url, imageUrl: r.image_url, category: r.category,
       }))
       return NextResponse.json({ picks: top3 })
@@ -139,27 +190,25 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
     const rawText: string = aiData.content?.[0]?.text ?? '[]'
     const jsonMatch = rawText.match(/\[[\s\S]*\]/)
     if (!jsonMatch) throw new Error('No JSON array in AI response')
-    const aiPicks = JSON.parse(jsonMatch[0]) as Array<{ id: string; rank: number; pitch: string }>
-    const eventById = Object.fromEntries(dedupedRows.map(r => [r.id, r]))
 
+    const aiPicks = JSON.parse(jsonMatch[0]) as Array<{ id: string; rank: number; pitch: string }>
+    const eventById = Object.fromEntries(rows.map(r => [r.id, r]))
     const picks = aiPicks.filter(p => eventById[p.id]).slice(0, 3).map(p => {
       const r = eventById[p.id]
-      return { id: p.id, rank: p.rank, pitch: p.pitch || 'A great pick for tonight!', title: r.title, venue: r.venue_name ?? '',
+      return { id: p.id, rank: p.rank, pitch: p.pitch, title: r.title, venue: r.venue_name ?? '',
         dateFormatted: formatDate(r.date_start), priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl: r.ticket_url, imageUrl: r.image_url, category: r.category }
     })
 
     if (picks.length === 0) {
-      const fallback = dedupedRows.slice(0, 3).map((r, i) => ({
-        id: r.id, rank: i + 1,
-        pitch: r.ai_description?.slice(0, 120) || `${r.category ? r.category.charAt(0).toUpperCase() + r.category.slice(1) : 'Live event'} at ${r.venue_name || 'a local venue'}`,
-        title: r.title, venue: r.venue_name ?? '',
-        dateFormatted: formatDate(r.date_start), priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
+      const fallback = rows.slice(0, 3).map((r, i) => ({
+        id: r.id, rank: i + 1, pitch: r.ai_description?.slice(0, 120) ?? 'A great local event happening soon.',
+        title: r.title, venue: r.venue_name ?? '', dateFormatted: formatDate(r.date_start),
+        priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl: r.ticket_url, imageUrl: r.image_url, category: r.category,
       }))
       return NextResponse.json({ picks: fallback })
     }
-
     return NextResponse.json({ picks })
   } catch (err) {
     console.error('[recommend] Error:', (err as Error).message)
