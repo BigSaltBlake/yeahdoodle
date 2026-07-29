@@ -10,6 +10,7 @@ export type AnalyticsEvent =
   | 'picks_viewed'
   | 'ticket_clicked'
   | 'gps_located'
+  | 'picks_shared'
 
 export function capture(event: AnalyticsEvent, props?: Record<string, unknown>) {
   try {
