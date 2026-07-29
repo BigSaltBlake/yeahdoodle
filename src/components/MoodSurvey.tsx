@@ -127,12 +127,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
       return () => clearTimeout(t)
     }
 
-    // Modal just opened — try GPS
+    // Modal just opened -- try GPS
     cancelGps.current = false
 
     if (initialCity) {
-      // Already have a city context — jump straight to questions,
-      // but still detect GPS in background for better event matching
       setPhase('question')
     } else {
       setPhase('locating')
@@ -150,7 +148,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         setLat(latitude)
         setLng(longitude)
 
-        // Reverse-geocode for a friendly city name (free, no key needed)
         try {
           const r = await fetch(
             `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
@@ -163,19 +160,16 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         if (!cancelGps.current && !initialCity) setPhase('question')
       },
       () => {
-        // Denied or unavailable
         if (!cancelGps.current && !initialCity) setPhase('city')
       },
       { timeout: 8000, maximumAge: 300_000 },
     )
   }, [open, initialCity])
 
-  // Fire analytics when modal becomes visible
   useEffect(() => {
     if (open) capture('survey_opened')
   }, [open])
 
-  // Rotate loading messages
   useEffect(() => {
     if (phase !== 'loading') return
     const interval = setInterval(() => {
@@ -196,7 +190,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         setAnimating(false)
       }, 180)
     } else {
-      // All 6 answered — fetch recommendations
       setPhase('loading')
       setLoadingMsg(0)
       try {
@@ -289,10 +282,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           ✕
         </button>
 
-        {/* ── Locating phase ── */}
+        {/* Locating phase */}
         {phase === 'locating' && (
           <div className="p-8 text-center py-16">
-            <div className="text-5xl mb-6">�M</div>
+            <div className="text-5xl mb-6">📍</div>
             <h2 className="font-display text-xl text-white mb-3">Finding events near you...</h2>
             <p className="text-white/40 text-sm mb-8">Allow location access for the best picks</p>
             <button
@@ -304,7 +297,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* ── City phase ── */}
+        {/* City phase */}
         {phase === 'city' && (
           <div className="p-8 text-center">
             <div className="text-5xl mb-4">🎯</div>
@@ -328,10 +321,9 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* ── Question phase ── */}
+        {/* Question phase */}
         {phase === 'question' && (
           <div className={`p-6 transition-opacity duration-150 ${animating ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'}`}>
-            {/* Progress bar */}
             <div className="flex gap-1.5 mb-5">
               {QUESTIONS.map((_, i) => (
                 <div
@@ -348,7 +340,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             )}
             {!QUESTIONS[qIndex].subtitle && <div className="mb-5" />}
 
-            {/* Location pill */}
             {(city || lat) && (
               <div className="flex items-center gap-1.5 mb-4 -mt-2">
                 <span className="text-xs text-white/30">📍</span>
@@ -395,7 +386,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* ── Loading phase ── */}
+        {/* Loading phase */}
         {phase === 'loading' && (
           <div className="p-8 text-center py-16">
             <div className="text-5xl mb-6 animate-bounce">🎯</div>
@@ -406,7 +397,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* ── Results phase ── */}
+        {/* Results phase */}
         {phase === 'results' && (
           <div className="p-5">
             <div className="text-center mb-4">
@@ -419,7 +410,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
               {picks.map((pick, i) => (
                 <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors">
-                  {/* Image / placeholder slot */}
                   <div className="relative w-full h-36">
                     {pick.imageUrl ? (
                       <Image
@@ -432,10 +422,8 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     ) : (
                       <CategoryPlaceholder category={pick.category} />
                     )}
-                    {/* Medal badge overlay */}
                     <span className="absolute top-2 left-2 text-xl leading-none drop-shadow-lg">{MEDALS[i]}</span>
                   </div>
-                  {/* Text content */}
                   <div className="p-3">
                     <p className="font-semibold text-white text-sm leading-snug mb-1 line-clamp-2">{pick.title}</p>
                     <p className="text-white/40 text-xs mb-2">
@@ -461,7 +449,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               ))}
             </div>
 
-            {/* ── Email capture ── */}
+            {/* Email capture */}
             <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4">
               {emailState === 'done' ? (
                 <p className="text-center text-sm text-white/70">
@@ -500,7 +488,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             </div>
 
             <div className="mt-3 flex flex-col gap-2">
-              {/* Share button */}
               <button
                 onClick={handleShare}
                 className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
@@ -525,7 +512,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* ── Empty phase ── */}
+        {/* Empty phase */}
         {phase === 'empty' && (
           <div className="p-8 text-center py-14">
             <div className="text-4xl mb-4">🤷</div>
