@@ -134,7 +134,7 @@ function mapToRow(raw: SGEvent) {
     ticket_url:        raw.url ?? null,
     price_min:         priceMin,
     price_max:         priceMax,
-    is_free:           priceMin === 0 || priceMin === null,
+    is_free:           priceMin === 0,
     group_suitability: inferGroupSuitability(raw),
     age_groups:        inferAgeGroups(raw),
     dedupe_key:        raw.venue?.name && raw.venue?.city && (raw.datetime_local ?? raw.datetime_utc)
