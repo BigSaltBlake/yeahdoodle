@@ -37,7 +37,7 @@ function formatDate(isoDate: string | null): string {
 function formatPrice(priceMin: number | null, priceMax: number | null, isFree: boolean): string {
   if (priceMin === 0 || isFree && priceMin !== null) return 'Free'
   if (priceMin === null) return ''
-  if (priceMax && priceMax > priceMin) return `$${Math.round(priceMin)}–$${Math.round(priceMax)}`
+  if (priceMax && priceMax > priceMin) return `$${Math.round(priceMin)}â$${Math.round(priceMax)}`
   return `$${Math.round(priceMin)}`
 }
 
@@ -79,7 +79,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
   }
 
   if (timeframe === 'This weekend') {
-    const dow = now.getDay() // 0=Sun … 6=Sat
+    const dow = now.getDay() // 0=Sun â¦ 6=Sat
     const daysUntilFri = dow === 0 ? 6 : (5 - dow + 7) % 7 || 7
     const friday = new Date(today)
     friday.setDate(friday.getDate() + daysUntilFri)
@@ -91,7 +91,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     return { start, end: sunday }
   }
 
-  // 'Coming weeks' or unknown — 4-week lookahead
+  // 'Coming weeks' or unknown â 4-week lookahead
   const end = new Date(today)
   end.setDate(end.getDate() + 28)
   return { start: now, end }
@@ -101,7 +101,7 @@ function getSerpQueries(timeframe: string, city: string): string[] {
   if (timeframe === 'Tonight')      return [`events tonight in ${city}`, `things to do tonight in ${city}`]
   if (timeframe === 'Tomorrow')     return [`events tomorrow in ${city}`, `things to do tomorrow in ${city}`]
   if (timeframe === 'This weekend') return [`events this weekend in ${city}`, `things to do this weekend in ${city}`]
-  // Coming weeks — broader queries
+  // Coming weeks â broader queries
   return [`upcoming events in ${city}`, `things to do in ${city} this month`]
 }
 
@@ -122,10 +122,10 @@ function inferCategory(text: string): string {
 function parseGoogleEventDate(dateStr: string | undefined): string | null {
   if (!dateStr) return null
   try {
-    // Handle Google Events "when" format: "Tue, Jul 29, 7:00 PM – 9:00 PM"
+    // Handle Google Events "when" format: "Tue, Jul 29, 7:00 PM â 9:00 PM"
     // or start_date like "2026-07-29"
-    // Strip trailing range (e.g., " – 9:00 PM")
-    const cleaned = dateStr.replace(/\s*[–-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
+    // Strip trailing range (e.g., " â 9:00 PM")
+    const cleaned = dateStr.replace(/\s*[â-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
 
     // Try direct parse first (ISO dates like "2026-07-29")
     const d = new Date(cleaned)
@@ -240,12 +240,12 @@ export async function POST(req: NextRequest) {
     const maxBudget = budgetMax(answers)
     const catHints  = categoryHints(answers)
 
-    // ── 1. Live SerpAPI crawl (always when we have a city or GPS) ──
+    // ââ 1. Live SerpAPI crawl (always when we have a city or GPS) ââ
     const liveEventsPromise = (city.trim() || hasGps)
       ? fetchLiveSerpEvents(city.trim() || 'nearby', timeframe)
       : Promise.resolve([] as EventRow[])
 
-    // ── 2. Supabase query (pre-crawled events) -
+    // ââ 2. Supabase query (pre-crawled events) -
     let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
     if (isSupabaseConfigured() && city.trim()) {
       let q = supabase
@@ -261,20 +261,20 @@ export async function POST(req: NextRequest) {
       if (catHints) q = q.in('category', catHints)
       if (maxBudget !== null) q = q.or(`is_free.eq.true,price_min.lte.${maxBudget}`)
 
-      dbRowsPromise = q.then((result: { data: EventRow[] | null }) => result.data ?? [])
+      dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
-    // ── 3. Await both in parallel ──
+    // ââ 3. Await both in parallel ââ
     const [liveEvents, dbRows] = await Promise.all([liveEventsPromise, dbRowsPromise])
 
-    // ── 4. Merge — live events first (fresher), then DB ──
+    // ââ 4. Merge â live events first (fresher), then DB ââ
     const dbTitles = new Set(dbRows.map(r => r.title.toLowerCase().slice(0, 40)))
     const uniqueLive = liveEvents.filter(
       e => !dbTitles.has(e.title.toLowerCase().slice(0, 40)),
     )
     let rows: EventRow[] = [...uniqueLive, ...dbRows]
 
-    // ── 5. DB fallback if merged pool still thin ──
+    // ââ 5. DB fallback if merged pool still thin ââ
     if (rows.length < 3 && isSupabaseConfigured() && city.trim()) {
       const { data: fallback } = await supabase
         .from('events')
@@ -293,7 +293,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ picks: [] })
     }
 
-    // ── 6. Build event list for the AI prompt ──
+    // ââ 6. Build event list for the AI prompt ââ
     const locationLabel = hasGps ? `near your location (${city || 'GPS coordinates'})` : `in ${city}`
 
     const eventList = rows
@@ -314,10 +314,10 @@ export async function POST(req: NextRequest) {
     const answerSummary = answers.map((a, i) => `- ${labelMap[i] ?? `Q${i + 1}`}: ${a}`).join('\n')
 
     const timeframeInstruction =
-      timeframe === 'Tonight'      ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
+      timeframe === 'Tonight'      ? 'Prefer events happening TODAY or TONIGHT â prioritise the soonest options.' :
       timeframe === 'Tomorrow'     ? 'Prefer events happening TOMORROW.' :
-      timeframe === 'This weekend' ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
-                                     'Show a variety across the coming weeks — the user is calendar-planning, so spread dates out and highlight anything worth booking early.'
+      timeframe === 'This weekend' ? 'Prefer events happening THIS WEEKEND (FridayâSunday).' :
+                                     'Show a variety across the coming weeks â the user is calendar-planning, so spread dates out and highlight anything worth booking early.'
 
     const prompt = `You are a local event expert helping someone find their perfect outing.
 
@@ -327,9 +327,9 @@ ${answerSummary}
 Events available ${locationLabel} for ${timeframe.toLowerCase()}:
 ${eventList}
 
-Pick the 3 BEST events that match this person's vibe. ${timeframeInstruction} Consider energy level, group size, experience preference, scene, and budget. Prioritise variety — don't pick 3 of the same type.
+Pick the 3 BEST events that match this person's vibe. ${timeframeInstruction} Consider energy level, group size, experience preference, scene, and budget. Prioritise variety â don't pick 3 of the same type.
 
-Return ONLY a valid JSON array — 
+Return ONLY a valid JSON array â 
   no other text, no markdown, no explanation:
 [
   {"id":"<exact event ID from the list above>","rank":1,"pitch":"<one punchy sentence, max 25 words, why this is perfect for them tonight>"},
@@ -339,7 +339,7 @@ Return ONLY a valid JSON array —
 
     const anthropicKey = process.env.ANTHROPIC_API_KEY
 
-    // ── 7. No API key: return top 3 by position ──
+    // ââ 7. No API key: return top 3 by position ââ
     if (!anthropicKey) {
       const allById = Object.fromEntries(rows.map(r => [r.id, r]))
       const top3 = rows.slice(0, 3).map((r, i) => ({
@@ -358,7 +358,7 @@ Return ONLY a valid JSON array —
       return NextResponse.json({ picks: top3 })
     }
 
-    // ── 8. Call Claude Haiku ──
+    // ââ 8. Call Claude Haiku ââ
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
