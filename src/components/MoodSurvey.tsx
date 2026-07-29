@@ -29,36 +29,36 @@ const QUESTIONS = [
     question: 'When are you planning this?',
     subtitle: '',
     options: [
-      { label: 'Tonight', desc: "Let's make something happen right now", emoji: '\U0001f319', quality: 'Tonight' },
+      { label: 'Tonight', desc: "Let's make something happen right now", emoji: '🌙', quality: 'Tonight' },
       { label: 'Tomorrow', desc: 'Lining something up for tomorrow', emoji: '☀️', quality: 'Tomorrow' },
-      { label: 'This weekend', desc: 'Friday through Sunday', emoji: '\U0001f389', quality: 'Weekend' },
-      { label: 'Coming weeks', desc: 'Scouting ahead — want options on the calendar', emoji: '\U0001f4c5', quality: 'Planning' },
+      { label: 'This weekend', desc: 'Friday through Sunday', emoji: '🎉', quality: 'Weekend' },
+      { label: 'Coming weeks', desc: 'Scouting ahead — want options on the calendar', emoji: '📅', quality: 'Planning' },
     ],
   },
   {
     question: "What's your energy?",
     subtitle: 'How adventurous are you feeling?',
     options: [
-      { label: 'Easy & familiar', desc: "Take me somewhere I know I'll enjoy", emoji: '\U0001f3af', quality: 'Safe bet' },
+      { label: 'Easy & familiar', desc: "Take me somewhere I know I'll enjoy", emoji: '🎯', quality: 'Safe bet' },
       { label: 'Mix it up a bit', desc: 'Push me slightly outside my comfort zone', emoji: '⚡', quality: 'Adventurous' },
-      { label: 'Full send', desc: 'Make it a story worth telling', emoji: '\U0001f680', quality: 'Wild card' },
+      { label: 'Full send', desc: 'Make it a story worth telling', emoji: '🚀', quality: 'Wild card' },
     ],
   },
   {
     question: "Who's your crew?",
     subtitle: '',
     options: [
-      { label: 'Solo or date night', desc: 'Just me, or me and one other', emoji: '\U0001f464', quality: 'Intimate' },
-      { label: 'Small group', desc: 'A few close friends or fam', emoji: '\U0001f46f', quality: 'Social' },
-      { label: 'The whole squad', desc: "Big group energy, everyone's coming", emoji: '\U0001f38a', quality: 'Party mode' },
+      { label: 'Solo or date night', desc: 'Just me, or me and one other', emoji: '👤', quality: 'Intimate' },
+      { label: 'Small group', desc: 'A few close friends or fam', emoji: '👯', quality: 'Social' },
+      { label: 'The whole squad', desc: "Big group energy, everyone's coming", emoji: '🎊', quality: 'Party mode' },
     ],
   },
   {
     question: 'What sounds good?',
     subtitle: 'Go with your gut',
     options: [
-      { label: 'Live music or show', desc: 'Something to watch and feel', emoji: '\U0001f3b5', quality: 'Entertainment' },
-      { label: 'Food & drinks', desc: 'Good eats, good drinks, good company', emoji: '\U0001f37d️', quality: 'Chill' },
+      { label: 'Live music or show', desc: 'Something to watch and feel', emoji: '🎵', quality: 'Entertainment' },
+      { label: 'Food & drinks', desc: 'Good eats, good drinks, good company', emoji: '🍽️', quality: 'Chill' },
       { label: 'One-of-a-kind experience', desc: "Something I've never done before", emoji: '✨', quality: 'Unique' },
     ],
   },
@@ -66,18 +66,18 @@ const QUESTIONS = [
     question: "What's the scene?",
     subtitle: 'Pick the vibe that fits',
     options: [
-      { label: 'Small & intimate', desc: 'Real atmosphere, you can actually talk', emoji: '\U0001f3e1', quality: 'Cozy' },
-      { label: 'Buzzing & social', desc: 'Medium energy, meeting-people kind of night', emoji: '\U0001f37b', quality: 'Social' },
-      { label: 'Big & electric', desc: "Massive crowd, everyone's there for it", emoji: '\U0001f3df️', quality: 'Epic' },
+      { label: 'Small & intimate', desc: 'Real atmosphere, you can actually talk', emoji: '🏡', quality: 'Cozy' },
+      { label: 'Buzzing & social', desc: 'Medium energy, meeting-people kind of night', emoji: '🍻', quality: 'Social' },
+      { label: 'Big & electric', desc: "Massive crowd, everyone's there for it", emoji: '🏟️', quality: 'Epic' },
     ],
   },
   {
     question: "What's your budget?",
     subtitle: '',
     options: [
-      { label: 'Free–$25', desc: 'Free fun is real fun', emoji: '\U0001f49a', quality: 'Good' },
-      { label: '$25–$75', desc: 'Happy to spend on a good time', emoji: '\U0001f49b', quality: 'Better' },
-      { label: "Sky's the limit", desc: 'The experience is what matters', emoji: '\U0001f49c', quality: 'Best' },
+      { label: 'Free–$25', desc: 'Free fun is real fun', emoji: '💚', quality: 'Good' },
+      { label: '$25–$75', desc: 'Happy to spend on a good time', emoji: '💛', quality: 'Better' },
+      { label: "Sky's the limit", desc: 'The experience is what matters', emoji: '💜', quality: 'Best' },
     ],
   },
 ]
@@ -89,7 +89,7 @@ const LOADING_MESSAGES = [
   'Picking your top 3...',
 ]
 
-const MEDALS = ['\U0001f947', '\U0001f948', '\U0001f949']
+const MEDALS = ['🥇', '🥈', '🥉']
 
 type Phase = 'locating' | 'city' | 'question' | 'loading' | 'results' | 'empty'
 type EmailState = 'idle' | 'loading' | 'done' | 'error'
@@ -127,10 +127,12 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
       return () => clearTimeout(t)
     }
 
-    // Modal just opened -- try GPS
+    // Modal just opened — try GPS
     cancelGps.current = false
 
     if (initialCity) {
+      // Already have a city context — jump straight to questions,
+      // but still detect GPS in background for better event matching
       setPhase('question')
     } else {
       setPhase('locating')
@@ -148,6 +150,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         setLat(latitude)
         setLng(longitude)
 
+        // Reverse-geocode for a friendly city name (free, no key needed)
         try {
           const r = await fetch(
             `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
@@ -160,16 +163,19 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         if (!cancelGps.current && !initialCity) setPhase('question')
       },
       () => {
+        // Denied or unavailable
         if (!cancelGps.current && !initialCity) setPhase('city')
       },
       { timeout: 8000, maximumAge: 300_000 },
     )
   }, [open, initialCity])
 
+  // Fire analytics when modal becomes visible
   useEffect(() => {
     if (open) capture('survey_opened')
   }, [open])
 
+  // Rotate loading messages
   useEffect(() => {
     if (phase !== 'loading') return
     const interval = setInterval(() => {
@@ -190,6 +196,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         setAnimating(false)
       }, 180)
     } else {
+      // All 6 answered — fetch recommendations
       setPhase('loading')
       setLoadingMsg(0)
       try {
@@ -257,7 +264,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     const params = new URLSearchParams({ city: city || 'nearby', ids })
     const url = `${window.location.origin}/picks?${params.toString()}`
     if (navigator.share) {
-      navigator.share({ title: `My picks for ${timeframeDisplay} \U0001f3af`, text: `Check out these events in ${city || 'my area'}!`, url })
+      navigator.share({ title: `My picks for ${timeframeDisplay} 🎯`, text: `Check out these events in ${city || 'my area'}!`, url })
         .catch(() => {/* user cancelled */})
     } else {
       navigator.clipboard.writeText(url).then(() => {
@@ -282,10 +289,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           ✕
         </button>
 
-        {/* Locating phase */}
+        {/* ── Locating phase ── */}
         {phase === 'locating' && (
           <div className="p-8 text-center py-16">
-            <div className="text-5xl mb-6">\U0001f4cd</div>
+            <div className="text-5xl mb-6">�M</div>
             <h2 className="font-display text-xl text-white mb-3">Finding events near you...</h2>
             <p className="text-white/40 text-sm mb-8">Allow location access for the best picks</p>
             <button
@@ -297,10 +304,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* City phase */}
+        {/* ── City phase ── */}
         {phase === 'city' && (
           <div className="p-8 text-center">
-            <div className="text-5xl mb-4">\U0001f3af</div>
+            <div className="text-5xl mb-4">🎯</div>
             <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
             <p className="text-white/50 text-sm mb-7">6 quick questions → your 3 best picks</p>
             <input
@@ -321,9 +328,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* Question phase */}
+        {/* ── Question phase ── */}
         {phase === 'question' && (
           <div className={`p-6 transition-opacity duration-150 ${animating ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'}`}>
+            {/* Progress bar */}
             <div className="flex gap-1.5 mb-5">
               {QUESTIONS.map((_, i) => (
                 <div
@@ -340,9 +348,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             )}
             {!QUESTIONS[qIndex].subtitle && <div className="mb-5" />}
 
+            {/* Location pill */}
             {(city || lat) && (
               <div className="flex items-center gap-1.5 mb-4 -mt-2">
-                <span className="text-xs text-white/30">\U0001f4cd</span>
+                <span className="text-xs text-white/30">📍</span>
                 <span className="text-xs text-white/30">{city || 'your location'}</span>
                 {!lat && (
                   <button
@@ -386,10 +395,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* Loading phase */}
+        {/* ── Loading phase ── */}
         {phase === 'loading' && (
           <div className="p-8 text-center py-16">
-            <div className="text-5xl mb-6 animate-bounce">\U0001f3af</div>
+            <div className="text-5xl mb-6 animate-bounce">🎯</div>
             <h2 className="font-display text-xl text-white mb-3">Finding your perfect picks...</h2>
             <p className="text-white/40 text-sm min-h-[1.25rem] transition-all duration-300">
               {LOADING_MESSAGES[loadingMsg]}
@@ -397,19 +406,20 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* Results phase */}
+        {/* ── Results phase ── */}
         {phase === 'results' && (
           <div className="p-5">
             <div className="text-center mb-4">
               <h2 className="font-display text-xl text-white">Your picks for {timeframeDisplay}</h2>
               <p className="text-white/30 text-xs mt-0.5">
-                {lat ? `\U0001f4cd near you` : `in ${city}`}
+                {lat ? `📍 near you` : `in ${city}`}
               </p>
             </div>
 
             <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
               {picks.map((pick, i) => (
                 <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors">
+                  {/* Image / placeholder slot */}
                   <div className="relative w-full h-36">
                     {pick.imageUrl ? (
                       <Image
@@ -422,13 +432,15 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     ) : (
                       <CategoryPlaceholder category={pick.category} />
                     )}
+                    {/* Medal badge overlay */}
                     <span className="absolute top-2 left-2 text-xl leading-none drop-shadow-lg">{MEDALS[i]}</span>
                   </div>
+                  {/* Text content */}
                   <div className="p-3">
                     <p className="font-semibold text-white text-sm leading-snug mb-1 line-clamp-2">{pick.title}</p>
                     <p className="text-white/40 text-xs mb-2">
                       {pick.venue && <span>{pick.venue} · </span>}
-                      {pick.dateFormatted} · {pick.priceFormatted}
+                      {pick.dateFormatted}{pick.priceFormatted ? ` · ${pick.priceFormatted}` : ''}
                     </p>
                     <p className="text-yd-orange/80 text-xs italic leading-relaxed mb-3">
                       &ldquo;{pick.pitch}&rdquo;
@@ -449,7 +461,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               ))}
             </div>
 
-            {/* Email capture */}
+            {/* ── Email capture ── */}
             <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4">
               {emailState === 'done' ? (
                 <p className="text-center text-sm text-white/70">
@@ -488,11 +500,12 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             </div>
 
             <div className="mt-3 flex flex-col gap-2">
+              {/* Share button */}
               <button
                 onClick={handleShare}
                 className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
-                {copied ? '✅ Link copied!' : '\U0001f517 Share my picks'}
+                {copied ? '✅ Link copied!' : '🔗 Share my picks'}
               </button>
               <div className="flex items-center justify-between">
                 <button
@@ -512,10 +525,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* Empty phase */}
+        {/* ── Empty phase ── */}
         {phase === 'empty' && (
           <div className="p-8 text-center py-14">
-            <div className="text-4xl mb-4">\U0001f937</div>
+            <div className="text-4xl mb-4">🤷</div>
             <h2 className="font-display text-xl text-white mb-2">Nothing matched right now</h2>
             <p className="text-white/40 text-sm mb-6">
               Try a different city or check back soon — events update daily.
