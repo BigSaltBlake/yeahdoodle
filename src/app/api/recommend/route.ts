@@ -14,7 +14,8 @@ function formatDate(isoDate: string | null): string {
 }
 
 function formatPrice(priceMin: number | null, priceMax: number | null, isFree: boolean): string {
-  if (isFree || priceMin === 0 || priceMin === null) return 'Free'
+  if (isFree || priceMin === 0) return 'Free'
+  if (priceMin === null) return 'Price TBD'
   if (priceMax && priceMax > priceMin) return `$${Math.round(priceMin)}–$${Math.round(priceMax)}`
   return `$${Math.round(priceMin)}`
 }
@@ -47,9 +48,11 @@ function inferCategory(text: string): string {
 function parseGoogleEventDate(dateStr: string | undefined): string | null {
   if (!dateStr) return null
   try {
-    const d = new Date(dateStr)
+    // Strip trailing time range e.g. " \u2013 9:00 PM" from "Tue, Jul 29, 7:00 PM \u2013 9:00 PM"
+    const cleaned = dateStr.replace(/\s*[\u2013\-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
+    const d = new Date(cleaned)
     if (!isNaN(d.getTime())) return d.toISOString()
-    const d2 = new Date(`${dateStr} ${new Date().getFullYear()}`)
+    const d2 = new Date(`${cleaned} ${new Date().getFullYear()}`)
     if (!isNaN(d2.getTime())) return d2.toISOString()
   } catch { /* */ }
   return null
