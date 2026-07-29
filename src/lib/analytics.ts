@@ -11,6 +11,7 @@ export type AnalyticsEvent =
   | 'ticket_clicked'
   | 'gps_located'
   | 'picks_shared'
+  | 'email_subscribed'
 
 export function capture(event: AnalyticsEvent, props?: Record<string, unknown>) {
   try {
