@@ -261,7 +261,7 @@ export async function POST(req: NextRequest) {
       if (catHints) q = q.in('category', catHints)
       if (maxBudget !== null) q = q.or(`is_free.eq.true,price_min.lte.${maxBudget}`)
 
-      dbRowsPromise = q.then(({ data }) => (data ?? []) as EventRow[])
+      dbRowsPromise = q.then((result: { data: EventRow[] | null }) => result.data ?? [])
     }
 
     // ── 3. Await both in parallel ──
