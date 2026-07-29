@@ -164,7 +164,7 @@ function mapToRow(raw: TMEvent) {
     ticket_url:        raw.url ?? null,
     price_min:         priceMin,
     price_max:         priceMax,
-    is_free:           priceMin === 0 || priceMin === null,
+    is_free:           priceMin === 0,
     group_suitability: inferGroupSuitability(raw),
     age_groups:        inferAgeGroups(raw),
     dedupe_key:        venue?.name && dateStart && venue?.city?.name
@@ -209,9 +209,11 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 // ---------------------------------------------------------------------------
 // Main sync function — call this from the scheduler
 // ---------------------------------------------------------------------------
-export async function syncTicketmaster(db: Db, cities: string[]): Promise<void> {
+export async function syncTicketmaster(db: Db, cities = DEFAULT_CITIES): Promise<void> {
   const apiKey = process.env.TICKETMASTER_API_KEY
-  if (!apiKey) throw new Error('TICKETMASTER_API_KEY env var not set')
+  if (!apiKey) {
+    throw new Error('TICKETMASTER_API_KEY env var not set')
+  }
 
   let totalUpserted = 0
   let totalErrors   = 0
@@ -219,15 +221,15 @@ export async function syncTicketmaster(db: Db, cities: string[]): Promise<void> 
   for (const city of cities) {
     console.log(`[TM] Syncing ${city}...`)
     try {
-      const MAX_PAGES = 5
-      let page = 0
-
-      while (page < MAX_PAGES) {
+      // Fetch up to 3 pages (600 events) per city — stays well within daily limits
+      const MAX_PAGES = 3
+      for (let page = 0; page < MAX_PAGES; page++) {
         const { events, total } = await fetchPage(city, page, apiKey)
         if (!events.length) break
 
         const rows = events.map(mapToRow)
 
+        // Upsert: if external_id + source already exists, update it
         const { error } = await db
           .from('events')
           .upsert(rows, { onConflict: 'external_id,source', ignoreDuplicates: false })
@@ -237,21 +239,23 @@ export async function syncTicketmaster(db: Db, cities: string[]): Promise<void> 
           totalErrors++
         } else {
           totalUpserted += rows.length
-          console.log(`[TM]   page ${page}: +${rows.length} (${totalUpserted} total, ${total} available)`)
+          console.log(`[TM]   page ${page}: +${rows.length} (${totalUpserted} total so far, ${total} available)`)
         }
 
+        // Stop if we've fetched all available pages
         const totalPages = Math.ceil(total / 200)
-        page++
-        if (page >= totalPages || page >= MAX_PAGES) break
+        if (page + 1 >= totalPages || page + 1 >= MAX_PAGES) break
 
-        await sleep(200) // respect 5 req/sec limit
+        // Rate limit: 5 req/sec — wait 250ms between page requests
+        await sleep(250)
       }
     } catch (err) {
       console.error(`[TM] Error syncing ${city}:`, (err as Error).message)
       totalErrors++
     }
 
-    await sleep(300)
+    // Polite pause between cities
+    await sleep(500)
   }
 
   console.log(`[TM] Sync complete. ${totalUpserted} events upserted, ${totalErrors} errors.`)
