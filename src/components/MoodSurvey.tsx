@@ -164,6 +164,22 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     setPhase('question')
   }
 
+  function handleShare() {
+    const ids = picks.map(p => p.id).join(',')
+    const params = new URLSearchParams({ city: city || 'nearby', ids })
+    const url = `${window.location.origin}/picks?${params.toString()}`
+    if (navigator.share) {
+      navigator.share({ title: 'My picks for tonight 🎯', text: `Check out these events in ${city || 'my area'}!`, url })
+        .catch(() => {/* user cancelled */})
+    } else {
+      navigator.clipboard.writeText(url).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2500)
+        capture('picks_shared', { city, pick_count: picks.length })
+      })
+    }
+  }
+
   if (!open) return null
 
   return (
@@ -317,19 +333,27 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               ))}
             </div>
 
-            <div className="flex items-center justify-between mt-4">
+            <div className="mt-4 flex flex-col gap-2">
               <button
-                onClick={handleReset}
-                className="text-white/25 hover:text-white/55 text-xs transition-colors"
+                onClick={handleShare}
+                className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
-                ↩ Try different answers
+                {copied ? '✅ Link copied!' : '🔗 Share my picks'}
               </button>
-              <button
-                onClick={onClose}
-                className="text-white/25 hover:text-white/55 text-xs transition-colors"
-              >
-                Done
-              </button>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={handleReset}
+                  className="text-white/25 hover:text-white/55 text-xs transition-colors"
+                >
+                  ↩ Try different answers
+                </button>
+                <button
+                  onClick={onClose}
+                  className="text-white/25 hover:text-white/55 text-xs transition-colors"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         )}
