@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
         .limit(40)
       if (catHints) q = q.in('category', catHints)
       if (maxBudget !== null) q = q.or(`is_free.eq.true,price_min.lte.${maxBudget}`)
-      dbRowsPromise = q.then(({ data }) => (data ?? []) as EventRow[])
+      dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
     const [liveEvents, dbRows] = await Promise.all([liveEventsPromise, dbRowsPromise])
