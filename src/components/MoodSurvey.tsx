@@ -29,55 +29,55 @@ const QUESTIONS = [
     question: 'When are you planning this?',
     subtitle: '',
     options: [
-      { label: 'Tonight', desc: "Let's make something happen right now", emoji: '🌙', quality: 'Tonight' },
-      { label: 'Tomorrow', desc: 'Lining something up for tomorrow', emoji: '☀️', quality: 'Tomorrow' },
-      { label: 'This weekend', desc: 'Friday through Sunday', emoji: '🎉', quality: 'Weekend' },
-      { label: 'Coming weeks', desc: 'Scouting ahead — want options on the calendar', emoji: '📅', quality: 'Planning' },
+      { label: 'Tonight', desc: "Let's make something happen right now", emoji: 'ð', quality: 'Tonight' },
+      { label: 'Tomorrow', desc: 'Lining something up for tomorrow', emoji: 'âï¸', quality: 'Tomorrow' },
+      { label: 'This weekend', desc: 'Friday through Sunday', emoji: 'ð', quality: 'Weekend' },
+      { label: 'Coming weeks', desc: 'Scouting ahead â want options on the calendar', emoji: 'ð', quality: 'Planning' },
     ],
   },
   {
     question: "What's your energy?",
     subtitle: 'How adventurous are you feeling?',
     options: [
-      { label: 'Easy & familiar', desc: "Take me somewhere I know I'll enjoy", emoji: '🎯', quality: 'Safe bet' },
-      { label: 'Mix it up a bit', desc: 'Push me slightly outside my comfort zone', emoji: '⚡', quality: 'Adventurous' },
-      { label: 'Full send', desc: 'Make it a story worth telling', emoji: '🚀', quality: 'Wild card' },
+      { label: 'Easy & familiar', desc: "Take me somewhere I know I'll enjoy", emoji: 'ð¯', quality: 'Safe bet' },
+      { label: 'Mix it up a bit', desc: 'Push me slightly outside my comfort zone', emoji: 'â¡', quality: 'Adventurous' },
+      { label: 'Full send', desc: 'Make it a story worth telling', emoji: 'ð', quality: 'Wild card' },
     ],
   },
   {
     question: "Who's your crew?",
     subtitle: '',
     options: [
-      { label: 'Solo or date night', desc: 'Just me, or me and one other', emoji: '👤', quality: 'Intimate' },
-      { label: 'Small group', desc: 'A few close friends or fam', emoji: '👯', quality: 'Social' },
-      { label: 'The whole squad', desc: "Big group energy, everyone's coming", emoji: '🎊', quality: 'Party mode' },
+      { label: 'Solo or date night', desc: 'Just me, or me and one other', emoji: 'ð¤', quality: 'Intimate' },
+      { label: 'Small group', desc: 'A few close friends or fam', emoji: 'ð¯', quality: 'Social' },
+      { label: 'The whole squad', desc: "Big group energy, everyone's coming", emoji: 'ð', quality: 'Party mode' },
     ],
   },
   {
     question: 'What sounds good?',
     subtitle: 'Go with your gut',
     options: [
-      { label: 'Live music or show', desc: 'Something to watch and feel', emoji: '🎵', quality: 'Entertainment' },
-      { label: 'Food & drinks', desc: 'Good eats, good drinks, good company', emoji: '🍽️', quality: 'Chill' },
-      { label: 'One-of-a-kind experience', desc: "Something I've never done before", emoji: '✨', quality: 'Unique' },
+      { label: 'Live music or show', desc: 'Something to watch and feel', emoji: 'ðµ', quality: 'Entertainment' },
+      { label: 'Food & drinks', desc: 'Good eats, good drinks, good company', emoji: 'ð½ï¸', quality: 'Chill' },
+      { label: 'One-of-a-kind experience', desc: "Something I've never done before", emoji: 'â¨', quality: 'Unique' },
     ],
   },
   {
     question: "What's the scene?",
     subtitle: 'Pick the vibe that fits',
     options: [
-      { label: 'Small & intimate', desc: 'Real atmosphere, you can actually talk', emoji: '🏡', quality: 'Cozy' },
-      { label: 'Buzzing & social', desc: 'Medium energy, meeting-people kind of night', emoji: '🍻', quality: 'Social' },
-      { label: 'Big & electric', desc: "Massive crowd, everyone's there for it", emoji: '🏟️', quality: 'Epic' },
+      { label: 'Small & intimate', desc: 'Real atmosphere, you can actually talk', emoji: 'ð¡', quality: 'Cozy' },
+      { label: 'Buzzing & social', desc: 'Medium energy, meeting-people kind of night', emoji: 'ð»', quality: 'Social' },
+      { label: 'Big & electric', desc: "Massive crowd, everyone's there for it", emoji: 'ðï¸', quality: 'Epic' },
     ],
   },
   {
     question: "What's your budget?",
     subtitle: '',
     options: [
-      { label: 'Free–$25', desc: 'Free fun is real fun', emoji: '💚', quality: 'Good' },
-      { label: '$25–$75', desc: 'Happy to spend on a good time', emoji: '💛', quality: 'Better' },
-      { label: "Sky's the limit", desc: 'The experience is what matters', emoji: '💜', quality: 'Best' },
+      { label: 'Freeâ$25', desc: 'Free fun is real fun', emoji: 'ð', quality: 'Good' },
+      { label: '$25â$75', desc: 'Happy to spend on a good time', emoji: 'ð', quality: 'Better' },
+      { label: "Sky's the limit", desc: 'The experience is what matters', emoji: 'ð', quality: 'Best' },
     ],
   },
 ]
@@ -89,10 +89,11 @@ const LOADING_MESSAGES = [
   'Picking your top 3...',
 ]
 
-const MEDALS = ['🥇', '🥈', '🥉']
+const MEDALS = ['ð¥', 'ð¥', 'ð¥']
 
 type Phase = 'locating' | 'city' | 'question' | 'loading' | 'results' | 'empty'
 type EmailState = 'idle' | 'loading' | 'done' | 'error'
+type FeedbackRating = 'up' | 'meh' | 'down'
 
 export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [city, setCity]     = useState(initialCity)
@@ -107,6 +108,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [copied, setCopied] = useState(false)
   const [emailInput, setEmailInput] = useState('')
   const [emailState, setEmailState] = useState<EmailState>('idle')
+  const [feedback, setFeedback] = useState<Record<string, FeedbackRating>>({})
   const cancelGps = useRef(false)
 
   // GPS detection + reset on open/close
@@ -177,6 +179,28 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     }, 900)
     return () => clearInterval(interval)
   }, [phase])
+
+
+  function getSessionId(): string {
+    try {
+      const k = 'yd_sid'
+      let sid: string | null = null
+      try { sid = localStorage.getItem(k) } catch { /* */ }
+      if (!sid) { sid = Math.random().toString(36).slice(2) + Date.now().toString(36); try { localStorage.setItem(k, sid) } catch { /* */ } }
+      return sid
+    } catch { return 'anon' }
+  }
+
+  async function submitFeedback(pick: Pick, rating: FeedbackRating) {
+    setFeedback(prev => ({ ...prev, [pick.id]: rating }))
+    try {
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: pick.id, event_title: pick.title, rating, session_id: getSessionId(), city }),
+      })
+    } catch { /* fire and forget */ }
+  }
 
   async function handleAnswer(answer: string) {
     const newAnswers = [...answers, answer]
@@ -257,7 +281,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     const params = new URLSearchParams({ city: city || 'nearby', ids })
     const url = `${window.location.origin}/picks?${params.toString()}`
     if (navigator.share) {
-      navigator.share({ title: `My picks for ${timeframeDisplay} 🎯`, text: `Check out these events in ${city || 'my area'}!`, url })
+      navigator.share({ title: `My picks for ${timeframeDisplay} ð¯`, text: `Check out these events in ${city || 'my area'}!`, url })
         .catch(() => {/* user cancelled */})
     } else {
       navigator.clipboard.writeText(url).then(() => {
@@ -279,13 +303,13 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors rounded-full hover:bg-white/10"
           aria-label="Close"
         >
-          ✕
+          â
         </button>
 
         {/* Locating phase */}
         {phase === 'locating' && (
           <div className="p-8 text-center py-16">
-            <div className="text-5xl mb-6">📍</div>
+            <div className="text-5xl mb-6">ð</div>
             <h2 className="font-display text-xl text-white mb-3">Finding events near you...</h2>
             <p className="text-white/40 text-sm mb-8">Allow location access for the best picks</p>
             <button
@@ -300,9 +324,9 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {/* City phase */}
         {phase === 'city' && (
           <div className="p-8 text-center">
-            <div className="text-5xl mb-4">🎯</div>
+            <div className="text-5xl mb-4">ð¯</div>
             <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
-            <p className="text-white/50 text-sm mb-7">6 quick questions → your 3 best picks</p>
+            <p className="text-white/50 text-sm mb-7">6 quick questions â your 3 best picks</p>
             <input
               autoFocus
               value={city}
@@ -316,7 +340,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               disabled={!city.trim()}
               className="w-full bg-yd-orange hover:bg-yd-orangeHover disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
             >
-              Let&apos;s go →
+              Let&apos;s go â
             </button>
           </div>
         )}
@@ -342,7 +366,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
 
             {(city || lat) && (
               <div className="flex items-center gap-1.5 mb-4 -mt-2">
-                <span className="text-xs text-white/30">📍</span>
+                <span className="text-xs text-white/30">ð</span>
                 <span className="text-xs text-white/30">{city || 'your location'}</span>
                 {!lat && (
                   <button
@@ -370,7 +394,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     </div>
                     <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors truncate">{opt.desc}</p>
                   </div>
-                  <span className="text-white/20 group-hover:text-yd-orange transition-colors shrink-0">→</span>
+                  <span className="text-white/20 group-hover:text-yd-orange transition-colors shrink-0">â</span>
                 </button>
               ))}
             </div>
@@ -380,7 +404,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                 onClick={() => { setQIndex(i => i - 1); setAnswers(a => a.slice(0, -1)) }}
                 className="mt-4 text-white/25 hover:text-white/50 text-xs transition-colors"
               >
-                ← Back
+                â Back
               </button>
             )}
           </div>
@@ -389,7 +413,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {/* Loading phase */}
         {phase === 'loading' && (
           <div className="p-8 text-center py-16">
-            <div className="text-5xl mb-6 animate-bounce">🎯</div>
+            <div className="text-5xl mb-6 animate-bounce">ð¯</div>
             <h2 className="font-display text-xl text-white mb-3">Finding your perfect picks...</h2>
             <p className="text-white/40 text-sm min-h-[1.25rem] transition-all duration-300">
               {LOADING_MESSAGES[loadingMsg]}
@@ -403,7 +427,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             <div className="text-center mb-4">
               <h2 className="font-display text-xl text-white">Your picks for {timeframeDisplay}</h2>
               <p className="text-white/30 text-xs mt-0.5">
-                {lat ? `📍 near you` : `in ${city}`}
+                {lat ? `ð near you` : `in ${city}`}
               </p>
             </div>
 
@@ -427,8 +451,8 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                   <div className="p-3">
                     <p className="font-semibold text-white text-sm leading-snug mb-1 line-clamp-2">{pick.title}</p>
                     <p className="text-white/40 text-xs mb-2">
-                      {pick.venue && <span>{pick.venue} · </span>}
-                      {pick.dateFormatted}{pick.priceFormatted ? ` · ${pick.priceFormatted}` : ''}
+                      {pick.venue && <span>{pick.venue} Â· </span>}
+                      {pick.dateFormatted}{pick.priceFormatted ? ` Â· ${pick.priceFormatted}` : ''}
                     </p>
                     <p className="text-yd-orange/80 text-xs italic leading-relaxed mb-3">
                       &ldquo;{pick.pitch}&rdquo;
@@ -441,9 +465,24 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                         className="inline-flex items-center gap-1 bg-yd-orange hover:bg-yd-orangeHover text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
                         onClick={() => capture('ticket_clicked', { event_id: pick.id, title: pick.title, city, rank: pick.rank })}
                       >
-                        Let&apos;s go →
+                        Let&apos;s go â
                       </a>
                     ) : null}
+                  {/* Feedback */}
+                  <div className="flex items-center justify-center gap-4 pt-2 mt-2 border-t border-white/10">
+                    <span className="text-white/40 text-xs mr-1">Rate this pick</span>
+                    {(['up', 'meh', 'down'] as FeedbackRating[]).map(r => (
+                      <button
+                        key={r}
+                        onClick={() => submitFeedback(pick, r)}
+                        title={r === 'up' ? 'Love it' : r === 'meh' ? 'So-so' : 'Not for me'}
+                        style={{ display: 'inline-block', transform: r === 'meh' ? 'rotate(90deg)' : undefined, fontSize: '1.15rem', opacity: feedback[pick.id] ? (feedback[pick.id] === r ? 1 : 0.2) : 0.45 }}
+                        className="transition-all duration-150 hover:scale-125 active:scale-110 leading-none cursor-pointer"
+                      >
+                        {r === 'down' ? '👎' : '👍'}
+                      </button>
+                    ))}
+                  </div>
                   </div>
                 </div>
               ))}
@@ -453,7 +492,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4">
               {emailState === 'done' ? (
                 <p className="text-center text-sm text-white/70">
-                  ✅ You&apos;re in! We&apos;ll send weekly picks to your inbox.
+                  â You&apos;re in! We&apos;ll send weekly picks to your inbox.
                 </p>
               ) : (
                 <>
@@ -481,7 +520,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     </button>
                   </div>
                   {emailState === 'error' && (
-                    <p className="text-red-400/80 text-xs mt-1.5">Something went wrong — try again.</p>
+                    <p className="text-red-400/80 text-xs mt-1.5">Something went wrong â try again.</p>
                   )}
                 </>
               )}
@@ -492,14 +531,14 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                 onClick={handleShare}
                 className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
-                {copied ? '✅ Link copied!' : '🔗 Share my picks'}
+                {copied ? 'â Link copied!' : 'ð Share my picks'}
               </button>
               <div className="flex items-center justify-between">
                 <button
                   onClick={handleReset}
                   className="text-white/25 hover:text-white/55 text-xs transition-colors"
                 >
-                  ↩ Try different answers
+                  â© Try different answers
                 </button>
                 <button
                   onClick={onClose}
@@ -515,17 +554,17 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {/* Empty phase */}
         {phase === 'empty' && (
           <div className="p-8 text-center py-14">
-            <div className="text-4xl mb-4">🤷</div>
+            <div className="text-4xl mb-4">ð¤·</div>
             <h2 className="font-display text-xl text-white mb-2">Nothing matched right now</h2>
             <p className="text-white/40 text-sm mb-6">
-              Try a different city or check back soon — events update daily.
+              Try a different city or check back soon â events update daily.
             </p>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={handleReset}
                 className="bg-yd-orange/20 hover:bg-yd-orange/30 text-yd-orange text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
               >
-                ← Try again
+                â Try again
               </button>
               <button
                 onClick={onClose}
