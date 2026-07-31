@@ -499,7 +499,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               {picks.map((pick, i) => (
                 <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors" onClick={() => setHeartOpen(null)}>
                   <div className="relative w-full h-36">
-                    <Image src={pick.imageUrl || ''} alt={pick.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 100%" priority={pick.imageUrl ? 'high' : 'low'} />
+                    <Image src={pick.imageUrl || ''} alt={pick.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 100%" priority={!!pick.imageUrl} />
                     {!pick.imageUrl && (
                       <CategoryPlaceholder category={pick.category || ''} className="w-full h-full" />
                     )}
