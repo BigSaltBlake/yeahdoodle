@@ -94,6 +94,8 @@ const MEDALS = ['Ã°ÂÂ¥Â', 'Ã°ÂÂ¥Â', 'Ã°ÂÂ¥Â']
 type Phase = 'locating' | 'city' | 'question' | 'loading' | 'results' | 'empty'
 type EmailState = 'idle' | 'loading' | 'done' | 'error'
 type FeedbackRating = 'up' | 'meh' | 'down'
+type SaveIntent = 'save_for_later' | 'definitely_going'
+type SavedEventLocal = { event_id: string; event_title: string; event_data: Record<string, unknown>; intent: SaveIntent; city: string; saved_at: string }
 
 export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [city, setCity]     = useState(initialCity)
@@ -109,6 +111,9 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [emailInput, setEmailInput] = useState('')
   const [emailState, setEmailState] = useState<EmailState>('idle')
   const [feedback, setFeedback] = useState<Record<string, FeedbackRating>>({})
+  const [saved, setSaved] = useState<Record<string, SaveIntent>>({})
+  const [heartOpen, setHeartOpen] = useState<string | null>(null)
+  const [showSignInNudge, setShowSignInNudge] = useState(false)
   const cancelGps = useRef(false)
 
   // GPS detection + reset on open/close
@@ -200,6 +205,52 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         body: JSON.stringify({ event_id: pick.id, event_title: pick.title, rating, session_id: getSessionId(), city }),
       })
     } catch { /* fire and forget */ }
+  }
+
+  useEffect(() => {
+    try { setSaved(JSON.parse(localStorage.getItem('yd_saved_map') || '{}')) } catch {}
+  }, [])
+
+  async function saveEvent(pick: Pick, intent: SaveIntent) {
+    setHeartOpen(null)
+    const newSaved = { ...saved, [pick.id]: intent }
+    setSaved(newSaved)
+    try {
+      localStorage.setItem('yd_saved_map', JSON.stringify(newSaved))
+      const list: SavedEventLocal[] = JSON.parse(localStorage.getItem('yd_saved') || '[]')
+      const filtered = list.filter(e => e.event_id !== pick.id)
+      filtered.unshift({ event_id: pick.id, event_title: pick.title, event_data: pick as unknown as Record<string, unknown>, intent, city, saved_at: new Date().toISOString() })
+      localStorage.setItem('yd_saved', JSON.stringify(filtered))
+    } catch {}
+    if (Object.keys(saved).length === 0) setShowSignInNudge(true)
+    try {
+      await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: pick.id, event_title: pick.title, event_data: pick, intent, session_id: getSessionId(), city }),
+      })
+    } catch {}
+    capture('event_saved', { event_id: pick.id, title: pick.title, intent, city })
+  }
+
+  async function unsaveEvent(pick: Pick) {
+    setHeartOpen(null)
+    const newSaved = { ...saved }
+    delete newSaved[pick.id]
+    setSaved(newSaved)
+    try {
+      localStorage.setItem('yd_saved_map', JSON.stringify(newSaved))
+      const list: SavedEventLocal[] = JSON.parse(localStorage.getItem('yd_saved') || '[]')
+      localStorage.setItem('yd_saved', JSON.stringify(list.filter(e => e.event_id !== pick.id)))
+    } catch {}
+    try {
+      await fetch('/api/save', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: pick.id, session_id: getSessionId() }),
+      })
+    } catch {}
+    capture('event_unsaved', { event_id: pick.id, title: pick.title, city })
   }
 
   async function handleAnswer(answer: string) {
