@@ -29,55 +29,55 @@ const QUESTIONS = [
     question: 'When are you planning this?',
     subtitle: '',
     options: [
-      { label: 'Tonight', desc: "Let's make something happen right now", emoji: 'ð', quality: 'Tonight' },
-      { label: 'Tomorrow', desc: 'Lining something up for tomorrow', emoji: 'âï¸', quality: 'Tomorrow' },
-      { label: 'This weekend', desc: 'Friday through Sunday', emoji: 'ð', quality: 'Weekend' },
-      { label: 'Coming weeks', desc: 'Scouting ahead â want options on the calendar', emoji: 'ð', quality: 'Planning' },
+      { label: 'Tonight', desc: "Let's make something happen right now", emoji: 'Ã°ÂÂÂ', quality: 'Tonight' },
+      { label: 'Tomorrow', desc: 'Lining something up for tomorrow', emoji: 'Ã¢ÂÂÃ¯Â¸Â', quality: 'Tomorrow' },
+      { label: 'This weekend', desc: 'Friday through Sunday', emoji: 'Ã°ÂÂÂ', quality: 'Weekend' },
+      { label: 'Coming weeks', desc: 'Scouting ahead Ã¢ÂÂ want options on the calendar', emoji: 'Ã°ÂÂÂ', quality: 'Planning' },
     ],
   },
   {
     question: "What's your energy?",
     subtitle: 'How adventurous are you feeling?',
     options: [
-      { label: 'Easy & familiar', desc: "Take me somewhere I know I'll enjoy", emoji: 'ð¯', quality: 'Safe bet' },
-      { label: 'Mix it up a bit', desc: 'Push me slightly outside my comfort zone', emoji: 'â¡', quality: 'Adventurous' },
-      { label: 'Full send', desc: 'Make it a story worth telling', emoji: 'ð', quality: 'Wild card' },
+      { label: 'Easy & familiar', desc: "Take me somewhere I know I'll enjoy", emoji: 'Ã°ÂÂÂ¯', quality: 'Safe bet' },
+      { label: 'Mix it up a bit', desc: 'Push me slightly outside my comfort zone', emoji: 'Ã¢ÂÂ¡', quality: 'Adventurous' },
+      { label: 'Full send', desc: 'Make it a story worth telling', emoji: 'Ã°ÂÂÂ', quality: 'Wild card' },
     ],
   },
   {
     question: "Who's your crew?",
     subtitle: '',
     options: [
-      { label: 'Solo or date night', desc: 'Just me, or me and one other', emoji: 'ð¤', quality: 'Intimate' },
-      { label: 'Small group', desc: 'A few close friends or fam', emoji: 'ð¯', quality: 'Social' },
-      { label: 'The whole squad', desc: "Big group energy, everyone's coming", emoji: 'ð', quality: 'Party mode' },
+      { label: 'Solo or date night', desc: 'Just me, or me and one other', emoji: 'Ã°ÂÂÂ¤', quality: 'Intimate' },
+      { label: 'Small group', desc: 'A few close friends or fam', emoji: 'Ã°ÂÂÂ¯', quality: 'Social' },
+      { label: 'The whole squad', desc: "Big group energy, everyone's coming", emoji: 'Ã°ÂÂÂ', quality: 'Party mode' },
     ],
   },
   {
     question: 'What sounds good?',
     subtitle: 'Go with your gut',
     options: [
-      { label: 'Live music or show', desc: 'Something to watch and feel', emoji: 'ðµ', quality: 'Entertainment' },
-      { label: 'Food & drinks', desc: 'Good eats, good drinks, good company', emoji: 'ð½ï¸', quality: 'Chill' },
-      { label: 'One-of-a-kind experience', desc: "Something I've never done before", emoji: 'â¨', quality: 'Unique' },
+      { label: 'Live music or show', desc: 'Something to watch and feel', emoji: 'Ã°ÂÂÂµ', quality: 'Entertainment' },
+      { label: 'Food & drinks', desc: 'Good eats, good drinks, good company', emoji: 'Ã°ÂÂÂ½Ã¯Â¸Â', quality: 'Chill' },
+      { label: 'One-of-a-kind experience', desc: "Something I've never done before", emoji: 'Ã¢ÂÂ¨', quality: 'Unique' },
     ],
   },
   {
     question: "What's the scene?",
     subtitle: 'Pick the vibe that fits',
     options: [
-      { label: 'Small & intimate', desc: 'Real atmosphere, you can actually talk', emoji: 'ð¡', quality: 'Cozy' },
-      { label: 'Buzzing & social', desc: 'Medium energy, meeting-people kind of night', emoji: 'ð»', quality: 'Social' },
-      { label: 'Big & electric', desc: "Massive crowd, everyone's there for it", emoji: 'ðï¸', quality: 'Epic' },
+      { label: 'Small & intimate', desc: 'Real atmosphere, you can actually talk', emoji: 'Ã°ÂÂÂ¡', quality: 'Cozy' },
+      { label: 'Buzzing & social', desc: 'Medium energy, meeting-people kind of night', emoji: 'Ã°ÂÂÂ»', quality: 'Social' },
+      { label: 'Big & electric', desc: "Massive crowd, everyone's there for it", emoji: 'Ã°ÂÂÂÃ¯Â¸Â', quality: 'Epic' },
     ],
   },
   {
     question: "What's your budget?",
     subtitle: '',
     options: [
-      { label: 'Freeâ$25', desc: 'Free fun is real fun', emoji: 'ð', quality: 'Good' },
-      { label: '$25â$75', desc: 'Happy to spend on a good time', emoji: 'ð', quality: 'Better' },
-      { label: "Sky's the limit", desc: 'The experience is what matters', emoji: 'ð', quality: 'Best' },
+      { label: 'FreeÃ¢ÂÂ$25', desc: 'Free fun is real fun', emoji: 'Ã°ÂÂÂ', quality: 'Good' },
+      { label: '$25Ã¢ÂÂ$75', desc: 'Happy to spend on a good time', emoji: 'Ã°ÂÂÂ', quality: 'Better' },
+      { label: "Sky's the limit", desc: 'The experience is what matters', emoji: 'Ã°ÂÂÂ', quality: 'Best' },
     ],
   },
 ]
@@ -89,7 +89,7 @@ const LOADING_MESSAGES = [
   'Picking your top 3...',
 ]
 
-const MEDALS = ['ð¥', 'ð¥', 'ð¥']
+const MEDALS = ['Ã°ÂÂ¥Â', 'Ã°ÂÂ¥Â', 'Ã°ÂÂ¥Â']
 
 type Phase = 'locating' | 'city' | 'question' | 'loading' | 'results' | 'empty'
 type EmailState = 'idle' | 'loading' | 'done' | 'error'
@@ -281,7 +281,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     const params = new URLSearchParams({ city: city || 'nearby', ids })
     const url = `${window.location.origin}/picks?${params.toString()}`
     if (navigator.share) {
-      navigator.share({ title: `My picks for ${timeframeDisplay} ð¯`, text: `Check out these events in ${city || 'my area'}!`, url })
+      navigator.share({ title: `My picks for ${timeframeDisplay} Ã°ÂÂÂ¯`, text: `Check out these events in ${city || 'my area'}!`, url })
         .catch(() => {/* user cancelled */})
     } else {
       navigator.clipboard.writeText(url).then(() => {
@@ -303,13 +303,13 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors rounded-full hover:bg-white/10"
           aria-label="Close"
         >
-          â
+          Ã¢ÂÂ
         </button>
 
         {/* Locating phase */}
         {phase === 'locating' && (
           <div className="p-8 text-center py-16">
-            <div className="text-5xl mb-6">ð</div>
+            <div className="text-5xl mb-6">Ã°ÂÂÂ</div>
             <h2 className="font-display text-xl text-white mb-3">Finding events near you...</h2>
             <p className="text-white/40 text-sm mb-8">Allow location access for the best picks</p>
             <button
@@ -324,9 +324,9 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {/* City phase */}
         {phase === 'city' && (
           <div className="p-8 text-center">
-            <div className="text-5xl mb-4">ð¯</div>
+            <div className="text-5xl mb-4">Ã°ÂÂÂ¯</div>
             <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
-            <p className="text-white/50 text-sm mb-7">6 quick questions â your 3 best picks</p>
+            <p className="text-white/50 text-sm mb-7">6 quick questions Ã¢ÂÂ your 3 best picks</p>
             <input
               autoFocus
               value={city}
@@ -340,7 +340,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               disabled={!city.trim()}
               className="w-full bg-yd-orange hover:bg-yd-orangeHover disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
             >
-              Let&apos;s go â
+              Let&apos;s go Ã¢ÂÂ
             </button>
           </div>
         )}
@@ -366,7 +366,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
 
             {(city || lat) && (
               <div className="flex items-center gap-1.5 mb-4 -mt-2">
-                <span className="text-xs text-white/30">ð</span>
+                <span className="text-xs text-white/30">Ã°ÂÂÂ</span>
                 <span className="text-xs text-white/30">{city || 'your location'}</span>
                 {!lat && (
                   <button
@@ -394,7 +394,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     </div>
                     <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors truncate">{opt.desc}</p>
                   </div>
-                  <span className="text-white/20 group-hover:text-yd-orange transition-colors shrink-0">â</span>
+                  <span className="text-white/20 group-hover:text-yd-orange transition-colors shrink-0">Ã¢ÂÂ</span>
                 </button>
               ))}
             </div>
@@ -404,7 +404,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                 onClick={() => { setQIndex(i => i - 1); setAnswers(a => a.slice(0, -1)) }}
                 className="mt-4 text-white/25 hover:text-white/50 text-xs transition-colors"
               >
-                â Back
+                Ã¢ÂÂ Back
               </button>
             )}
           </div>
@@ -413,7 +413,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {/* Loading phase */}
         {phase === 'loading' && (
           <div className="p-8 text-center py-16">
-            <div className="text-5xl mb-6 animate-bounce">ð¯</div>
+            <div className="text-5xl mb-6 animate-bounce">Ã°ÂÂÂ¯</div>
             <h2 className="font-display text-xl text-white mb-3">Finding your perfect picks...</h2>
             <p className="text-white/40 text-sm min-h-[1.25rem] transition-all duration-300">
               {LOADING_MESSAGES[loadingMsg]}
@@ -427,47 +427,79 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
             <div className="text-center mb-4">
               <h2 className="font-display text-xl text-white">Your picks for {timeframeDisplay}</h2>
               <p className="text-white/30 text-xs mt-0.5">
-                {lat ? `ð near you` : `in ${city}`}
+                {lat ? `Ã°ÂÂÂ near you` : `in ${city}`}
               </p>
             </div>
 
+                        {/* Saved count + sign-in nudge */}
+            {Object.keys(saved).length > 0 && (
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="text-xs text-white/50">❤️ {Object.keys(saved).length} saved</span>
+                <a href="/saved" className="text-xs text-[#4f9b85] hover:text-[#3d8372] transition-colors">View saved →</a>
+              </div>
+            )}
+            {showSignInNudge && (
+              <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-lg px-3 py-2 mb-2 text-xs">
+                <span className="text-white/60">Sign in to access your saved events on any device</span>
+                <a href="/auth" className="text-[#4f9b85] hover:underline ml-2 shrink-0">Sign in</a>
+              </div>
+            )}
             <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
               {picks.map((pick, i) => (
-                <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors">
+                <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors" onClick={() => setHeartOpen(null)}>
                   <div className="relative w-full h-36">
-                    {pick.imageUrl ? (
-                      <Image
-                        src={pick.imageUrl}
-                        alt={pick.title}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 640px) 100vw, 512px"
-                      />
-                    ) : (
-                      <CategoryPlaceholder category={pick.category} />
+                    <Image src={pick.imageUrl || ''} alt={pick.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 100%" priority={pick.imageUrl ? 'high' : 'low'} />
+                    {!pick.imageUrl && (
+                      <CategoryPlaceholder category={pick.category || ''} className="w-full h-full" />
                     )}
                     <span className="absolute top-2 left-2 text-xl leading-none drop-shadow-lg">{MEDALS[i]}</span>
+                    {/* Heart / Save */}
+                    <div className="absolute top-2 right-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setHeartOpen(heartOpen === pick.id ? null : pick.id) }}
+                        className="text-xl leading-none drop-shadow-lg transition-transform hover:scale-125 active:scale-110 block"
+                        title={saved[pick.id] ? 'Saved' : 'Save this event'}
+                        style={{ opacity: saved[pick.id] ? 1 : 0.5 }}
+                      >
+                        {saved[pick.id] ? '❤️' : '🤍'}
+                      </button>
+                      {heartOpen === pick.id && (
+                        <div className="absolute right-0 top-8 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-20 w-44 overflow-hidden">
+                          {saved[pick.id] ? (
+                            <button onClick={() => unsaveEvent(pick)} className="w-full text-left px-3 py-2.5 text-xs text-white/70 hover:bg-white/10 transition-colors">
+                              🗑️ Remove from saved
+                            </button>
+                          ) : (
+                            <>
+                              <button onClick={() => saveEvent(pick, 'save_for_later')} className="w-full text-left px-3 py-2.5 text-xs text-white/80 hover:bg-white/10 transition-colors border-b border-white/10">
+                                🔖 Save for later
+                              </button>
+                              <button onClick={() => saveEvent(pick, 'definitely_going')} className="w-full text-left px-3 py-2.5 text-xs text-white/80 hover:bg-white/10 transition-colors">
+                                🎯 Definitely going
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="p-3">
-                    <p className="font-semibold text-white text-sm leading-snug mb-1 line-clamp-2">{pick.title}</p>
-                    <p className="text-white/40 text-xs mb-2">
-                      {pick.venue && <span>{pick.venue} Â· </span>}
-                      {pick.dateFormatted}{pick.priceFormatted ? ` Â· ${pick.priceFormatted}` : ''}
-                    </p>
-                    <p className="text-yd-orange/80 text-xs italic leading-relaxed mb-3">
-                      &ldquo;{pick.pitch}&rdquo;
-                    </p>
-                    {pick.ticketUrl ? (
-                      <a
-                        href={pick.ticketUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 bg-yd-orange hover:bg-yd-orangeHover text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
-                        onClick={() => capture('ticket_clicked', { event_id: pick.id, title: pick.title, city, rank: pick.rank })}
+                    <span className="font-medium font-semibold text-white text-sm leading-snug">{pick.title}</span>
+                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowrap max-w-[200px]">{pick.venue}</span>
+                    <span className="text-xs text-white/40 block">{pick.dateFormatted} &middot; {pick.priceFormatted}</span>
+                    <span className="text-xs text-white/40 block italic">{pick.pitch}</span>
+                    <div className="flex gap-2 mt-1">
+                      {pick.source && <span className="bg-white/10 rounded px-1.5 text-[10px] text-white/50">{pick.source}</span>}
+                      {pick.ticketUrl && <a href={pick.ticketUrl}
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         className="text-xs font-medium text-[#4f9b85] hover:text-[#3d8372] transition-colors"
+                         onClick={() => capture('ticket_clicked', { event_id: pick.id, title: pick.title, city, rank: pick.rank })}
                       >
-                        Let&apos;s go â
-                      </a>
-                    ) : null}
+                        Let's go →
+                      </a>}
+                    </div>
+                  </div>
                   {/* Feedback */}
                   <div className="flex items-center justify-center gap-4 pt-2 mt-2 border-t border-white/10">
                     <span className="text-white/40 text-xs mr-1">Rate this pick</span>
@@ -483,16 +515,14 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                       </button>
                     ))}
                   </div>
-                  </div>
                 </div>
               ))}
             </div>
-
             {/* Email capture */}
             <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4">
               {emailState === 'done' ? (
                 <p className="text-center text-sm text-white/70">
-                  â You&apos;re in! We&apos;ll send weekly picks to your inbox.
+                  Ã¢ÂÂ You&apos;re in! We&apos;ll send weekly picks to your inbox.
                 </p>
               ) : (
                 <>
@@ -520,7 +550,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     </button>
                   </div>
                   {emailState === 'error' && (
-                    <p className="text-red-400/80 text-xs mt-1.5">Something went wrong â try again.</p>
+                    <p className="text-red-400/80 text-xs mt-1.5">Something went wrong Ã¢ÂÂ try again.</p>
                   )}
                 </>
               )}
@@ -531,14 +561,14 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                 onClick={handleShare}
                 className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
-                {copied ? 'â Link copied!' : 'ð Share my picks'}
+                {copied ? 'Ã¢ÂÂ Link copied!' : 'Ã°ÂÂÂ Share my picks'}
               </button>
               <div className="flex items-center justify-between">
                 <button
                   onClick={handleReset}
                   className="text-white/25 hover:text-white/55 text-xs transition-colors"
                 >
-                  â© Try different answers
+                  Ã¢ÂÂ© Try different answers
                 </button>
                 <button
                   onClick={onClose}
@@ -554,17 +584,17 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {/* Empty phase */}
         {phase === 'empty' && (
           <div className="p-8 text-center py-14">
-            <div className="text-4xl mb-4">ð¤·</div>
+            <div className="text-4xl mb-4">Ã°ÂÂ¤Â·</div>
             <h2 className="font-display text-xl text-white mb-2">Nothing matched right now</h2>
             <p className="text-white/40 text-sm mb-6">
-              Try a different city or check back soon â events update daily.
+              Try a different city or check back soon Ã¢ÂÂ events update daily.
             </p>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={handleReset}
                 className="bg-yd-orange/20 hover:bg-yd-orange/30 text-yd-orange text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
               >
-                â Try again
+                Ã¢ÂÂ Try again
               </button>
               <button
                 onClick={onClose}
