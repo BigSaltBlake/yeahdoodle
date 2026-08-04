@@ -32,7 +32,7 @@ const QUESTIONS = [
     subtitle: '',
     options: [
       { label: 'Tonight', desc: "Let's make something happen right now", emoji: '🌙', quality: 'Tonight' },
-      { label: 'Tomorrow', desc: 'Lining something up for tomorrow', emoji: '☀️', quality: 'Tomorrow' },
+      { label: 'Tomorrow', desc: 'Lining something up for tomorrow', emoji: '🌞', quality: 'Tomorrow' },
       { label: 'This weekend', desc: 'Friday through Sunday', emoji: '🎉', quality: 'Weekend' },
       { label: 'Coming weeks', desc: 'Scouting ahead — want options on the calendar', emoji: '📅', quality: 'Planning' },
     ],
@@ -60,7 +60,7 @@ const QUESTIONS = [
     subtitle: 'Go with your gut',
     options: [
       { label: 'Live music or show', desc: 'Something to watch and feel', emoji: '🎵', quality: 'Entertainment' },
-      { label: 'Food & drinks', desc: 'Good eats, good drinks, good company', emoji: '🍽️', quality: 'Chill' },
+      { label: 'Food & drinks', desc: 'Good eats, good drinks, good company', emoji: '🍕', quality: 'Chill' },
       { label: 'One-of-a-kind experience', desc: "Something I've never done before", emoji: '✨', quality: 'Unique' },
     ],
   },
@@ -70,7 +70,7 @@ const QUESTIONS = [
     options: [
       { label: 'Small & intimate', desc: 'Real atmosphere, you can actually talk', emoji: '🏡', quality: 'Cozy' },
       { label: 'Buzzing & social', desc: 'Medium energy, meeting-people kind of night', emoji: '🍻', quality: 'Social' },
-      { label: 'Big & electric', desc: "Massive crowd, everyone's there for it", emoji: '🏟️', quality: 'Epic' },
+      { label: 'Big & electric', desc: "Massive crowd, everyone's there for it", emoji: '🎆', quality: 'Epic' },
     ],
   },
   {
