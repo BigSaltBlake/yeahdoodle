@@ -98,14 +98,14 @@ type SaveIntent = 'save_for_later' | 'definitely_going'
 type SavedEventLocal = { event_id: string; event_title: string; event_data: Record<string, unknown>; intent: SaveIntent; city: string; saved_at: string }
 
 export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
-  const [city, setCity]     = useState(initialCity)
-  const [lat, setLat]       = useState<number | null>(null)
-  const [lng, setLng]       = useState<number | null>(null)
-  const [phase, setPhase]   = useState<Phase>(initialCity ? 'question' : 'locating')
+  const [city, setCity] = useState(initialCity)
+  const [lat, setLat] = useState<number | null>(null)
+  const [lng, setLng] = useState<number | null>(null)
+  const [phase, setPhase] = useState<Phase>(initialCity ? 'question' : 'locating')
   const [qIndex, setQIndex] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
   const [loadingMsg, setLoadingMsg] = useState(0)
-  const [picks, setPicks]   = useState<Pick[]>([])
+  const [picks, setPicks] = useState<Pick[]>([])
   const [animating, setAnimating] = useState(false)
   const [copied, setCopied] = useState(false)
   const [emailInput, setEmailInput] = useState('')
@@ -184,7 +184,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     }, 900)
     return () => clearInterval(interval)
   }, [phase])
-
 
   function getSessionId(): string {
     try {
@@ -482,11 +481,11 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </p>
             </div>
 
-                        {/* Saved count + sign-in nudge */}
+            {/* Saved count + sign-in nudge */}
             {Object.keys(saved).length > 0 && (
               <div className="flex items-center justify-between mb-2 px-1">
-                <span className="text-xs text-white/50">d {Object.keys(saved).length} saved</span>
-                <a href="/saved" className="text-xs text-[#4f9b85] hover:text-[#3d8372] transition-colors">View saved �</a>
+                <span className="text-xs text-white/50">❤️ {Object.keys(saved).length} saved</span>
+                <a href="/saved" className="text-xs text-[#4f9b85] hover:text-[#3d8372] transition-colors">View saved →</a>
               </div>
             )}
             {showSignInNudge && (
@@ -512,21 +511,21 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                         title={saved[pick.id] ? 'Saved' : 'Save this event'}
                         style={{ opacity: saved[pick.id] ? 1 : 0.5 }}
                       >
-                        {saved[pick.id] ? 'd' : '>'}
+                        {saved[pick.id] ? '❤️' : '🤍'}
                       </button>
                       {heartOpen === pick.id && (
                         <div className="absolute right-0 top-8 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-20 w-44 overflow-hidden">
                           {saved[pick.id] ? (
                             <button onClick={() => unsaveEvent(pick)} className="w-full text-left px-3 py-2.5 text-xs text-white/70 hover:bg-white/10 transition-colors">
-                              =� Remove from saved
+                              🗑️ Remove from saved
                             </button>
                           ) : (
                             <>
                               <button onClick={() => saveEvent(pick, 'save_for_later')} className="w-full text-left px-3 py-2.5 text-xs text-white/80 hover:bg-white/10 transition-colors border-b border-white/10">
-                                = Save for later
+                                🔖 Save for later
                               </button>
                               <button onClick={() => saveEvent(pick, 'definitely_going')} className="w-full text-left px-3 py-2.5 text-xs text-white/80 hover:bg-white/10 transition-colors">
-                                <� Definitely going
+                                🎯 Definitely going
                               </button>
                             </>
                           )}
@@ -542,12 +541,12 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     <div className="flex gap-2 mt-1">
                       {pick.source && <span className="bg-white/10 rounded px-1.5 text-[10px] text-white/50">{pick.source}</span>}
                       {pick.ticketUrl && <a href={pick.ticketUrl}
-                         target="_blank"
-                         rel="noopener noreferrer"
-                         className="text-xs font-medium text-[#4f9b85] hover:text-[#3d8372] transition-colors"
-                         onClick={() => capture('ticket_clicked', { event_id: pick.id, title: pick.title, city, rank: pick.rank })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-[#4f9b85] hover:text-[#3d8372] transition-colors"
+                        onClick={() => capture('ticket_clicked', { event_id: pick.id, title: pick.title, city, rank: pick.rank })}
                       >
-                        Let's go �
+                        Let&apos;s go →
                       </a>}
                     </div>
                   </div>
@@ -562,7 +561,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                         style={{ display: 'inline-block', transform: r === 'meh' ? 'rotate(90deg)' : undefined, fontSize: '1.15rem', opacity: feedback[pick.id] ? (feedback[pick.id] === r ? 1 : 0.2) : 0.45 }}
                         className="transition-all duration-150 hover:scale-125 active:scale-110 leading-none cursor-pointer"
                       >
-                        {r === 'down' ? '=N' : '=M'}
+                        {r === 'down' ? '👎' : '👍'}
                       </button>
                     ))}
                   </div>
