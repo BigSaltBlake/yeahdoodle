@@ -547,6 +547,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     <span className="text-xs text-white/40 block italic">{pick.pitch}</span>
                     <div className="flex gap-2 mt-1">
                       {pick.source === 'activity' && <span className="bg-emerald-500/20 text-emerald-400/90 rounded px-1.5 py-0.5 text-[10px] font-medium">🏃 Activity</span>}
+                      {pick.source === 'facebook' && <span className="bg-blue-600/20 text-blue-400/90 rounded px-1.5 py-0.5 text-[10px] font-medium">📘 Facebook</span>}
                       {pick.ticketUrl && <a href={pick.ticketUrl}
                         target="_blank"
                         rel="noopener noreferrer"
