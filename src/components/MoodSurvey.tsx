@@ -501,7 +501,9 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                   <div className="relative w-full h-36">
                     <Image src={pick.imageUrl || ''} alt={pick.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 100%" priority={!!pick.imageUrl} />
                     {!pick.imageUrl && (
-                      <CategoryPlaceholder category={pick.category || ''} className="w-full h-full" />
+                      <div className="absolute inset-0">
+                <CategoryPlaceholder category={pick.category || ''} />
+              </div>
                     )}
                     <span className="absolute top-2 left-2 text-xl leading-none drop-shadow-lg">{MEDALS[i]}</span>
                     {/* Heart / Save */}
