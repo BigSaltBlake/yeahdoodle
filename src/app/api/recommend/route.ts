@@ -58,7 +58,7 @@ interface GeoCity {
   displayName: string
   resultLat: number
   resultLng: number
-  placeType: string  // 'city' | 'town' | 'village' | 'hamlet' | 'county' | 'region'
+  placeType: string
 }
 
 async function reverseGeocode(lat: number, lng: number, zoom: number): Promise<GeoCity | null> {
@@ -78,15 +78,14 @@ async function reverseGeocode(lat: number, lng: number, zoom: number): Promise<G
     const data = await res.json()
     const addr = data.address ?? {}
 
-    // Determine place type — walk hierarchy
     let placeType = 'region'
     let city = ''
-    if (addr.city)       { city = addr.city;       placeType = 'city'    }
-    else if (addr.town)  { city = addr.town;        placeType = 'town'    }
-    else if (addr.village) { city = addr.village;   placeType = 'village' }
-    else if (addr.hamlet)  { city = addr.hamlet;    placeType = 'hamlet'  }
-    else if (addr.county)  { city = addr.county;    placeType = 'county'  }
-    else if (addr.state)   { city = addr.state;     placeType = 'region'  }
+    if (addr.city)         { city = addr.city;      placeType = 'city'    }
+    else if (addr.town)    { city = addr.town;       placeType = 'town'    }
+    else if (addr.village) { city = addr.village;    placeType = 'village' }
+    else if (addr.hamlet)  { city = addr.hamlet;     placeType = 'hamlet'  }
+    else if (addr.county)  { city = addr.county;     placeType = 'county'  }
+    else if (addr.state)   { city = addr.state;      placeType = 'region'  }
 
     const state = addr.state || addr['ISO3166-2-lvl4']?.split('-')[1] || ''
     const displayName = [city, state].filter(Boolean).join(', ')
@@ -99,21 +98,20 @@ async function reverseGeocode(lat: number, lng: number, zoom: number): Promise<G
   }
 }
 
-// Haversine distance in miles
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8
-  const φ1 = lat1 * Math.PI / 180
-  const φ2 = lat2 * Math.PI / 180
-  const Δφ = (lat2 - lat1) * Math.PI / 180
-  const Δλ = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
+  const ph1 = lat1 * Math.PI / 180
+  const ph2 = lat2 * Math.PI / 180
+  const dph = (lat2 - lat1) * Math.PI / 180
+  const dl  = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dph / 2) ** 2 + Math.cos(ph1) * Math.cos(ph2) * Math.sin(dl / 2) ** 2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 function driveTimeLabel(miles: number): string {
   if (miles < 2)  return 'Right here'
   if (miles < 5)  return `~${Math.round(miles)} mi away`
-  const mins = Math.round(miles / 0.75)  // ~45 mph average
+  const mins = Math.round(miles / 0.75)
   if (mins < 60) return `~${mins} min away`
   const hrs = Math.floor(mins / 60)
   const rem = Math.round((mins % 60) / 5) * 5
@@ -122,7 +120,6 @@ function driveTimeLabel(miles: number): string {
 
 // ---------------------------------------------------------------------------
 // Survey answer helpers
-// answers[0]=timeframe, [1]=energy, [2]=crew, [3]=experience, [4]=scene, [5]=budget
 // ---------------------------------------------------------------------------
 function budgetMax(answers: string[]): number | null {
   const b = answers[5] ?? ''
@@ -166,13 +163,11 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     const start = (dow === 0 || dow === 6) ? now : friday
     return { start, end: sunday }
   }
-  // 'Coming weeks' — 4-week lookahead
   const end = new Date(today)
   end.setDate(end.getDate() + 28)
   return { start: now, end }
 }
 
-// Build SerpAPI queries for a city — rural/local cities get activity queries too
 function getSerpQueriesForCity(timeframe: string, city: string, isLocal: boolean): string[] {
   const when =
     timeframe === 'Tonight'      ? 'tonight' :
@@ -185,7 +180,6 @@ function getSerpQueriesForCity(timeframe: string, city: string, isLocal: boolean
     `things to do ${when} in ${city}`,
   ]
 
-  // For local/rural places, also search for activities and outdoor experiences
   if (isLocal) {
     base.push(
       `things to do near ${city}`,
@@ -214,7 +208,7 @@ function inferCategory(text: string): string {
 function parseGoogleEventDate(dateStr: string | undefined): string | null {
   if (!dateStr) return null
   try {
-    const cleaned = dateStr.replace(/\s*[–-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
+    const cleaned = dateStr.replace(/\s*[\u2013-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
     const d = new Date(cleaned)
     if (!isNaN(d.getTime())) return d.toISOString()
     const withYear = `${cleaned} ${new Date().getFullYear()}`
@@ -276,7 +270,6 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
             const isFree = price === 0 || (e.description as string ?? '').toLowerCase().includes('free')
             const dateStart = parseGoogleEventDate(date?.start_date ?? date?.when)
 
-            // Queries without time (activity queries) often have no date
             const isActivity = !dateStart && qi >= 2
 
             results.push({
@@ -300,6 +293,90 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
           console.error('[recommend] SerpAPI fetch error:', err)
         }
       })
+    }),
+  )
+
+  return results
+}
+
+// ---------------------------------------------------------------------------
+// Facebook Events via SerpAPI google_search + site:facebook.com/events
+// ---------------------------------------------------------------------------
+async function fetchFacebookEvents(cities: CityQuery[], timeframe = 'Tonight'): Promise<EventRow[]> {
+  const serpKey = process.env.SERPAPI_KEY
+  if (!serpKey || cities.length === 0) return []
+
+  const results: EventRow[] = []
+  const seen = new Set<string>()
+
+  const targets = cities.filter(c => !c.isLocal)
+  const searchCities = targets.length > 0 ? targets : cities
+
+  await Promise.all(
+    searchCities.map(async ({ name: cityName, distanceLabel }) => {
+      const when =
+        timeframe === 'Tonight'      ? 'tonight' :
+        timeframe === 'Tomorrow'     ? 'tomorrow' :
+        timeframe === 'This weekend' ? 'this weekend' :
+        'this month'
+
+      const q = `site:facebook.com/events ${when} in ${cityName}`
+
+      try {
+        const url =
+          `https://serpapi.com/search.json?engine=google` +
+          `&q=${encodeURIComponent(q)}&hl=en&gl=us&api_key=${serpKey}&num=10`
+
+        const res = await fetch(url, { cache: 'no-store' })
+        if (!res.ok) return
+
+        const data = await res.json()
+        const organic = (data.organic_results ?? []) as Array<Record<string, unknown>>
+
+        for (let i = 0; i < organic.length; i++) {
+          const item = organic[i]
+          const rawTitle = ((item.title as string) ?? '')
+            .replace(/\s*[|\u2013\-]+\s*Facebook.*$/i, '').trim()
+          if (!rawTitle || rawTitle.length < 4) continue
+
+          const key = rawTitle.toLowerCase().slice(0, 40)
+          if (seen.has(key)) continue
+          seen.add(key)
+
+          const snippet = (item.snippet as string) ?? ''
+          const link    = (item.link    as string) ?? ''
+
+          let dateStart: string | null = null
+          const dateMatch = snippet.match(
+            /^([A-Z][a-z]{2,8}\.?,?\s+(?:[A-Z][a-z]{2,8}\.?\s+)?\d{1,2}(?:,?\s*\d{4})?)/i,
+          )
+          if (dateMatch) {
+            try {
+              const d = new Date(dateMatch[1].replace(/\./g, ''))
+              if (!isNaN(d.getTime())) dateStart = d.toISOString()
+            } catch { /* */ }
+          }
+
+          results.push({
+            id: `fb_${cityName.slice(0, 6).replace(/\s/g, '')}_${i}`,
+            title: rawTitle,
+            venue_name: null,
+            date_start: dateStart,
+            is_free: false,
+            price_min: null,
+            price_max: null,
+            category: inferCategory(rawTitle + ' ' + snippet),
+            ticket_url: link || null,
+            image_url: (item.thumbnail as string | undefined) ?? null,
+            description: snippet.slice(0, 200) || null,
+            ai_description: null,
+            distanceLabel,
+            source: 'facebook',
+          })
+        }
+      } catch (err) {
+        console.error('[recommend] Facebook Events fetch error:', err)
+      }
     }),
   )
 
@@ -332,32 +409,26 @@ export async function POST(req: NextRequest) {
     const catHints  = categoryHints(answers)
 
     // ── 1. Resolve location ──────────────────────────────────────────────────
-    let resolvedCity = city.trim()     // primary city for Supabase
+    let resolvedCity = city.trim()
     let geoDisplayName = city.trim()
     let cities: CityQuery[] = []
 
     if (hasGps) {
-      // Reverse geocode at two zoom levels: immediate locality + regional hub
       const [localGeo, regionalGeo] = await Promise.all([
-        reverseGeocode(lat!, lng!, 14),   // street/neighborhood → small towns
-        reverseGeocode(lat!, lng!, 8),    // county/region → nearest city
+        reverseGeocode(lat!, lng!, 14),
+        reverseGeocode(lat!, lng!, 8),
       ])
 
       const localCity    = localGeo?.city    || ''
       const regionalCity = regionalGeo?.city || ''
 
-      // Compute drive time from user's GPS to the regional city center
       const regionalDist = regionalGeo
         ? haversine(lat!, lng!, regionalGeo.resultLat, regionalGeo.resultLng)
         : null
 
-      // Display name shown in results header
       geoDisplayName = localGeo?.displayName || regionalGeo?.displayName || 'your area'
-
-      // Primary city for Supabase: prefer regional hub (more events crawled)
       resolvedCity = resolvedCity || regionalCity || localCity
 
-      // Build city search list — local first, then regional
       if (localCity) {
         cities.push({
           name:          localCity,
@@ -384,6 +455,10 @@ export async function POST(req: NextRequest) {
       ? fetchLiveSerpEvents(cities, timeframe)
       : Promise.resolve([] as EventRow[])
 
+    const fbEventsPromise = cities.length > 0
+      ? fetchFacebookEvents(cities, timeframe)
+      : Promise.resolve([] as EventRow[])
+
     let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
     if (isSupabaseConfigured() && resolvedCity) {
       let q = supabase
@@ -402,14 +477,21 @@ export async function POST(req: NextRequest) {
       dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
-    const [liveEvents, dbRows] = await Promise.all([liveEventsPromise, dbRowsPromise])
+    const [liveEvents, dbRows, fbEvents] = await Promise.all([liveEventsPromise, dbRowsPromise, fbEventsPromise])
 
-    // ── 3. Merge — live first (fresher), then DB ─────────────────────────────
-    const dbTitles   = new Set(dbRows.map(r => r.title.toLowerCase().slice(0, 40)))
-    const uniqueLive = liveEvents.filter(e => !dbTitles.has(e.title.toLowerCase().slice(0, 40)))
+    // ── 3. Merge — live + FB first (fresher), then DB ───────────────────────
+    const dbTitles     = new Set(dbRows.map(r => r.title.toLowerCase().slice(0, 40)))
+    const allLiveAndFb = [...liveEvents, ...fbEvents]
+    const seenLive     = new Set<string>()
+    const uniqueLive   = allLiveAndFb.filter(e => {
+      const key = e.title.toLowerCase().slice(0, 40)
+      if (dbTitles.has(key) || seenLive.has(key)) return false
+      seenLive.add(key)
+      return true
+    })
     let rows: EventRow[] = [...uniqueLive, ...dbRows]
 
-    // ── 4. Radius expansion — if thin results, also query regional city in DB ─
+    // ── 4. Radius expansion ──────────────────────────────────────────────────
     if (rows.length < 5 && hasGps && isSupabaseConfigured()) {
       const regionalCity = cities.find(c => !c.isLocal)?.name
       if (regionalCity && regionalCity !== resolvedCity) {
@@ -430,7 +512,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── 5. Standard DB fallback for thin results ─────────────────────────────
+    // ── 5. Standard DB fallback ──────────────────────────────────────────────
     if (rows.length < 3 && isSupabaseConfigured() && resolvedCity) {
       const { data: fallback } = await supabase
         .from('events')
@@ -463,7 +545,7 @@ export async function POST(req: NextRequest) {
             })
           : 'Anytime'
         const desc  = r.ai_description ?? r.description?.slice(0, 120) ?? ''
-        const src   = r.source === 'activity' ? '[activity]' : r.id.startsWith('live_') ? '[live]' : '[db]'
+        const src   = r.source === 'activity' ? '[activity]' : r.source === 'facebook' ? '[facebook]' : r.id.startsWith('live_') ? '[live]' : '[db]'
         const dist  = r.distanceLabel ? ` | ${r.distanceLabel}` : ''
         return `${i + 1}. ID:${r.id} ${src} | ${r.title} | ${r.venue_name ?? 'Local venue'} | ${date} | ${price} | ${r.category}${dist}${desc ? ` | ${desc}` : ''}`
       })
@@ -483,6 +565,11 @@ export async function POST(req: NextRequest) {
       ? " Some entries are [activity] — timeless things to do (hiking, kayaking, tours, etc.) rather than ticketed events. Include these if they match the user's vibe."
       : ''
 
+    const hasFacebook = rows.some(r => r.source === 'facebook')
+    const fbNote      = hasFacebook
+      ? " Some entries are [facebook] — community events from Facebook that may include local gatherings not listed elsewhere."
+      : ''
+
     const prompt = `You are a local expert helping someone find their perfect outing.
 
 User preferences:
@@ -491,7 +578,7 @@ ${answerSummary}
 Events and activities available ${locationLabel} for ${timeframe.toLowerCase()}:
 ${eventList}
 
-Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote} Consider energy level, group size, experience preference, scene, and budget. Prioritise variety — don't pick 3 of the same type. If the user is in a rural or outdoor area, outdoor activities are valid picks.
+Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote}${fbNote} Consider energy level, group size, experience preference, scene, and budget. Prioritise variety — don't pick 3 of the same type. If the user is in a rural or outdoor area, outdoor activities are valid picks.
 
 Return ONLY a valid JSON array — no other text, no markdown, no explanation:
 [
@@ -568,7 +655,6 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
         }
       })
 
-    // Fallback if AI returned bad IDs
     if (picks.length === 0) {
       const fallback = rows.slice(0, 3).map((r, i) => ({
         id:             r.id,
