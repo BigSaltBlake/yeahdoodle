@@ -17,6 +17,7 @@ interface Pick {
   imageUrl: string | null
   category: string
   source?: string
+  distanceLabel?: string
 }
 
 interface Props {
@@ -540,9 +541,12 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     <span className="font-medium font-semibold text-white text-sm leading-snug">{pick.title}</span>
                     <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowrap max-w-[200px]">{pick.venue}</span>
                     <span className="text-xs text-white/40 block">{pick.dateFormatted} &middot; {pick.priceFormatted}</span>
+                {pick.distanceLabel && (
+                  <span className="text-xs text-[#4f9b85]/80 block">📍 {pick.distanceLabel}</span>
+                )}
                     <span className="text-xs text-white/40 block italic">{pick.pitch}</span>
                     <div className="flex gap-2 mt-1">
-                      {pick.source && <span className="bg-white/10 rounded px-1.5 text-[10px] text-white/50">{pick.source}</span>}
+                      {pick.source === 'activity' && <span className="bg-emerald-500/20 text-emerald-400/90 rounded px-1.5 py-0.5 text-[10px] font-medium">🏃 Activity</span>}
                       {pick.ticketUrl && <a href={pick.ticketUrl}
                         target="_blank"
                         rel="noopener noreferrer"
