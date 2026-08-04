@@ -16,6 +16,7 @@ interface Pick {
   ticketUrl: string | null
   imageUrl: string | null
   category: string
+  source?: string
 }
 
 interface Props {
