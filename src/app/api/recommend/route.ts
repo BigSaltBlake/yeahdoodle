@@ -483,9 +483,15 @@ export async function POST(req: NextRequest) {
     const dbTitles     = new Set(dbRows.map(r => r.title.toLowerCase().slice(0, 40)))
     const allLiveAndFb = [...liveEvents, ...fbEvents]
     const seenLive     = new Set<string>()
+    const nowMs = Date.now()
     const uniqueLive   = allLiveAndFb.filter(e => {
       const key = e.title.toLowerCase().slice(0, 40)
       if (dbTitles.has(key) || seenLive.has(key)) return false
+      // Drop events with a known past date (1hr buffer for timezone ambiguity)
+      if (e.date_start) {
+        const t = new Date(e.date_start).getTime()
+        if (!isNaN(t) && t < nowMs - 3_600_000) return false
+      }
       seenLive.add(key)
       return true
     })
