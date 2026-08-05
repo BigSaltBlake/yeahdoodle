@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '*.livenation.com' },
       // Eventbrite
       { protocol: 'https', hostname: 'img.evbuc.com' },
+      { protocol: 'https', hostname: '*.eventbrite.com' },
       // SeatGeek
       { protocol: 'https', hostname: '*.seatgeek.com' },
       // Google / SerpAPI thumbnails
@@ -21,9 +22,16 @@ const nextConfig: NextConfig = {
       // Bandsintown
       { protocol: 'https', hostname: '*.bandsintown.com' },
       { protocol: 'https', hostname: 'photos.bandsintown.com' },
+      // Facebook / Meta event images
+      { protocol: 'https', hostname: '*.fbcdn.net' },
+      { protocol: 'https', hostname: 'scontent.fbcdn.net' },
+      { protocol: 'https', hostname: 'lookaside.fbsbx.com' },
       // Generic CDNs used by event sites
       { protocol: 'https', hostname: '*.cloudinary.com' },
       { protocol: 'https', hostname: '*.imgur.com' },
+      { protocol: 'https', hostname: '*.staticflickr.com' },
+      { protocol: 'https', hostname: '*.squarespace-cdn.com' },
+      { protocol: 'https', hostname: '*.wp.com' },
     ],
   },
 }
