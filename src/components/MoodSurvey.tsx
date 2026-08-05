@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import Image from 'next/image'
 import CategoryPlaceholder from './CategoryPlaceholder'
 import { capture } from '@/lib/analytics'
 
@@ -500,11 +499,18 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               {picks.map((pick, i) => (
                 <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors" onClick={() => setHeartOpen(null)}>
                   <div className="relative w-full h-36">
-                    <Image src={pick.imageUrl || ''} alt={pick.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 100%" priority={!!pick.imageUrl} />
-                    {!pick.imageUrl && (
-                      <div className="absolute inset-0">
-                <CategoryPlaceholder category={pick.category || ''} />
-              </div>
+                    {/* Placeholder always visible as base layer */}
+                    <div className="absolute inset-0">
+                      <CategoryPlaceholder category={pick.category || ''} />
+                    </div>
+                    {pick.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={pick.imageUrl}
+                        alt={pick.title}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                      />
                     )}
                     <span className="absolute top-2 left-2 text-xl leading-none drop-shadow-lg">{MEDALS[i]}</span>
                     {/* Heart / Save */}
