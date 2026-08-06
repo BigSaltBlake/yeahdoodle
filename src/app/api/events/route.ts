@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { mapEventRow } from '@/lib/events'
-import type { EventCategory, GroupType, AgeGroup, WhenFilter } from '@/types'
+import type { EventCategory, GroupType, AgeGroup, WhenFilter, YDEvent } from '@/types'
 
 const PAGE_SIZE = 20
 
@@ -13,7 +13,7 @@ function getDateRange(when: WhenFilter): { start: string; end: string } | null {
 
   if (when === 'today') {
     const start = new Date(now); start.setHours(0, 0, 0, 0)
-    const end = new Date(now); end.setHours(23, 59, 59, 999)
+    const end   = new Date(now); end.setHours(23, 59, 59, 999)
     return { start: start.toISOString(), end: end.toISOString() }
   }
 
@@ -22,14 +22,14 @@ function getDateRange(when: WhenFilter): { start: string; end: string } | null {
     let start: Date, end: Date
     if (day === 6) {
       start = new Date(now)
-      end = new Date(now); end.setDate(now.getDate() + 1); end.setHours(23, 59, 59, 999)
+      end   = new Date(now); end.setDate(now.getDate() + 1); end.setHours(23, 59, 59, 999)
     } else if (day === 0) {
       start = new Date(now)
-      end = new Date(now); end.setHours(23, 59, 59, 999)
+      end   = new Date(now); end.setHours(23, 59, 59, 999)
     } else {
       const daysToFri = 5 - day
       start = new Date(now); start.setDate(now.getDate() + daysToFri); start.setHours(0, 0, 0, 0)
-      end = new Date(start); end.setDate(start.getDate() + 2); end.setHours(23, 59, 59, 999)
+      end   = new Date(start); end.setDate(start.getDate() + 2); end.setHours(23, 59, 59, 999)
     }
     return { start: start.toISOString(), end: end.toISOString() }
   }
@@ -43,105 +43,171 @@ function getDateRange(when: WhenFilter): { start: string; end: string } | null {
 }
 
 // ---------------------------------------------------------------------------
+// Category inference
+// ---------------------------------------------------------------------------
+function inferEventCategory(text: string): EventCategory {
+  const t = text.toLowerCase()
+  if (/music|concert|band|jazz|rock|hip.?hop|festival|dj|live show/.test(t)) return 'Music'
+  if (/comedy|standup|stand-up|improv/.test(t))                               return 'Other'
+  if (/art|gallery|exhibit|museum|theater|theatre|dance|ballet|opera/.test(t)) return 'Arts & Culture'
+  if (/food|drink|wine|beer|tasting|dinner|brunch|restaurant|cocktail/.test(t)) return 'Food & Drink'
+  if (/hike|hiking|trail|kayak|paddle|climb|fish|camp|nature|park|outdoor|river|lake/.test(t)) return 'Outdoors'
+  if (/sport|game|race|fitness|yoga|run/.test(t))                              return 'Sports'
+  if (/night|club|lounge|party/.test(t))                                       return 'Nightlife'
+  return 'Community'
+}
+
+// ---------------------------------------------------------------------------
+// SerpAPI live-event fetch
+// ---------------------------------------------------------------------------
+async function fetchSerpLiveEvents(
+  city: string,
+  when: WhenFilter,
+  serpKey: string,
+): Promise<YDEvent[]> {
+  const whenStr =
+    when === 'today'   ? 'today' :
+    when === 'weekend' ? 'this weekend' :
+    when === 'week'    ? 'this week' :
+    ''
+
+  const queries = [
+    ('events ' + whenStr + ' in ' + city).replace(/\s+/g, ' ').trim(),
+    ('things to do ' + whenStr + ' in ' + city).replace(/\s+/g, ' ').trim(),
+    'outdoor activities near ' + city,
+  ]
+
+  const seen    = new Set<string>()
+  const results: YDEvent[] = []
+
+  await Promise.all(
+    queries.map(async (q) => {
+      try {
+        const base = 'https://serpapi.com/search.json'
+        const params = 'engine=google_events&hl=en&gl=us&q=' + encodeURIComponent(q) + '&api_key=' + serpKey
+        const res = await fetch(base + '?' + params, { cache: 'no-store' })
+        if (!res.ok) return
+
+        const data = await res.json()
+        const events: unknown[] = data.events_results ?? []
+
+        for (let i = 0; i < events.length; i++) {
+          const e = events[i] as Record<string, unknown>
+          const title = (e.title as string) ?? 'Local Event'
+          const key   = title.toLowerCase().slice(0, 40)
+          if (seen.has(key)) continue
+          seen.add(key)
+
+          const date       = e.date as Record<string, string> | undefined
+          const venue      = e.venue as Record<string, string> | undefined
+          const address    = e.address as string[] | undefined
+          const ticketInfo = e.ticket_info as Array<{ link?: string; price?: string }> | undefined
+          const priceStr   = ticketInfo?.find(t => t.price)?.price
+
+          let dateIso = ''
+          try {
+            const raw = date?.start_date ?? date?.when ?? ''
+            const cleaned = raw.replace(/\s*[\u2013-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
+            const d = new Date(cleaned || new Date())
+            if (!isNaN(d.getTime())) {
+              if (d.getFullYear() < 2020) d.setFullYear(new Date().getFullYear())
+              dateIso = d.toISOString().slice(0, 10)
+            }
+          } catch { /* */ }
+
+          const isFree = priceStr
+            ? priceStr.toLowerCase().includes('free') || priceStr === '$0'
+            : false
+          const priceMin = priceStr
+            ? (() => { const m = priceStr.match(/\$(\d+)/); return m ? parseInt(m[1], 10) : undefined })()
+            : undefined
+
+          const cat = inferEventCategory(title + ' ' + ((e.description as string) ?? ''))
+
+          results.push({
+            id:               'live_' + results.length + '_' + i,
+            title,
+            description:      (e.description as string) ?? '',
+            aiDescription:    undefined,
+            category:         cat,
+            date:             dateIso || new Date().toISOString().slice(0, 10),
+            time:             undefined,
+            venueName:        venue?.name ?? address?.[0] ?? 'Local Venue',
+            venueAddress:     address?.join(', ') ?? '',
+            city,
+            state:            undefined,
+            imageUrl:         (e.thumbnail as string | undefined),
+            ticketUrl:        ticketInfo?.[0]?.link ?? undefined,
+            priceMin,
+            priceMax:         undefined,
+            isFree,
+            source:           'scraped',
+            groupSuitability: [],
+            ageGroups:        ['all-ages'],
+          } as YDEvent)
+        }
+      } catch (err) {
+        console.error('[events API] SerpAPI fallback error:', err)
+      }
+    }),
+  )
+
+  return results
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/events
-// ?city=SaltLakeCity           — city-based search (default)
-// ?lat=40.76&lng=-111.89&radius=5  — GPS radius search (miles)
 // ---------------------------------------------------------------------------
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
 
-  const city = searchParams.get('city') ?? ''
-  const latParam = searchParams.get('lat')
-  const lngParam = searchParams.get('lng')
-  const radiusParam = searchParams.get('radius')
-
-  const lat = latParam ? parseFloat(latParam) : NaN
-  const lng = lngParam ? parseFloat(lngParam) : NaN
-  const radius = radiusParam ? parseFloat(radiusParam) : 10
-  const hasCoords = !isNaN(lat) && !isNaN(lng)
-
+  const city       = searchParams.get('city') ?? ''
   const categories = searchParams.getAll('category') as EventCategory[]
-  const groups = searchParams.getAll('group') as GroupType[]
-  const ageGroups = searchParams.getAll('age') as AgeGroup[]
-  const when = (searchParams.get('when') ?? '') as WhenFilter
-  const page = parseInt(searchParams.get('page') ?? '0', 10)
+  const groups     = searchParams.getAll('group') as GroupType[]
+  const ageGroups  = searchParams.getAll('age') as AgeGroup[]
+  const when       = (searchParams.get('when') ?? '') as WhenFilter
+  const page       = parseInt(searchParams.get('page') ?? '0', 10)
 
-  if (!city.trim() && !hasCoords) {
-    return NextResponse.json({ events: [], total: 0 })
-  }
-
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({
-      events: [],
-      total: 0,
-      message: 'Supabase not configured.',
-    })
-  }
-
-  const offset = page * PAGE_SIZE
-  const nowIso = new Date().toISOString()
-  const dateRange = getDateRange(when)
-
-  // GPS radius search via events_near RPC
-  if (hasCoords) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: nearData, error: nearErr } = await (supabase as any).rpc('events_near', {
-        user_lat: lat,
-        user_lng: lng,
-        radius_miles: radius,
-      })
-
-      if (!nearErr && Array.isArray(nearData) && nearData.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let filtered: any[] = nearData
-
-        if (dateRange) {
-          filtered = filtered.filter(e => e.date_start >= dateRange.start && e.date_start <= dateRange.end)
-        } else {
-          filtered = filtered.filter(e => e.date_start >= nowIso)
-        }
-        if (categories.length > 0) filtered = filtered.filter(e => categories.includes(e.category))
-        if (groups.length > 0) {
-          filtered = filtered.filter(e => groups.some(g => (e.group_suitability ?? []).includes(g)))
-        }
-        if (ageGroups.length > 0) {
-          filtered = filtered.filter(e => ageGroups.some(a => (e.age_groups ?? []).includes(a)))
-        }
-
-        const total = filtered.length
-        const paged = filtered.slice(offset, offset + PAGE_SIZE)
-        return NextResponse.json(
-          { events: paged.map(mapEventRow), total, mode: 'gps' },
-          { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=15' } }
-        )
-      }
-    } catch {
-      // RPC not yet created — fall through to city search
-    }
-  }
-
-  // City-based search (default / fallback)
   if (!city.trim()) {
     return NextResponse.json({ events: [], total: 0 })
   }
 
+  if (!isSupabaseConfigured()) {
+    const serpKey = process.env.SERPAPI_KEY
+    if (serpKey) {
+      const liveEvents = await fetchSerpLiveEvents(city.trim(), when, serpKey)
+      const filtered   = categories.length > 0
+        ? liveEvents.filter(e => categories.includes(e.category))
+        : liveEvents
+      const toReturn = filtered.length > 0 ? filtered : liveEvents
+      return NextResponse.json({ events: toReturn, total: toReturn.length })
+    }
+    return NextResponse.json({ events: [], total: 0, message: 'Supabase is not configured.' })
+  }
+
+  const offset    = page * PAGE_SIZE
+  const nowIso    = new Date().toISOString()
+  const dateRange = getDateRange(when)
+
   let query = supabase
     .from('events')
     .select('*', { count: 'exact' })
-    .ilike('city', `%${city.trim()}%`)
+    .ilike('city', '%' + city.trim() + '%')
     .eq('is_duplicate', false)
     .order('date_start', { ascending: true })
     .range(offset, offset + PAGE_SIZE - 1)
 
   if (dateRange) {
-    query = query.gte('date_start', dateRange.start).lte('date_start', dateRange.end)
+    query = query
+      .gte('date_start', dateRange.start)
+      .lte('date_start', dateRange.end)
   } else {
     query = query.gte('date_start', nowIso)
   }
+
   if (categories.length > 0) query = query.in('category', categories)
-  if (groups.length > 0) query = query.overlaps('group_suitability', groups)
-  if (ageGroups.length > 0) query = query.overlaps('age_groups', ageGroups)
+  if (groups.length > 0)     query = query.overlaps('group_suitability', groups)
+  if (ageGroups.length > 0)  query = query.overlaps('age_groups', ageGroups)
 
   const { data, count, error } = await query
 
@@ -150,8 +216,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ events: [], total: 0, error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(
-    { events: (data ?? []).map(mapEventRow), total: count ?? 0 },
-    { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30' } }
-  )
+  if ((count ?? 0) > 0) {
+    return NextResponse.json(
+      { events: (data ?? []).map(mapEventRow), total: count ?? 0 },
+      { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30' } },
+    )
+  }
+
+  // DB returned nothing — fire SerpAPI live crawl
+  const serpKey = process.env.SERPAPI_KEY
+  if (serpKey) {
+    let liveEvents = await fetchSerpLiveEvents(city.trim(), when, serpKey)
+
+    if (liveEvents.length > 0) {
+      const filtered = categories.length > 0
+        ? liveEvents.filter(e => categories.includes(e.category))
+        : liveEvents
+      liveEvents = filtered.length > 0 ? filtered : liveEvents
+
+      return NextResponse.json(
+        { events: liveEvents, total: liveEvents.length },
+        { headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
+  }
+
+  return NextResponse.json({ events: [], total: 0 })
 }
