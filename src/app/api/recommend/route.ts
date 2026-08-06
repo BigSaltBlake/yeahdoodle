@@ -205,6 +205,21 @@ function inferCategory(text: string): string {
   return 'Community'
 }
 
+// Curated Unsplash photos shown as fallback when no event thumbnail is available
+const CATEGORY_FALLBACK: Record<string, string> = {
+  'Music':             'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400&h=240&fit=crop',
+  'Comedy':            'https://images.unsplash.com/photo-1527224538127-2104bb71c51b?w=400&h=240&fit=crop',
+  'Arts & Culture':    'https://images.unsplash.com/photo-1518998053901-5348d3961a04?w=400&h=240&fit=crop',
+  'Food & Drink':      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=240&fit=crop',
+  'Outdoors':          'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=240&fit=crop',
+  'Sports & Outdoors': 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=400&h=240&fit=crop',
+  'Nightlife':         'https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=400&h=240&fit=crop',
+  'Community':         'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=400&h=240&fit=crop',
+}
+function fallbackImg(category: string): string {
+  return CATEGORY_FALLBACK[category] ?? CATEGORY_FALLBACK['Community']!
+}
+
 function parseGoogleEventDate(dateStr: string | undefined): string | null {
   if (!dateStr) return null
   try {
@@ -282,7 +297,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
               price_max: null,
               category: inferCategory(title + ' ' + ((e.description as string) ?? '')),
               ticket_url: (ticketInfo?.[0]?.link ?? e.link ?? null) as string | null,
-              image_url: (e.thumbnail ?? null) as string | null,
+              image_url: ((e.thumbnail as string | undefined)) ?? fallbackImg(inferCategory(title + ' ' + ((e.description as string) ?? ''))),    
               description: (e.description ?? null) as string | null,
               ai_description: null,
               distanceLabel,
@@ -302,7 +317,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
 // ---------------------------------------------------------------------------
 // Facebook Events via SerpAPI google_search + site:facebook.com/events
 // ---------------------------------------------------------------------------
-async function fetchFacebookEvents(cities: CityQuery[], timeframe = 'Tonight'): Promise<EventRow[]> {
+async function fetchFacebookEvents(cities: CityQuery[], timeframe = 'Tonight', winStart: Date, winEnd: Date): Promise<EventRow[]> {
   const serpKey = process.env.SERPAPI_KEY
   if (!serpKey || cities.length === 0) return []
 
@@ -346,28 +361,42 @@ async function fetchFacebookEvents(cities: CityQuery[], timeframe = 'Tonight'): 
           const snippet = (item.snippet as string) ?? ''
           const link    = (item.link    as string) ?? ''
 
-          let dateStart: string | null = null
-          const dateMatch = snippet.match(
-            /^([A-Z][a-z]{2,8}\.?,?\s+(?:[A-Z][a-z]{2,8}\.?\s+)?\d{1,2}(?:,?\s*\d{4})?)/i,
+                    // ── Date extraction (search full snippet + title for any month pattern) ──
+          const mo     = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec'
+          const dateRe = new RegExp(
+            `(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z,\\.\\s]*)?((?:${mo})[a-z]*\\.?\\s+\\d{1,2}(?:,?\\s*\\d{4})?)`,
+            'i',
           )
-          if (dateMatch) {
+          const dm = (rawTitle + ' ' + snippet).match(dateRe)
+          let eventDate: string | null = null
+          if (dm) {
             try {
-              const d = new Date(dateMatch[1].replace(/\./g, ''))
-              if (!isNaN(d.getTime())) dateStart = d.toISOString()
+              const d = new Date(dm[1].replace(/\./g, '').trim())
+              if (!isNaN(d.getTime())) {
+                const yr = new Date().getFullYear()
+                if (d.getFullYear() < yr) d.setFullYear(yr)
+                eventDate = d.toISOString()
+              }
             } catch { /* */ }
           }
+          // Require a parseable date — FB events are time-specific, not timeless activities
+          if (!eventDate) continue
+          // Drop events outside the requested time window
+          const evMs = new Date(eventDate).getTime()
+          if (evMs < winStart.getTime() - 3_600_000 || evMs > winEnd.getTime()) continue
 
+          const cat = inferCategory(rawTitle + ' ' + snippet)
           results.push({
             id: `fb_${cityName.slice(0, 6).replace(/\s/g, '')}_${i}`,
             title: rawTitle,
             venue_name: null,
-            date_start: dateStart,
+            date_start: eventDate,
             is_free: false,
             price_min: null,
             price_max: null,
-            category: inferCategory(rawTitle + ' ' + snippet),
+            category: cat,
             ticket_url: link || null,
-            image_url: (item.thumbnail as string | undefined) ?? null,
+            image_url: ((item.thumbnail as string | undefined)) ?? fallbackImg(cat),
             description: snippet.slice(0, 200) || null,
             ai_description: null,
             distanceLabel,
@@ -456,7 +485,7 @@ export async function POST(req: NextRequest) {
       : Promise.resolve([] as EventRow[])
 
     const fbEventsPromise = cities.length > 0
-      ? fetchFacebookEvents(cities, timeframe)
+      ? fetchFacebookEvents(cities, timeframe, dateStart, dateEnd)
       : Promise.resolve([] as EventRow[])
 
     let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
@@ -483,14 +512,20 @@ export async function POST(req: NextRequest) {
     const dbTitles     = new Set(dbRows.map(r => r.title.toLowerCase().slice(0, 40)))
     const allLiveAndFb = [...liveEvents, ...fbEvents]
     const seenLive     = new Set<string>()
-    const nowMs = Date.now()
-    const uniqueLive   = allLiveAndFb.filter(e => {
+    const nowMs    = Date.now()
+    const winEndMs = dateEnd.getTime()
+    const uniqueLive    = allLiveAndFb.filter(e => {
       const key = e.title.toLowerCase().slice(0, 40)
       if (dbTitles.has(key) || seenLive.has(key)) return false
-      // Drop events with a known past date (1hr buffer for timezone ambiguity)
-      if (e.date_start) {
+      // Drop FB events with no date — likely stale indexed pages
+      if (e.source === 'facebook' && !e.date_start) return false
+      // Apply time window to non-activity events
+      if (e.date_start && e.source !== 'activity') {
         const t = new Date(e.date_start).getTime()
-        if (!isNaN(t) && t < nowMs - 3_600_000) return false
+        if (!isNaN(t)) {
+          if (t < nowMs - 3_600_000) return false  // past (1hr buffer)
+          if (t > winEndMs)           return false  // beyond timeframe
+        }
       }
       seenLive.add(key)
       return true
