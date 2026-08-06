@@ -110,7 +110,7 @@ export default function HomePage() {
           {/* Divider */}
           <div className="flex items-center gap-3 max-w-xs mx-auto mb-6">
             <div className="flex-1 h-px bg-white/20" />
-            <span className="text-white/40 text-xs font-medium">or search by city</span>
+            <span className="text-white/40 text-xs font-medium">or search by city or zip code</span>
             <div className="flex-1 h-px bg-white/20" />
           </div>
 
@@ -129,7 +129,7 @@ export default function HomePage() {
               <input
                 value={city}
                 onChange={e => setCity(e.target.value)}
-                placeholder={locating ? 'Detecting your location...' : 'Enter a city...'}
+                placeholder={locating ? 'Detecting your location...' : 'Enter a city or zip code...'}
                 className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-white text-yd-navy placeholder-yd-navy/40 font-medium text-base focus:outline-none focus:ring-2 focus:ring-white/50"
               />
             </div>
