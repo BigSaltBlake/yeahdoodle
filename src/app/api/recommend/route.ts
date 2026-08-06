@@ -124,6 +124,33 @@ async function geocodeZipCode(zip: string): Promise<{ lat: number; lng: number }
     return null
   }
 }
+// City name → coordinates — forward-geocodes any place name for GPS-mode search
+async function geocodeCity(query: string): Promise<{ lat: number; lng: number } | null> {
+  const controller = new AbortController()
+  const timeoutId  = setTimeout(() => controller.abort(), 5000)
+  try {
+    const url =
+      `https://nominatim.openstreetmap.org/search?format=json` +
+      `&q=${encodeURIComponent(query)}&countrycodes=us&limit=1&addressdetails=0`
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'YeahDoodle/1.0 (blake@saltcfo.com)' },
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+    if (!res.ok) return null
+    const data = await res.json()
+    if (!data?.[0]) return null
+    const glat = parseFloat(data[0].lat)
+    const glng = parseFloat(data[0].lon)
+    if (isNaN(glat) || isNaN(glng)) return null
+    return { lat: glat, lng: glng }
+  } catch {
+    clearTimeout(timeoutId)
+    return null
+  }
+}
+
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8
@@ -469,6 +496,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // City string → GPS: forward-geocode any place name to enable full GPS-mode discovery
+    if (!hasGps && city.trim()) {
+      const cityGeo = await geocodeCity(city.trim())
+      if (cityGeo) {
+        lat    = cityGeo.lat
+        lng    = cityGeo.lng
+        hasGps = true
+        // Keep city so GPS reverse-geocode can enrich/confirm the display name
+      }
+    }
+
     if (!Array.isArray(answers) || answers.length === 0) {
       return NextResponse.json({ error: 'answers required' }, { status: 400 })
     }
@@ -609,14 +647,13 @@ export async function POST(req: NextRequest) {
       if (fallbackRows.length > rows.length) rows = [...uniqueLive, ...fallbackRows]
     }
 
-    // ── 6. Last-resort: still empty — broaden to regional hub with no date filter ─
+    // ── 6. Last-resort: still empty — broaden to regional hub, accept all activities ──
     if (rows.length === 0 && cities.length > 0) {
-      const hub = cities.find(c => !c.isLocal) ?? cities[0]
-      const broadEvents = await fetchLiveSerpEvents([hub], timeframe)
-      // Accept activities (no date) as valid last-resort picks
-      rows = broadEvents.filter(e =>
-        !e.date_start || new Date(e.date_start).getTime() > Date.now() - 86_400_000
-      )
+      // Force isLocal=true so activity queries ("things to do near X", "outdoor activities")
+      // are included — these always return results for any destination
+      const hub = { ...(cities.find(c => !c.isLocal) ?? cities[0]), isLocal: true }
+      const broadEvents = await fetchLiveSerpEvents([hub], 'Coming weeks')
+      rows = broadEvents  // accept everything — any result beats an empty screen
     }
 
     if (rows.length === 0) {
