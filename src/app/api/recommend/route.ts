@@ -98,6 +98,33 @@ async function reverseGeocode(lat: number, lng: number, zoom: number): Promise<G
   }
 }
 
+// Zip code → coordinates via Nominatim postal code search
+async function geocodeZipCode(zip: string): Promise<{ lat: number; lng: number } | null> {
+  const controller = new AbortController()
+  const timeoutId  = setTimeout(() => controller.abort(), 5000)
+  try {
+    const url =
+      `https://nominatim.openstreetmap.org/search?format=json` +
+      `&postalcode=${zip}&countrycodes=us&addressdetails=1&limit=1`
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'YeahDoodle/1.0 (blake@saltcfo.com)' },
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+    if (!res.ok) return null
+    const data = await res.json()
+    if (!data?.[0]) return null
+    const zlat = parseFloat(data[0].lat)
+    const zlng = parseFloat(data[0].lon)
+    if (isNaN(zlat) || isNaN(zlng)) return null
+    return { lat: zlat, lng: zlng }
+  } catch {
+    clearTimeout(timeoutId)
+    return null
+  }
+}
+
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8
   const ph1 = lat1 * Math.PI / 180
@@ -425,8 +452,22 @@ export async function POST(req: NextRequest) {
       lng?: number
     }
 
-    const { city = '', answers, lat, lng } = body
-    const hasGps = typeof lat === 'number' && typeof lng === 'number'
+    const { answers } = body
+    let city  = body.city  ?? ''
+    let lat   = body.lat
+    let lng   = body.lng
+    let hasGps = typeof lat === 'number' && typeof lng === 'number'
+
+    // Zip code → GPS: resolve US postal code to lat/lng then run full GPS path
+    if (!hasGps && /^\d{5}$/.test(city.trim())) {
+      const zipGeo = await geocodeZipCode(city.trim())
+      if (zipGeo) {
+        lat    = zipGeo.lat
+        lng    = zipGeo.lng
+        hasGps = true
+        city   = ''  // let reverse-geocode set the display name
+      }
+    }
 
     if (!Array.isArray(answers) || answers.length === 0) {
       return NextResponse.json({ error: 'answers required' }, { status: 400 })
@@ -566,6 +607,16 @@ export async function POST(req: NextRequest) {
 
       const fallbackRows = (fallback ?? []) as EventRow[]
       if (fallbackRows.length > rows.length) rows = [...uniqueLive, ...fallbackRows]
+    }
+
+    // ── 6. Last-resort: still empty — broaden to regional hub with no date filter ─
+    if (rows.length === 0 && cities.length > 0) {
+      const hub = cities.find(c => !c.isLocal) ?? cities[0]
+      const broadEvents = await fetchLiveSerpEvents([hub], timeframe)
+      // Accept activities (no date) as valid last-resort picks
+      rows = broadEvents.filter(e =>
+        !e.date_start || new Date(e.date_start).getTime() > Date.now() - 86_400_000
+      )
     }
 
     if (rows.length === 0) {
