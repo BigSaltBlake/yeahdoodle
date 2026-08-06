@@ -592,18 +592,15 @@ export async function POST(req: NextRequest) {
     const allLiveAndFb = [...liveEvents, ...fbEvents]
     const seenLive     = new Set<string>()
     const nowMs    = Date.now()
-    const winEndMs = dateEnd.getTime()
     const uniqueLive    = allLiveAndFb.filter(e => {
       const key = e.title.toLowerCase().slice(0, 40)
       if (dbTitles.has(key) || seenLive.has(key)) return false
       // Drop FB events with no date — likely stale indexed pages
-      if (e.source === 'facebook' && !e.date_start) return false
       // Apply time window to non-activity events
       if (e.date_start && e.source !== 'activity') {
         const t = new Date(e.date_start).getTime()
         if (!isNaN(t)) {
           if (t < nowMs - 3_600_000) return false  // past (1hr buffer)
-          if (t > winEndMs)           return false  // beyond timeframe
         }
       }
       seenLive.add(key)
@@ -648,7 +645,11 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 6. Last-resort: still empty — broaden to regional hub, accept all activities ──
-    if (rows.length === 0 && cities.length > 0) {
+    if (rows.length === 0) {
+      // If geocoding returned no cities, use resolvedCity as last resort
+      if (cities.length === 0 && resolvedCity) {
+        cities.push({ name: resolvedCity, distanceLabel: 'Nearby', isLocal: true })
+      }
       // Force isLocal=true so activity queries ("things to do near X", "outdoor activities")
       // are included — these always return results for any destination
       const hub = { ...(cities.find(c => !c.isLocal) ?? cities[0]), isLocal: true }
