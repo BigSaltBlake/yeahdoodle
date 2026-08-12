@@ -24,7 +24,7 @@ interface EventRow {
 interface CityQuery {
   name: string
   distanceLabel: string
-  isLocal: boolean  // true = immediate locality (may be tiny), false = regional hub
+  isLocal: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -80,12 +80,12 @@ async function reverseGeocode(lat: number, lng: number, zoom: number): Promise<G
 
     let placeType = 'region'
     let city = ''
-    if (addr.city)         { city = addr.city;      placeType = 'city'    }
-    else if (addr.town)    { city = addr.town;       placeType = 'town'    }
-    else if (addr.village) { city = addr.village;    placeType = 'village' }
-    else if (addr.hamlet)  { city = addr.hamlet;     placeType = 'hamlet'  }
-    else if (addr.county)  { city = addr.county;     placeType = 'county'  }
-    else if (addr.state)   { city = addr.state;      placeType = 'region'  }
+    if (addr.city)       { city = addr.city;       placeType = 'city'    }
+    else if (addr.town)  { city = addr.town;        placeType = 'town'    }
+    else if (addr.village) { city = addr.village;   placeType = 'village' }
+    else if (addr.hamlet)  { city = addr.hamlet;    placeType = 'hamlet'  }
+    else if (addr.county)  { city = addr.county;    placeType = 'county'  }
+    else if (addr.state)   { city = addr.state;     placeType = 'region'  }
 
     const state = addr.state || addr['ISO3166-2-lvl4']?.split('-')[1] || ''
     const displayName = [city, state].filter(Boolean).join(', ')
@@ -98,14 +98,13 @@ async function reverseGeocode(lat: number, lng: number, zoom: number): Promise<G
   }
 }
 
-// Zip code → coordinates via Nominatim postal code search
 async function geocodeZipCode(zip: string): Promise<{ lat: number; lng: number } | null> {
   const controller = new AbortController()
-  const timeoutId  = setTimeout(() => controller.abort(), 5000)
+  const timeoutId = setTimeout(() => controller.abort(), 5000)
   try {
     const url =
       `https://nominatim.openstreetmap.org/search?format=json` +
-      `&postalcode=${zip}&countrycodes=us&addressdetails=1&limit=1`
+      `&postalcode=${encodeURIComponent(zip)}&countrycodes=us&limit=1`
     const res = await fetch(url, {
       headers: { 'User-Agent': 'YeahDoodle/1.0 (blake@saltcfo.com)' },
       cache: 'no-store',
@@ -114,20 +113,17 @@ async function geocodeZipCode(zip: string): Promise<{ lat: number; lng: number }
     clearTimeout(timeoutId)
     if (!res.ok) return null
     const data = await res.json()
-    if (!data?.[0]) return null
-    const zlat = parseFloat(data[0].lat)
-    const zlng = parseFloat(data[0].lon)
-    if (isNaN(zlat) || isNaN(zlng)) return null
-    return { lat: zlat, lng: zlng }
+    if (!Array.isArray(data) || data.length === 0) return null
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
   } catch {
     clearTimeout(timeoutId)
     return null
   }
 }
-// City name → coordinates — forward-geocodes any place name for GPS-mode search
+
 async function geocodeCity(query: string): Promise<{ lat: number; lng: number } | null> {
   const controller = new AbortController()
-  const timeoutId  = setTimeout(() => controller.abort(), 5000)
+  const timeoutId = setTimeout(() => controller.abort(), 5000)
   try {
     const url =
       `https://nominatim.openstreetmap.org/search?format=json` +
@@ -140,25 +136,22 @@ async function geocodeCity(query: string): Promise<{ lat: number; lng: number } 
     clearTimeout(timeoutId)
     if (!res.ok) return null
     const data = await res.json()
-    if (!data?.[0]) return null
-    const glat = parseFloat(data[0].lat)
-    const glng = parseFloat(data[0].lon)
-    if (isNaN(glat) || isNaN(glng)) return null
-    return { lat: glat, lng: glng }
+    if (!Array.isArray(data) || data.length === 0) return null
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
   } catch {
     clearTimeout(timeoutId)
     return null
   }
 }
 
-
+// Haversine distance in miles
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8
-  const ph1 = lat1 * Math.PI / 180
-  const ph2 = lat2 * Math.PI / 180
-  const dph = (lat2 - lat1) * Math.PI / 180
-  const dl  = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dph / 2) ** 2 + Math.cos(ph1) * Math.cos(ph2) * Math.sin(dl / 2) ** 2
+  const φ1 = lat1 * Math.PI / 180
+  const φ2 = lat2 * Math.PI / 180
+  const Δφ = (lat2 - lat1) * Math.PI / 180
+  const Δλ = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
@@ -217,35 +210,25 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     const start = (dow === 0 || dow === 6) ? now : friday
     return { start, end: sunday }
   }
+  // 'Coming weeks' — 4-week lookahead
   const end = new Date(today)
   end.setDate(end.getDate() + 28)
   return { start: now, end }
 }
 
-function getSerpQueriesForCity(timeframe: string, city: string, isLocal: boolean): string[] {
+function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolean): string[] {
   const when =
     timeframe === 'Tonight'      ? 'tonight' :
     timeframe === 'Tomorrow'     ? 'tomorrow' :
     timeframe === 'This weekend' ? 'this weekend' :
     'this month'
 
-  const base = [
-    `events ${when} in ${city}`,
-    `things to do ${when} in ${city}`,
-  ]
-
-  if (isLocal) {
-    base.push(
-      `things to do near ${city}`,
-      `outdoor activities near ${city}`,
-    )
-  }
-
-  return base
+  // Single query per city — keeps SerpAPI usage at 1–2 calls per session
+  return [`events ${when} in ${city}`]
 }
 
 // ---------------------------------------------------------------------------
-// Live SerpAPI crawl
+// Category inference
 // ---------------------------------------------------------------------------
 function inferCategory(text: string): string {
   const t = text.toLowerCase()
@@ -259,25 +242,110 @@ function inferCategory(text: string): string {
   return 'Community'
 }
 
-// Curated Unsplash photos shown as fallback when no event thumbnail is available
 const CATEGORY_FALLBACK: Record<string, string> = {
-  'Music':             'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400&h=240&fit=crop',
-  'Comedy':            'https://images.unsplash.com/photo-1527224538127-2104bb71c51b?w=400&h=240&fit=crop',
-  'Arts & Culture':    'https://images.unsplash.com/photo-1518998053901-5348d3961a04?w=400&h=240&fit=crop',
-  'Food & Drink':      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=240&fit=crop',
-  'Outdoors':          'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=240&fit=crop',
-  'Sports & Outdoors': 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=400&h=240&fit=crop',
-  'Nightlife':         'https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=400&h=240&fit=crop',
-  'Community':         'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=400&h=240&fit=crop',
+  'Music':         'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400&h=240&fit=crop',
+  'Arts & Culture':'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=240&fit=crop',
+  'Food & Drink':  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=240&fit=crop',
+  'Outdoors':      'https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?w=400&h=240&fit=crop',
+  'Sports & Outdoors': 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=400&h=240&fit=crop',
+  'Nightlife':     'https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=400&h=240&fit=crop',
+  'Community':     'https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=400&h=240&fit=crop',
+  'Comedy':        'https://images.unsplash.com/photo-1527224538127-2104bb71c51b?w=400&h=240&fit=crop',
 }
+
 function fallbackImg(category: string): string {
   return CATEGORY_FALLBACK[category] ?? CATEGORY_FALLBACK['Community']!
 }
 
+// ---------------------------------------------------------------------------
+// Free image enrichment — no paid API credits required
+// ---------------------------------------------------------------------------
+
+/** Pull og:image from a ticket/event page (Ticketmaster, Eventbrite, venue sites, etc.) */
+async function fetchOgImage(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000)
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; YeahDoodle/1.0; +https://yeahdoodle.com)',
+        Accept: 'text/html',
+      },
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+    if (!res.ok) return null
+    // og:image is always in <head> — only parse the first chunk
+    const html = (await res.text()).slice(0, 25000)
+    const m =
+      html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+    const img = m?.[1]?.trim()
+    // Skip placeholder/icon images
+    return img && !/placeholder|logo|icon|blank/i.test(img) ? img : null
+  } catch {
+    return null
+  }
+}
+
+/** Unsplash free-tier keyword search (requires UNSPLASH_ACCESS_KEY env var) */
+async function fetchUnsplashImage(query: string, accessKey: string): Promise<string | null> {
+  try {
+    const url =
+      `https://api.unsplash.com/photos/random` +
+      `?query=${encodeURIComponent(query)}&orientation=landscape&content_filter=high`
+    const res = await fetch(url, {
+      headers: { Authorization: `Client-ID ${accessKey}` },
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { urls?: { regular?: string } }
+    return data.urls?.regular ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Enrich the 3 final picks with better images — free, no Serper credits.
+ * Chain: og:image from ticketUrl → Unsplash keyword search → keep existing fallback
+ */
+async function enrichPickImages(
+  picks: Array<{ title: string; venue?: string; imageUrl: string; ticketUrl?: string | null }>,
+): Promise<void> {
+  const unsplashKey = process.env.UNSPLASH_ACCESS_KEY
+
+  await Promise.all(
+    picks.map(async (pick) => {
+      // Already has a real (non-fallback) image — nothing to do
+      if (!pick.imageUrl.includes('unsplash.com')) return
+
+      // 1. OG image from the event's ticket/listing page — event-specific, free
+      if (pick.ticketUrl) {
+        const og = await fetchOgImage(pick.ticketUrl)
+        if (og) { pick.imageUrl = og; return }
+      }
+
+      // 2. Unsplash keyword search — beautiful stock photo, free tier
+      if (unsplashKey) {
+        const keywords = `${pick.title} ${pick.venue ?? ''}`.replace(/[^\w\s]/g, ' ').trim()
+        const img = await fetchUnsplashImage(keywords, unsplashKey)
+        if (img) { pick.imageUrl = img; return }
+      }
+
+      // 3. Keep existing static category fallback — nothing to change
+    }),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// SerpAPI date parsing helpers
+// ---------------------------------------------------------------------------
 function parseGoogleEventDate(dateStr: string | undefined): string | null {
   if (!dateStr) return null
   try {
-    const cleaned = dateStr.replace(/\s*[\u2013-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
+    const cleaned = dateStr.replace(/\s*[–-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
     const d = new Date(cleaned)
     if (!isNaN(d.getTime())) return d.toISOString()
     const withYear = `${cleaned} ${new Date().getFullYear()}`
@@ -300,9 +368,12 @@ function parseSerpPrice(
   return null
 }
 
+// ---------------------------------------------------------------------------
+// Live SerpAPI crawl
+// ---------------------------------------------------------------------------
 async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): Promise<EventRow[]> {
-  const serpKey = process.env.SERPAPI_KEY
-  if (!serpKey || cities.length === 0) return []
+  const serperKey = process.env.SERPER_API_KEY
+  if (!serperKey || cities.length === 0) return []
 
   const results: EventRow[] = []
   const seen = new Set<string>()
@@ -313,15 +384,19 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
 
       return queries.map(async (q, qi) => {
         try {
-          const url =
-            `https://serpapi.com/search.json?engine=google_events` +
-            `&q=${encodeURIComponent(q)}&hl=en&gl=us&api_key=${serpKey}`
-
-          const res = await fetch(url, { cache: 'no-store' })
+          const res = await fetch('https://google.serper.dev/events', {
+            method: 'POST',
+            headers: {
+              'X-API-KEY': serperKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ q, gl: 'us', hl: 'en' }),
+            cache: 'no-store',
+          })
           if (!res.ok) return
 
           const data = await res.json()
-          const events: unknown[] = data.events_results ?? []
+          const events: unknown[] = data.events ?? []
 
           for (let i = 0; i < events.length; i++) {
             const e = events[i] as Record<string, unknown>
@@ -339,7 +414,11 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
             const isFree = price === 0 || (e.description as string ?? '').toLowerCase().includes('free')
             const dateStart = parseGoogleEventDate(date?.start_date ?? date?.when)
 
+            // Activity queries (qi >= 2) typically have no date — mark as timeless activity
             const isActivity = !dateStart && qi >= 2
+
+            const thumbnail = (e.thumbnail ?? null) as string | null
+            const imgUrl = thumbnail ?? fallbackImg(inferCategory(title + ' ' + ((e.description as string) ?? '')))
 
             results.push({
               id: `live_${cityName.slice(0, 6).replace(/\s/g, '')}_${qi}_${i}`,
@@ -351,7 +430,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
               price_max: null,
               category: inferCategory(title + ' ' + ((e.description as string) ?? '')),
               ticket_url: (ticketInfo?.[0]?.link ?? e.link ?? null) as string | null,
-              image_url: ((e.thumbnail as string | undefined)) ?? fallbackImg(inferCategory(title + ' ' + ((e.description as string) ?? ''))),    
+              image_url: imgUrl,
               description: (e.description ?? null) as string | null,
               ai_description: null,
               distanceLabel,
@@ -362,104 +441,6 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
           console.error('[recommend] SerpAPI fetch error:', err)
         }
       })
-    }),
-  )
-
-  return results
-}
-
-// ---------------------------------------------------------------------------
-// Facebook Events via SerpAPI google_search + site:facebook.com/events
-// ---------------------------------------------------------------------------
-async function fetchFacebookEvents(cities: CityQuery[], timeframe = 'Tonight', winStart: Date, winEnd: Date): Promise<EventRow[]> {
-  const serpKey = process.env.SERPAPI_KEY
-  if (!serpKey || cities.length === 0) return []
-
-  const results: EventRow[] = []
-  const seen = new Set<string>()
-
-  const targets = cities.filter(c => !c.isLocal)
-  const searchCities = targets.length > 0 ? targets : cities
-
-  await Promise.all(
-    searchCities.map(async ({ name: cityName, distanceLabel }) => {
-      const when =
-        timeframe === 'Tonight'      ? 'tonight' :
-        timeframe === 'Tomorrow'     ? 'tomorrow' :
-        timeframe === 'This weekend' ? 'this weekend' :
-        'this month'
-
-      const q = `site:facebook.com/events ${when} in ${cityName}`
-
-      try {
-        const url =
-          `https://serpapi.com/search.json?engine=google` +
-          `&q=${encodeURIComponent(q)}&hl=en&gl=us&api_key=${serpKey}&num=10`
-
-        const res = await fetch(url, { cache: 'no-store' })
-        if (!res.ok) return
-
-        const data = await res.json()
-        const organic = (data.organic_results ?? []) as Array<Record<string, unknown>>
-
-        for (let i = 0; i < organic.length; i++) {
-          const item = organic[i]
-          const rawTitle = ((item.title as string) ?? '')
-            .replace(/\s*[|\u2013\-]+\s*Facebook.*$/i, '').trim()
-          if (!rawTitle || rawTitle.length < 4) continue
-
-          const key = rawTitle.toLowerCase().slice(0, 40)
-          if (seen.has(key)) continue
-          seen.add(key)
-
-          const snippet = (item.snippet as string) ?? ''
-          const link    = (item.link    as string) ?? ''
-
-                    // ── Date extraction (search full snippet + title for any month pattern) ──
-          const mo     = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec'
-          const dateRe = new RegExp(
-            `(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z,\\.\\s]*)?((?:${mo})[a-z]*\\.?\\s+\\d{1,2}(?:,?\\s*\\d{4})?)`,
-            'i',
-          )
-          const dm = (rawTitle + ' ' + snippet).match(dateRe)
-          let eventDate: string | null = null
-          if (dm) {
-            try {
-              const d = new Date(dm[1].replace(/\./g, '').trim())
-              if (!isNaN(d.getTime())) {
-                const yr = new Date().getFullYear()
-                if (d.getFullYear() < yr) d.setFullYear(yr)
-                eventDate = d.toISOString()
-              }
-            } catch { /* */ }
-          }
-          // Require a parseable date — FB events are time-specific, not timeless activities
-          if (!eventDate) continue
-          // Drop events outside the requested time window
-          const evMs = new Date(eventDate).getTime()
-          if (evMs < winStart.getTime() - 3_600_000 || evMs > winEnd.getTime()) continue
-
-          const cat = inferCategory(rawTitle + ' ' + snippet)
-          results.push({
-            id: `fb_${cityName.slice(0, 6).replace(/\s/g, '')}_${i}`,
-            title: rawTitle,
-            venue_name: null,
-            date_start: eventDate,
-            is_free: false,
-            price_min: null,
-            price_max: null,
-            category: cat,
-            ticket_url: link || null,
-            image_url: ((item.thumbnail as string | undefined)) ?? fallbackImg(cat),
-            description: snippet.slice(0, 200) || null,
-            ai_description: null,
-            distanceLabel,
-            source: 'facebook',
-          })
-        }
-      } catch (err) {
-        console.error('[recommend] Facebook Events fetch error:', err)
-      }
     }),
   )
 
@@ -480,35 +461,25 @@ export async function POST(req: NextRequest) {
     }
 
     const { answers } = body
-    let city  = body.city  ?? ''
-    let lat   = body.lat
-    let lng   = body.lng
-    let hasGps = typeof lat === 'number' && typeof lng === 'number'
-
-    // Zip code → GPS: resolve US postal code to lat/lng then run full GPS path
-    if (!hasGps && /^\d{5}$/.test(city.trim())) {
-      const zipGeo = await geocodeZipCode(city.trim())
-      if (zipGeo) {
-        lat    = zipGeo.lat
-        lng    = zipGeo.lng
-        hasGps = true
-        city   = ''  // let reverse-geocode set the display name
-      }
-    }
-
-    // City string → GPS: forward-geocode any place name to enable full GPS-mode discovery
-    if (!hasGps && city.trim()) {
-      const cityGeo = await geocodeCity(city.trim())
-      if (cityGeo) {
-        lat    = cityGeo.lat
-        lng    = cityGeo.lng
-        hasGps = true
-        // Keep city so GPS reverse-geocode can enrich/confirm the display name
-      }
-    }
+    let city     = body.city ?? ''
+    let lat      = body.lat
+    let lng      = body.lng
+    let hasGps   = typeof lat === 'number' && typeof lng === 'number'
 
     if (!Array.isArray(answers) || answers.length === 0) {
       return NextResponse.json({ error: 'answers required' }, { status: 400 })
+    }
+
+    // ── Zip code → GPS ──────────────────────────────────────────────────────
+    if (!hasGps && /^\d{5}$/.test(city.trim())) {
+      const zipGeo = await geocodeZipCode(city.trim())
+      if (zipGeo) { lat = zipGeo.lat; lng = zipGeo.lng; hasGps = true; city = '' }
+    }
+
+    // ── City string → GPS (forward geocode) ─────────────────────────────────
+    if (!hasGps && city.trim()) {
+      const cityGeo = await geocodeCity(city.trim())
+      if (cityGeo) { lat = cityGeo.lat; lng = cityGeo.lng; hasGps = true }
     }
 
     const timeframe = (answers[0] as string) || 'Tonight'
@@ -521,28 +492,24 @@ export async function POST(req: NextRequest) {
     let geoDisplayName = city.trim()
     let cities: CityQuery[] = []
 
-    if (hasGps) {
+    if (hasGps && typeof lat === 'number' && typeof lng === 'number') {
       const [localGeo, regionalGeo] = await Promise.all([
-        reverseGeocode(lat!, lng!, 14),
-        reverseGeocode(lat!, lng!, 8),
+        reverseGeocode(lat, lng, 14),
+        reverseGeocode(lat, lng, 8),
       ])
 
       const localCity    = localGeo?.city    || ''
       const regionalCity = regionalGeo?.city || ''
 
       const regionalDist = regionalGeo
-        ? haversine(lat!, lng!, regionalGeo.resultLat, regionalGeo.resultLng)
+        ? haversine(lat, lng, regionalGeo.resultLat, regionalGeo.resultLng)
         : null
 
       geoDisplayName = localGeo?.displayName || regionalGeo?.displayName || 'your area'
       resolvedCity = resolvedCity || regionalCity || localCity
 
       if (localCity) {
-        cities.push({
-          name:          localCity,
-          distanceLabel: 'Right here',
-          isLocal:       true,
-        })
+        cities.push({ name: localCity, distanceLabel: 'Right here', isLocal: true })
       }
       if (regionalCity && regionalCity !== localCity) {
         cities.push({
@@ -551,8 +518,9 @@ export async function POST(req: NextRequest) {
           isLocal:       false,
         })
       }
+      // If geocoding returned nothing useful, fall back to provided city string
       if (cities.length === 0 && resolvedCity) {
-        cities.push({ name: resolvedCity, distanceLabel: 'Nearby', isLocal: false })
+        cities.push({ name: resolvedCity, distanceLabel: 'Nearby', isLocal: true })
       }
     } else if (resolvedCity) {
       cities = [{ name: resolvedCity, distanceLabel: '', isLocal: false }]
@@ -561,10 +529,6 @@ export async function POST(req: NextRequest) {
     // ── 2. Parallel fetches ──────────────────────────────────────────────────
     const liveEventsPromise = cities.length > 0
       ? fetchLiveSerpEvents(cities, timeframe)
-      : Promise.resolve([] as EventRow[])
-
-    const fbEventsPromise = cities.length > 0
-      ? fetchFacebookEvents(cities, timeframe, dateStart, dateEnd)
       : Promise.resolve([] as EventRow[])
 
     let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
@@ -579,36 +543,48 @@ export async function POST(req: NextRequest) {
         .order('date_start', { ascending: true })
         .limit(40)
 
-      if (catHints)       q = q.in('category', catHints)
+      if (catHints)           q = q.in('category', catHints)
       if (maxBudget !== null) q = q.or(`is_free.eq.true,price_min.lte.${maxBudget}`)
 
       dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
-    const [liveEvents, dbRows, fbEvents] = await Promise.all([liveEventsPromise, dbRowsPromise, fbEventsPromise])
+    const [liveEvents, dbRows] = await Promise.all([liveEventsPromise, dbRowsPromise])
 
-    // ── 3. Merge — live + FB first (fresher), then DB ───────────────────────
-    const dbTitles     = new Set(dbRows.map(r => r.title.toLowerCase().slice(0, 40)))
-    const allLiveAndFb = [...liveEvents, ...fbEvents]
-    const seenLive     = new Set<string>()
+    // ── 3. Merge — live first (fresher), then DB ─────────────────────────────
     const nowMs    = Date.now()
-    const uniqueLive    = allLiveAndFb.filter(e => {
+    const dbTitles = new Set(dbRows.map(r => r.title.toLowerCase().slice(0, 40)))
+    const seenLive = new Set<string>()
+
+    const uniqueLive = liveEvents.filter(e => {
       const key = e.title.toLowerCase().slice(0, 40)
       if (dbTitles.has(key) || seenLive.has(key)) return false
-      // Drop FB events with no date — likely stale indexed pages
-      // Apply time window to non-activity events
+      // Only drop events that are clearly in the past (more than 1 hour ago)
+      // Do NOT filter future events — SerpAPI queries are already scoped by timeframe keyword
+      // and local-time vs UTC mismatches would kill valid results
       if (e.date_start && e.source !== 'activity') {
         const t = new Date(e.date_start).getTime()
-        if (!isNaN(t)) {
-          if (t < nowMs - 3_600_000) return false  // past (1hr buffer)
-        }
+        if (!isNaN(t) && t < nowMs - 3_600_000) return false
       }
       seenLive.add(key)
       return true
     })
+
     let rows: EventRow[] = [...uniqueLive, ...dbRows]
 
-    // ── 4. Radius expansion ──────────────────────────────────────────────────
+    // Safety net: if SerpAPI returned events but the past-event filter killed them all,
+    // include everything (better to show something than nothing)
+    if (rows.length < 3 && liveEvents.length > 0) {
+      const allDeduped = liveEvents.filter(e => {
+        const key = e.title.toLowerCase().slice(0, 40)
+        return !dbTitles.has(key)
+      })
+      if (allDeduped.length > rows.length) {
+        rows = [...allDeduped, ...dbRows]
+      }
+    }
+
+    // ── 4. Radius expansion — if thin results, also query regional city in DB ─
     if (rows.length < 5 && hasGps && isSupabaseConfigured()) {
       const regionalCity = cities.find(c => !c.isLocal)?.name
       if (regionalCity && regionalCity !== resolvedCity) {
@@ -629,7 +605,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── 5. Standard DB fallback ──────────────────────────────────────────────
+    // ── 5. Standard DB fallback for thin results ─────────────────────────────
     if (rows.length < 3 && isSupabaseConfigured() && resolvedCity) {
       const { data: fallback } = await supabase
         .from('events')
@@ -644,24 +620,27 @@ export async function POST(req: NextRequest) {
       if (fallbackRows.length > rows.length) rows = [...uniqueLive, ...fallbackRows]
     }
 
-    // ── 6. Last-resort: still empty — broaden to regional hub, accept all activities ──
+    // ── 6. Last-resort: broad SerpAPI sweep — never return empty ────────────
     if (rows.length === 0) {
-      // If geocoding returned no cities, use resolvedCity as last resort
-      if (cities.length === 0 && resolvedCity) {
-        cities.push({ name: resolvedCity, distanceLabel: 'Nearby', isLocal: true })
+      // Use best available city: regional hub, local city, or resolved city
+      const fallbackCity =
+        cities.length > 0
+          ? { ...(cities.find(c => !c.isLocal) ?? cities[0]), isLocal: true }
+          : resolvedCity
+            ? { name: resolvedCity, distanceLabel: 'Nearby', isLocal: true }
+            : null
+
+      if (fallbackCity) {
+        const broadEvents = await fetchLiveSerpEvents([fallbackCity], 'Coming weeks')
+        if (broadEvents.length > 0) rows = broadEvents
       }
-      // Force isLocal=true so activity queries ("things to do near X", "outdoor activities")
-      // are included — these always return results for any destination
-      const hub = { ...(cities.find(c => !c.isLocal) ?? cities[0]), isLocal: true }
-      const broadEvents = await fetchLiveSerpEvents([hub], 'Coming weeks')
-      rows = broadEvents  // accept everything — any result beats an empty screen
     }
 
     if (rows.length === 0) {
       return NextResponse.json({ picks: [] })
     }
 
-    // ── 6. Build AI prompt ───────────────────────────────────────────────────
+    // ── 7. Build AI prompt ───────────────────────────────────────────────────
     const locationLabel = hasGps
       ? `near your location (${geoDisplayName})`
       : `in ${resolvedCity}`
@@ -695,11 +674,6 @@ export async function POST(req: NextRequest) {
       ? " Some entries are [activity] — timeless things to do (hiking, kayaking, tours, etc.) rather than ticketed events. Include these if they match the user's vibe."
       : ''
 
-    const hasFacebook = rows.some(r => r.source === 'facebook')
-    const fbNote      = hasFacebook
-      ? " Some entries are [facebook] — community events from Facebook that may include local gatherings not listed elsewhere."
-      : ''
-
     const prompt = `You are a local expert helping someone find their perfect outing.
 
 User preferences:
@@ -708,7 +682,7 @@ ${answerSummary}
 Events and activities available ${locationLabel} for ${timeframe.toLowerCase()}:
 ${eventList}
 
-Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote}${fbNote} Consider energy level, group size, experience preference, scene, and budget. Prioritise variety — don't pick 3 of the same type. If the user is in a rural or outdoor area, outdoor activities are valid picks.
+Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote} Consider energy level, group size, experience preference, scene, and budget. Prioritise variety — don't pick 3 of the same type. If the user is in a rural or outdoor area, outdoor activities are valid picks.
 
 Return ONLY a valid JSON array — no other text, no markdown, no explanation:
 [
@@ -719,7 +693,7 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
 
     const anthropicKey = process.env.ANTHROPIC_API_KEY
 
-    // ── 7. No API key: return top 3 ──────────────────────────────────────────
+    // ── 8. No API key: return top 3 ──────────────────────────────────────────
     if (!anthropicKey) {
       const top3 = rows.slice(0, 3).map((r, i) => ({
         id:             r.id,
@@ -730,15 +704,16 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
         dateFormatted:  r.date_start ? formatDate(r.date_start) : 'Anytime',
         priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl:      r.ticket_url,
-        imageUrl:       r.image_url,
+        imageUrl:       r.image_url ?? fallbackImg(r.category),
         category:       r.category,
         source:         r.source,
         distanceLabel:  r.distanceLabel,
       }))
+      await enrichPickImages(top3)
       return NextResponse.json({ picks: top3 })
     }
 
-    // ── 8. Call Claude Haiku ─────────────────────────────────────────────────
+    // ── 9. Call Claude Haiku ─────────────────────────────────────────────────
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -761,7 +736,7 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
     const jsonMatch = rawText.match(/\[[\s\S]*\]/)
     if (!jsonMatch) throw new Error('No JSON array in AI response')
 
-    const aiPicks  = JSON.parse(jsonMatch[0]) as Array<{ id: string; rank: number; pitch: string }>
+    const aiPicks   = JSON.parse(jsonMatch[0]) as Array<{ id: string; rank: number; pitch: string }>
     const eventById = Object.fromEntries(rows.map(r => [r.id, r]))
 
     const picks = aiPicks
@@ -778,13 +753,14 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
           dateFormatted:  r.date_start ? formatDate(r.date_start) : 'Anytime',
           priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
           ticketUrl:      r.ticket_url,
-          imageUrl:       r.image_url,
+          imageUrl:       r.image_url ?? fallbackImg(r.category),
           category:       r.category,
           source:         r.source,
           distanceLabel:  r.distanceLabel,
         }
       })
 
+    // Fallback if AI returned bad IDs
     if (picks.length === 0) {
       const fallback = rows.slice(0, 3).map((r, i) => ({
         id:             r.id,
@@ -795,13 +771,17 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
         dateFormatted:  r.date_start ? formatDate(r.date_start) : 'Anytime',
         priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl:      r.ticket_url,
-        imageUrl:       r.image_url,
+        imageUrl:       r.image_url ?? fallbackImg(r.category),
         category:       r.category,
         source:         r.source,
         distanceLabel:  r.distanceLabel,
       }))
+      await enrichPickImages(fallback)
       return NextResponse.json({ picks: fallback })
     }
+
+    // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
+    await enrichPickImages(picks)
 
     return NextResponse.json({ picks })
 
