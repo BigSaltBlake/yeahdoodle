@@ -18,7 +18,7 @@ function getDateRange(when: WhenFilter): { start: string; end: string } | null {
   }
 
   if (when === 'weekend') {
-    const day = now.getDay()
+    const day = now.getDay() // 0=Sun, 1=Mon … 5=Fri, 6=Sat
     let start: Date, end: Date
     if (day === 6) {
       start = new Date(now)
@@ -43,7 +43,7 @@ function getDateRange(when: WhenFilter): { start: string; end: string } | null {
 }
 
 // ---------------------------------------------------------------------------
-// Category inference
+// Category inference (mirrors route.ts logic)
 // ---------------------------------------------------------------------------
 function inferEventCategory(text: string): EventCategory {
   const t = text.toLowerCase()
@@ -58,12 +58,12 @@ function inferEventCategory(text: string): EventCategory {
 }
 
 // ---------------------------------------------------------------------------
-// SerpAPI live-event fetch
+// SerpAPI live-event fetch — fires when DB returns nothing
 // ---------------------------------------------------------------------------
 async function fetchSerpLiveEvents(
   city: string,
   when: WhenFilter,
-  serpKey: string,
+  serperKey: string,
 ): Promise<YDEvent[]> {
   const whenStr =
     when === 'today'   ? 'today' :
@@ -71,10 +71,9 @@ async function fetchSerpLiveEvents(
     when === 'week'    ? 'this week' :
     ''
 
+  // Single query per Discover search — keeps Serper.dev usage minimal
   const queries = [
-    ('events ' + whenStr + ' in ' + city).replace(/\s+/g, ' ').trim(),
-    ('things to do ' + whenStr + ' in ' + city).replace(/\s+/g, ' ').trim(),
-    'outdoor activities near ' + city,
+    `events ${whenStr} in ${city}`.replace(/\s+/g, ' ').trim(),
   ]
 
   const seen    = new Set<string>()
@@ -83,13 +82,19 @@ async function fetchSerpLiveEvents(
   await Promise.all(
     queries.map(async (q) => {
       try {
-        const base = 'https://serpapi.com/search.json'
-        const params = 'engine=google_events&hl=en&gl=us&q=' + encodeURIComponent(q) + '&api_key=' + serpKey
-        const res = await fetch(base + '?' + params, { cache: 'no-store' })
+        const res = await fetch('https://google.serper.dev/events', {
+          method: 'POST',
+          headers: {
+            'X-API-KEY': serperKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ q, gl: 'us', hl: 'en' }),
+          cache: 'no-store',
+        })
         if (!res.ok) return
 
         const data = await res.json()
-        const events: unknown[] = data.events_results ?? []
+        const events: unknown[] = data.events ?? []
 
         for (let i = 0; i < events.length; i++) {
           const e = events[i] as Record<string, unknown>
@@ -107,7 +112,7 @@ async function fetchSerpLiveEvents(
           let dateIso = ''
           try {
             const raw = date?.start_date ?? date?.when ?? ''
-            const cleaned = raw.replace(/\s*[\u2013-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
+            const cleaned = raw.replace(/\s*[–-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
             const d = new Date(cleaned || new Date())
             if (!isNaN(d.getTime())) {
               if (d.getFullYear() < 2020) d.setFullYear(new Date().getFullYear())
@@ -125,7 +130,7 @@ async function fetchSerpLiveEvents(
           const cat = inferEventCategory(title + ' ' + ((e.description as string) ?? ''))
 
           results.push({
-            id:               'live_' + results.length + '_' + i,
+            id:               `live_${results.length}_${i}`,
             title,
             description:      (e.description as string) ?? '',
             aiDescription:    undefined,
@@ -172,8 +177,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ events: [], total: 0 })
   }
 
+  // Supabase not configured — go straight to SerpAPI
   if (!isSupabaseConfigured()) {
-    const serpKey = process.env.SERPAPI_KEY
+    const serpKey = process.env.SERPER_API_KEY
     if (serpKey) {
       const liveEvents = await fetchSerpLiveEvents(city.trim(), when, serpKey)
       const filtered   = categories.length > 0
@@ -182,17 +188,22 @@ export async function GET(req: NextRequest) {
       const toReturn = filtered.length > 0 ? filtered : liveEvents
       return NextResponse.json({ events: toReturn, total: toReturn.length })
     }
-    return NextResponse.json({ events: [], total: 0, message: 'Supabase is not configured.' })
+    return NextResponse.json({
+      events: [],
+      total: 0,
+      message: 'Supabase is not configured.',
+    })
   }
 
   const offset    = page * PAGE_SIZE
   const nowIso    = new Date().toISOString()
   const dateRange = getDateRange(when)
 
+  // Build DB query
   let query = supabase
     .from('events')
     .select('*', { count: 'exact' })
-    .ilike('city', '%' + city.trim() + '%')
+    .ilike('city', `%${city.trim()}%`)
     .eq('is_duplicate', false)
     .order('date_start', { ascending: true })
     .range(offset, offset + PAGE_SIZE - 1)
@@ -216,6 +227,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ events: [], total: 0, error: error.message }, { status: 500 })
   }
 
+  // DB has results — return them
   if ((count ?? 0) > 0) {
     return NextResponse.json(
       { events: (data ?? []).map(mapEventRow), total: count ?? 0 },
@@ -223,12 +235,13 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // DB returned nothing — fire SerpAPI live crawl
-  const serpKey = process.env.SERPAPI_KEY
+  // ── DB returned nothing — fire SerpAPI live crawl ────────────────────────
+  const serpKey = process.env.SERPER_API_KEY
   if (serpKey) {
     let liveEvents = await fetchSerpLiveEvents(city.trim(), when, serpKey)
 
     if (liveEvents.length > 0) {
+      // Respect category filter; if it wipes everything, return unfiltered live results
       const filtered = categories.length > 0
         ? liveEvents.filter(e => categories.includes(e.category))
         : liveEvents
@@ -241,5 +254,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Absolute last resort — return empty (SerpAPI not configured or timed out)
   return NextResponse.json({ events: [], total: 0 })
 }
