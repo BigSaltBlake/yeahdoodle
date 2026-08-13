@@ -374,15 +374,21 @@ async function fetchTicketmasterLive(
   await Promise.all(
     cities.map(async ({ name: cityName, distanceLabel }) => {
       try {
-        const params = new URLSearchParams({
+        // Split "City Name, ST" into city + optional stateCode
+        const commaIdx = cityName.lastIndexOf(',')
+        const tmCity   = commaIdx >= 0 ? cityName.slice(0, commaIdx).trim() : cityName.trim()
+        const tmState  = commaIdx >= 0 ? cityName.slice(commaIdx + 1).trim() : ''
+        const paramObj: Record<string, string> = {
           apikey:        apiKey,
-          city:          cityName,
+          city:          tmCity,
           countryCode:   'US',
           size:          '20',
           sort:          'date,asc',
           startDateTime: dateStart.toISOString().replace(/\.\d{3}Z$/, 'Z'),
           endDateTime:   dateEnd.toISOString().replace(/\.\d{3}Z$/, 'Z'),
-        })
+        }
+        if (tmState) paramObj.stateCode = tmState
+        const params = new URLSearchParams(paramObj)
         const res = await fetch(
           `https://app.ticketmaster.com/discovery/v2/events.json?${params}`,
           { cache: 'no-store' },
