@@ -340,6 +340,111 @@ async function enrichPickImages(
 }
 
 // ---------------------------------------------------------------------------
+// Ticketmaster Discovery API — free live event source (5000 calls/day)
+// ---------------------------------------------------------------------------
+function tmBestImage(images: Array<{ url: string; width: number; height: number; ratio?: string }> | undefined): string | null {
+  if (!images?.length) return null
+  // Prefer 16_9 ratio at ~800px wide; otherwise just widest image
+  const pref = images.find(i => i.ratio === '16_9' && i.width >= 640)
+  return (pref ?? images.reduce((best, i) => i.width > best.width ? i : best, images[0])).url
+}
+
+function tmCategory(segmentName: string | undefined): string {
+  const s = (segmentName ?? '').toLowerCase()
+  if (s === 'music')                    return 'Music'
+  if (s === 'sports')                   return 'Sports & Outdoors'
+  if (s === 'arts & theatre')           return 'Arts & Culture'
+  if (s === 'film' || s === 'film/tv')  return 'Arts & Culture'
+  if (s === 'family')                   return 'Community'
+  return 'Community'
+}
+
+async function fetchTicketmasterLive(
+  cities: CityQuery[],
+  dateStart: Date,
+  dateEnd: Date,
+): Promise<EventRow[]> {
+  const apiKey = process.env.TICKETMASTER_API_KEY
+  if (!apiKey || cities.length === 0) return []
+
+  const results: EventRow[] = []
+  const seen = new Set<string>()
+
+  await Promise.all(
+    cities.map(async ({ name: cityName, distanceLabel }) => {
+      try {
+        const params = new URLSearchParams({
+          apikey:        apiKey,
+          city:          cityName,
+          countryCode:   'US',
+          size:          '20',
+          sort:          'date,asc',
+          startDateTime: dateStart.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+          endDateTime:   dateEnd.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        })
+        const res = await fetch(
+          `https://app.ticketmaster.com/discovery/v2/events.json?${params}`,
+          { cache: 'no-store' },
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        const events: unknown[] = data._embedded?.events ?? []
+
+        for (let i = 0; i < events.length; i++) {
+          const e = events[i] as Record<string, unknown>
+          const title = (e.name as string) ?? 'Event'
+          const key   = title.toLowerCase().slice(0, 40)
+          if (seen.has(key)) continue
+          seen.add(key)
+
+          const classification = ((e.classifications as unknown[] | undefined)?.[0] ?? {}) as Record<string, unknown>
+          const segment = ((classification.segment ?? {}) as Record<string, unknown>).name as string | undefined
+          const category = tmCategory(segment)
+
+          const dates = (e.dates as Record<string, unknown> | undefined)
+          const startObj = (dates?.start as Record<string, unknown> | undefined)
+          const dateIso = (startObj?.dateTime as string | null) ??
+            (startObj?.localDate ? `${startObj.localDate}T${startObj?.localTime ?? '00:00:00'}` : null)
+
+          const priceRanges = e.priceRanges as Array<{ min: number; max: number }> | undefined
+          const priceMin = priceRanges?.[0]?.min ?? null
+          const priceMax = priceRanges?.[0]?.max ?? null
+          const isFree   = priceMin === 0
+
+          const venues   = (e._embedded as Record<string, unknown> | undefined)?.venues as Array<Record<string, unknown>> | undefined
+          const venue    = venues?.[0]
+          const venueName = (venue?.name as string | undefined) ?? null
+
+          const images   = e.images as Array<{ url: string; width: number; height: number; ratio?: string }> | undefined
+          const imgUrl   = tmBestImage(images) ?? fallbackImg(category)
+
+          results.push({
+            id:           `tm_${(e.id as string) ?? `${cityName}_${i}`}`,
+            title,
+            venue_name:   venueName,
+            date_start:   dateIso,
+            is_free:      isFree,
+            price_min:    isFree ? 0 : priceMin,
+            price_max:    priceMax,
+            category,
+            ticket_url:   (e.url as string | null) ?? null,
+            image_url:    imgUrl,
+            description:  (e.info as string | null) ?? (e.description as string | null) ?? null,
+            ai_description: null,
+            distanceLabel,
+            source:       'live',
+          })
+        }
+      } catch (err) {
+        console.error('[recommend] Ticketmaster fetch error:', err)
+      }
+    }),
+  )
+
+  return results
+}
+
+// ---------------------------------------------------------------------------
 // SerpAPI date parsing helpers
 // ---------------------------------------------------------------------------
 function parseGoogleEventDate(dateStr: string | undefined): string | null {
@@ -544,7 +649,19 @@ export async function POST(req: NextRequest) {
 
     // ── 2. Parallel fetches ──────────────────────────────────────────────────
     const liveEventsPromise = cities.length > 0
-      ? fetchLiveSerpEvents(cities, timeframe)
+      ? Promise.all([
+          fetchLiveSerpEvents(cities, timeframe),
+          fetchTicketmasterLive(cities, dateStart, dateEnd),
+        ]).then(([serp, tm]) => {
+          // Merge: dedupe by title, Ticketmaster results first (richer data)
+          const combined: EventRow[] = []
+          const titleSet = new Set<string>()
+          for (const e of [...tm, ...serp]) {
+            const k = e.title.toLowerCase().slice(0, 40)
+            if (!titleSet.has(k)) { titleSet.add(k); combined.push(e) }
+          }
+          return combined
+        })
       : Promise.resolve([] as EventRow[])
 
     let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
