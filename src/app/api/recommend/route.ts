@@ -169,14 +169,22 @@ function driveTimeLabel(miles: number): string {
 // Survey answer helpers
 // ---------------------------------------------------------------------------
 function budgetMax(answers: string[]): number | null {
-  const b = answers[5] ?? ''
-  if (b.includes('Free') || b.includes('25')) return 25
+  // Budget is always the last answer; also try fixed index as fallback
+  const b = (answers[answers.length - 1] ?? '').trim()
+  if (b === 'Free' || b.toLowerCase() === 'free') return 0
+  if (b === '$25 or so' || b.includes('25')) return 25
+  if (b === 'Around $50' || b.includes('50')) return 50
+  // Legacy labels
   if (b.includes('75')) return 75
+  if (b.toLowerCase().includes("sky") || b.toLowerCase().includes('limit')) return null
   return null
 }
 
 function categoryHints(answers: string[]): string[] | null {
-  const exp = answers[3] ?? ''
+  // Experience type is at index 3 (no group-size) or index 4 (with group-size)
+  const crewAns = answers[2] ?? ''
+  const hasGrp = crewAns === 'Small group' || crewAns === 'The whole squad'
+  const exp = answers[hasGrp ? 4 : 3] ?? ''
   if (exp.includes('music') || exp.includes('show')) return ['Music', 'Arts & Culture', 'Nightlife']
   if (exp.includes('Food') || exp.includes('drinks')) return ['Food & Drink', 'Community', 'Outdoors']
   return null
@@ -187,19 +195,19 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
   const today = new Date(now)
   today.setHours(0, 0, 0, 0)
 
-  if (timeframe === 'Tonight') {
-    // 18-hour window: covers all US timezones (UTC-5 to UTC-10)
-    // so "midnight local" events always fall within the window
+  // 'Now' and legacy 'Tonight' — 18-hour rolling window
+  if (timeframe === 'Now' || timeframe === 'Tonight') {
     const end = new Date(now.getTime() + 18 * 60 * 60 * 1000)
     return { start: now, end }
   }
+  // Legacy 'Tomorrow'
   if (timeframe === 'Tomorrow') {
-    // 18–42 hours from now
     const start = new Date(now.getTime() + 18 * 60 * 60 * 1000)
     const end   = new Date(now.getTime() + 42 * 60 * 60 * 1000)
     return { start, end }
   }
-  if (timeframe === 'This weekend') {
+  // 'Soon' and legacy 'This weekend' — next Friday–Sunday
+  if (timeframe === 'Soon' || timeframe === 'This weekend') {
     const dow = now.getDay()
     const daysUntilFri = dow === 0 ? 6 : (5 - dow + 7) % 7 || 7
     const friday = new Date(today)
@@ -211,7 +219,31 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     const start = (dow === 0 || dow === 6) ? now : friday
     return { start, end: sunday }
   }
-  // 'Coming weeks' — 4-week lookahead
+  // 'Next Week' — 3–14 days out
+  if (timeframe === 'Next Week') {
+    const start = new Date(today)
+    start.setDate(start.getDate() + 3)
+    const end = new Date(today)
+    end.setDate(end.getDate() + 14)
+    return { start, end }
+  }
+  // 'Planning Ahead' — 1–8 weeks out
+  if (timeframe === 'Planning Ahead') {
+    const start = new Date(today)
+    start.setDate(start.getDate() + 7)
+    const end = new Date(today)
+    end.setDate(end.getDate() + 60)
+    return { start, end }
+  }
+  // 'Planning a Trip' — 2 weeks to 3 months out
+  if (timeframe === 'Planning a Trip') {
+    const start = new Date(today)
+    start.setDate(start.getDate() + 14)
+    const end = new Date(today)
+    end.setDate(end.getDate() + 90)
+    return { start, end }
+  }
+  // Legacy 'Coming weeks' — 4-week lookahead
   const end = new Date(today)
   end.setDate(end.getDate() + 28)
   return { start: now, end }
@@ -219,10 +251,15 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
 
 function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolean): string[] {
   const when =
-    timeframe === 'Tonight'      ? 'tonight' :
-    timeframe === 'Tomorrow'     ? 'tomorrow' :
-    timeframe === 'This weekend' ? 'this weekend' :
-    'this month'
+    timeframe === 'Now'              ? 'tonight' :
+    timeframe === 'Tonight'          ? 'tonight' :
+    timeframe === 'Tomorrow'         ? 'tomorrow' :
+    timeframe === 'Soon'             ? 'this weekend' :
+    timeframe === 'This weekend'     ? 'this weekend' :
+    timeframe === 'Next Week'        ? 'next week' :
+    timeframe === 'Planning Ahead'   ? 'upcoming' :
+    timeframe === 'Planning a Trip'  ? 'upcoming' :
+    'upcoming'
 
   // Single query per city — keeps SerpAPI usage at 1–2 calls per session
   return [`events ${when} in ${city}`]
@@ -779,7 +816,7 @@ export async function POST(req: NextRequest) {
             : null
 
       if (fallbackCity) {
-        const broadEvents = await fetchLiveSerpEvents([fallbackCity], 'Coming weeks')
+        const broadEvents = await fetchLiveSerpEvents([fallbackCity], 'Planning Ahead')
         if (broadEvents.length > 0) rows = broadEvents
       }
     }
@@ -808,14 +845,24 @@ export async function POST(req: NextRequest) {
       })
       .join('\n')
 
-    const labelMap = ['When', 'Energy level', 'Group size', 'Experience type', 'Scene/crowd', 'Budget']
+    // Dynamic label map handles optional group-size question
+    const crewAns2 = answers[2] ?? ''
+    const hasGrpQ = crewAns2 === 'Small group' || crewAns2 === 'The whole squad'
+    const labelMap = hasGrpQ
+      ? ['When', 'Energy (1=Low Key, 10=High Energy)', 'Crew', 'Group size', 'Experience type', 'Scene/crowd', 'Budget']
+      : ['When', 'Energy (1=Low Key, 10=High Energy)', 'Crew', 'Experience type', 'Scene/crowd', 'Budget']
     const answerSummary = answers.map((a, i) => `- ${labelMap[i] ?? `Q${i + 1}`}: ${a}`).join('\n')
 
     const timeframeInstruction =
-      timeframe === 'Tonight'      ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
-      timeframe === 'Tomorrow'     ? 'Prefer events happening TOMORROW.' :
-      timeframe === 'This weekend' ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
-                                     'Show a variety across the coming weeks — the user is calendar-planning, so spread dates out and highlight anything worth booking early.'
+      timeframe === 'Now'             ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
+      timeframe === 'Tonight'         ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
+      timeframe === 'Tomorrow'        ? 'Prefer events happening TOMORROW.' :
+      timeframe === 'Soon'            ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
+      timeframe === 'This weekend'    ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
+      timeframe === 'Next Week'       ? 'Prefer events happening NEXT WEEK (3–14 days from now).' :
+      timeframe === 'Planning Ahead'  ? 'Show events across the next 2–8 weeks — the user is calendar-planning, highlight anything worth booking early.' :
+      timeframe === 'Planning a Trip' ? 'Show a variety of events 2 weeks to 3 months out — user is trip planning, include destination-worthy or unique experiences.' :
+      'Show a variety across the coming weeks — the user is calendar-planning, so spread dates out and highlight anything worth booking early.'
 
     const hasActivities = rows.some(r => r.source === 'activity')
     const activityNote  = hasActivities
