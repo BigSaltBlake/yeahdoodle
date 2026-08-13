@@ -384,13 +384,13 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
 
       return queries.map(async (q, qi) => {
         try {
-          const res = await fetch('https://google.serper.dev/events', {
+          const res = await fetch('https://google.serper.dev/search', {
             method: 'POST',
             headers: {
               'X-API-KEY': serperKey,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ q, gl: 'us', hl: 'en' }),
+            body: JSON.stringify({ q, gl: 'us', hl: 'en', num: 10 }),
             cache: 'no-store',
           })
           if (!res.ok) return
