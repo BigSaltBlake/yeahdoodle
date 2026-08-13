@@ -372,8 +372,12 @@ function parseSerpPrice(
 // Live SerpAPI crawl
 // ---------------------------------------------------------------------------
 async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): Promise<EventRow[]> {
-  const serperKey = process.env.SERPER_API_KEY
-  if (!serperKey || cities.length === 0) return []
+  // Prefer SerpAPI Google Events engine (structured data); fall back to Serper.dev /search
+  const serpApiKey  = process.env.SERPAPI_KEY
+  const serperKey   = process.env.SERPER_API_KEY
+  const hasSerp     = !!serpApiKey
+  const hasSerper   = !!serperKey
+  if ((!hasSerp && !hasSerper) || cities.length === 0) return []
 
   const results: EventRow[] = []
   const seen = new Set<string>()
@@ -384,19 +388,31 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
 
       return queries.map(async (q, qi) => {
         try {
-          const res = await fetch('https://google.serper.dev/search', {
-            method: 'POST',
-            headers: {
-              'X-API-KEY': serperKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ q, gl: 'us', hl: 'en', num: 10 }),
-            cache: 'no-store',
-          })
-          if (!res.ok) return
+          let events: unknown[] = []
 
-          const data = await res.json()
-          const events: unknown[] = data.events ?? []
+          if (hasSerp) {
+            // SerpAPI Google Events — returns structured events_results[]
+            const url = `https://serpapi.com/search?engine=google_events&q=${encodeURIComponent(q)}&hl=en&gl=us&api_key=${serpApiKey}`
+            const res = await fetch(url, { cache: 'no-store' })
+            if (res.ok) {
+              const data = await res.json()
+              events = (data.events_results ?? []) as unknown[]
+            }
+          }
+
+          if (events.length === 0 && hasSerper) {
+            // Fallback: Serper.dev /search — returns data.events[] when Google events panel triggers
+            const res = await fetch('https://google.serper.dev/search', {
+              method: 'POST',
+              headers: { 'X-API-KEY': serperKey!, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ q, gl: 'us', hl: 'en', num: 10 }),
+              cache: 'no-store',
+            })
+            if (res.ok) {
+              const data = await res.json()
+              events = (data.events ?? []) as unknown[]
+            }
+          }
 
           for (let i = 0; i < events.length; i++) {
             const e = events[i] as Record<string, unknown>
