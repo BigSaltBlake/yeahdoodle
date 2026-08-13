@@ -374,20 +374,28 @@ async function fetchTicketmasterLive(
   await Promise.all(
     cities.map(async ({ name: cityName, distanceLabel }) => {
       try {
-        // Split "City Name, ST" into city + optional stateCode
-        const commaIdx = cityName.lastIndexOf(',')
-        const tmCity   = commaIdx >= 0 ? cityName.slice(0, commaIdx).trim() : cityName.trim()
-        const tmState  = commaIdx >= 0 ? cityName.slice(commaIdx + 1).trim() : ''
+        // Geocode city → latlong so TM can find areas like "Jackson Hole"
+        // (TM's city DB uses "Jackson, WY" not "Jackson Hole, WY")
+        const geo = await geocodeCity(cityName)
         const paramObj: Record<string, string> = {
           apikey:        apiKey,
-          city:          tmCity,
           countryCode:   'US',
           size:          '20',
           sort:          'date,asc',
           startDateTime: dateStart.toISOString().replace(/\.\d{3}Z$/, 'Z'),
           endDateTime:   dateEnd.toISOString().replace(/\.\d{3}Z$/, 'Z'),
         }
-        if (tmState) paramObj.stateCode = tmState
+        if (geo) {
+          paramObj.latlong = `${geo.lat},${geo.lng}`
+          paramObj.radius  = '50'
+          paramObj.unit    = 'miles'
+        } else {
+          // fallback: parse "City Name, ST" string
+          const commaIdx = cityName.lastIndexOf(',')
+          paramObj.city  = commaIdx >= 0 ? cityName.slice(0, commaIdx).trim() : cityName.trim()
+          const tmState  = commaIdx >= 0 ? cityName.slice(commaIdx + 1).trim() : ''
+          if (tmState) paramObj.stateCode = tmState
+        }
         const params = new URLSearchParams(paramObj)
         const res = await fetch(
           `https://app.ticketmaster.com/discovery/v2/events.json?${params}`,
