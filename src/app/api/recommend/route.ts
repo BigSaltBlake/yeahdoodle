@@ -188,15 +188,15 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
   today.setHours(0, 0, 0, 0)
 
   if (timeframe === 'Tonight') {
-    const end = new Date(today)
-    end.setHours(23, 59, 59, 999)
+    // 18-hour window: covers all US timezones (UTC-5 to UTC-10)
+    // so "midnight local" events always fall within the window
+    const end = new Date(now.getTime() + 18 * 60 * 60 * 1000)
     return { start: now, end }
   }
   if (timeframe === 'Tomorrow') {
-    const start = new Date(today)
-    start.setDate(start.getDate() + 1)
-    const end = new Date(start)
-    end.setHours(23, 59, 59, 999)
+    // 18–42 hours from now
+    const start = new Date(now.getTime() + 18 * 60 * 60 * 1000)
+    const end   = new Date(now.getTime() + 42 * 60 * 60 * 1000)
     return { start, end }
   }
   if (timeframe === 'This weekend') {
@@ -206,7 +206,8 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     friday.setDate(friday.getDate() + daysUntilFri)
     const sunday = new Date(friday)
     sunday.setDate(sunday.getDate() + 2)
-    sunday.setHours(23, 59, 59, 999)
+    // End late Sunday in the US (Monday 06:00 UTC covers midnight everywhere)
+    sunday.setHours(30, 0, 0, 0)
     const start = (dow === 0 || dow === 6) ? now : friday
     return { start, end: sunday }
   }
