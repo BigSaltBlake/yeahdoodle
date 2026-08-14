@@ -138,32 +138,45 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     if (played) return
     sessionStorage.setItem('wb_intro', '1')
 
-    const doPlay = () => {
-      setTimeout(() => {
-        setShowTagline(true)
-        setBillSpeaking(true)
+    // Real recorded voice files mapped to intensity level
+    const CATCHPHRASE_FILES: Record<Intensity, string> = {
+      0: '/WB-YD3.m4a',  // Mellow — shortest/calmest take
+      1: '/WB-YD1.m4a',  // Normal
+      2: '/WB-YD2.m4a',  // Wild — biggest take
+    }
+
+    setTimeout(() => {
+      setShowTagline(true)
+      setBillSpeaking(true)
+
+      const audio = new Audio(CATCHPHRASE_FILES[intensity])
+      audio.onended = () => {
+        setBillSpeaking(false)
+        setTimeout(() => setShowTagline(false), 1500)
+        setTimeout(() => setShowBadge(true), 800)
+      }
+      audio.onerror = () => {
+        // Fallback to Web Speech API if audio file fails (e.g. autoplay blocked)
         speakText('Yeah Doodle!', intensity, () => {
           setBillSpeaking(false)
           setTimeout(() => setShowTagline(false), 1500)
           setTimeout(() => setShowBadge(true), 800)
         })
-      }, 1800)
-    }
-
-    if (window.speechSynthesis.getVoices().length > 0) {
-      doPlay()
-    } else {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.onvoiceschanged = null
-        doPlay()
       }
-    }
+      audio.play().catch(() => {
+        // play() promise rejected — fall back to speech synthesis
+        setBillSpeaking(false)
+        setShowTagline(false)
+        setTimeout(() => setShowBadge(true), 800)
+      })
+    }, 1800)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
   // Focus input + greeting when panel opens
   useEffect(() => {
     if (open) {
@@ -244,10 +257,12 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
 
   const QUICK_PROMPTS = [
     "What's hot tonight?",
-    'Hidden gems nearby',
-    'Best live music',
-    'Something free to do',
+    "Hidden gems nearby",
+    "Best live music",
+    "Something free to do",
   ]
+
+  const intensityLevel = INTENSITY_LEVELS[intensity]
 
   return (
     <>
