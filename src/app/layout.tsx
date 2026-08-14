@@ -4,6 +4,7 @@ import './globals.css'
 import Navbar from '@/components/Navbar'
 import { AuthProvider } from '@/components/AuthProvider'
 import PostHogProvider from '@/components/PostHogProvider'
+import WildBill from '@/components/WildBill'
 
 const SITE_URL = 'https://www.yeahdoodle.com'
 const OG_IMAGE = `${SITE_URL}/og-default.png`
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             <Navbar />
             <main>{children}</main>
+            <WildBill />
           </AuthProvider>
         </PostHogProvider>
         {/* Google Identity Services — loaded after page is interactive */}
