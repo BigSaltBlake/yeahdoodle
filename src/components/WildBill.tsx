@@ -113,9 +113,17 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
   const [showTagline, setShowTagline]   = useState(false)
   const [intensity, setIntensity] = useState<Intensity>(1)
 
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef       = useRef<HTMLInputElement>(null)
-  const abortRef       = useRef<AbortController | null>(null)
+  const messagesEndRef  = useRef<HTMLDivElement>(null)
+  const inputRef        = useRef<HTMLInputElement>(null)
+  const abortRef        = useRef<AbortController | null>(null)
+  const introPlayedRef  = useRef(false)
+
+  // Real recorded voice files mapped to intensity level
+  const CATCHPHRASE_FILES: Record<Intensity, string> = {
+    0: '/WB-YD3.m4a',  // Mellow — shortest/calmest take
+    1: '/WB-YD1.m4a',  // Normal
+    2: '/WB-YD2.m4a',  // Wild — biggest take
+  }
 
   // Restore saved intensity preference
   useEffect(() => {
@@ -125,6 +133,10 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
         setIntensity(Number(saved) as Intensity)
       }
     } catch { /* ignore */ }
+    // Show badge after a delay if intro hasn't been played yet
+    if (!sessionStorage.getItem('wb_intro')) {
+      setTimeout(() => setShowBadge(true), 2500)
+    }
   }, [])
 
   const saveIntensity = (level: Intensity) => {
@@ -132,45 +144,24 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     try { localStorage.setItem('wb_intensity', String(level)) } catch { /* ignore */ }
   }
 
-  // Play catchphrase on first visit this session
-  useEffect(() => {
-    const played = sessionStorage.getItem('wb_intro')
-    if (played) return
+  // Play catchphrase — called on first avatar click (requires user gesture for autoplay)
+  const playIntro = (currentIntensity: Intensity) => {
+    if (introPlayedRef.current || sessionStorage.getItem('wb_intro')) return
+    introPlayedRef.current = true
     sessionStorage.setItem('wb_intro', '1')
+    setShowBadge(false)
+    setShowTagline(true)
+    setBillSpeaking(true)
 
-    // Real recorded voice files mapped to intensity level
-    const CATCHPHRASE_FILES: Record<Intensity, string> = {
-      0: '/WB-YD3.m4a',  // Mellow — shortest/calmest take
-      1: '/WB-YD1.m4a',  // Normal
-      2: '/WB-YD2.m4a',  // Wild — biggest take
+    const audio = new Audio(CATCHPHRASE_FILES[currentIntensity])
+    const onFinish = () => {
+      setBillSpeaking(false)
+      setTimeout(() => setShowTagline(false), 1500)
     }
-
-    setTimeout(() => {
-      setShowTagline(true)
-      setBillSpeaking(true)
-
-      const audio = new Audio(CATCHPHRASE_FILES[intensity])
-      audio.onended = () => {
-        setBillSpeaking(false)
-        setTimeout(() => setShowTagline(false), 1500)
-        setTimeout(() => setShowBadge(true), 800)
-      }
-      audio.onerror = () => {
-        // Fallback to Web Speech API if audio file fails (e.g. autoplay blocked)
-        speakText('Yeah Doodle!', intensity, () => {
-          setBillSpeaking(false)
-          setTimeout(() => setShowTagline(false), 1500)
-          setTimeout(() => setShowBadge(true), 800)
-        })
-      }
-      audio.play().catch(() => {
-        // play() promise rejected — fall back to speech synthesis
-        setBillSpeaking(false)
-        setShowTagline(false)
-        setTimeout(() => setShowBadge(true), 800)
-      })
-    }, 1800)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    audio.onended = onFinish
+    audio.onerror = onFinish  // silently end — no TTS fallback for catchphrase
+    audio.play().catch(onFinish)
+  }
 
   // Scroll to bottom when messages update
   useEffect(() => {
@@ -277,7 +268,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
 
       {/* Floating trigger button */}
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => { playIntro(intensity); setOpen(o => !o) }}
         aria-label="Chat with Wild Bill"
         className="fixed bottom-6 right-6 z-50 group"
       >
