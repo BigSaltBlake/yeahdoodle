@@ -27,17 +27,26 @@ RESPONSE STYLE:
 CONTEXT (injected per-request):
 City and event context will be provided at the start of the conversation. Use it to make your answers hyper-local.`
 
+const INTENSITY_NOTES = [
+  'Keep your energy calm and measured today. Still colorful, but dialed back — like a cowboy at rest by the campfire. Less exclamation marks, shorter sentences, easy pace.',
+  '', // normal — no extra note
+  "You're fired up today, partner! Full cowboy energy — more exclamation marks, more catchphrases, more color. You've had three cups of trail coffee and you are READY. Don't hold back.",
+]
+
 export async function POST(req: NextRequest) {
-  const { messages, city, eventContext } = await req.json()
+  const { messages, city, eventContext, intensity } = await req.json()
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY
   if (!anthropicKey) {
     return new Response('Wild Bill is off-duty — no API key configured.', { status: 500 })
   }
 
-  const systemWithContext = city
-    ? `${WILD_BILL_SYSTEM}\n\nCURRENT CONTEXT:\n- City: ${city}${eventContext ? `\n- User is looking at: ${eventContext}` : ''}`
-    : WILD_BILL_SYSTEM
+  const intensityNote = INTENSITY_NOTES[intensity ?? 1] ?? ''
+  const systemWithContext = [
+    WILD_BILL_SYSTEM,
+    city ? `\nCURRENT CONTEXT:\n- City: ${city}${eventContext ? `\n- User is looking at: ${eventContext}` : ''}` : '',
+    intensityNote ? `\nENERGY LEVEL INSTRUCTION:\n${intensityNote}` : '',
+  ].join('')
 
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
