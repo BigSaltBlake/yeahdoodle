@@ -11,18 +11,19 @@ export interface NowResult {
   address: string
   lat: number | null
   lng: number | null
-  drive_minutes: number
-  drive_label: string
-  start_label: string
+  drive_minutes: number   // estimated drive time
+  drive_label: string     // "~8 min away"
+  start_label: string     // "Happening now" | "Starts in 20 min" | "Ongoing"
   category: string
   image_url: string | null
   ticket_url: string | null
-  maps_url: string
+  maps_url: string        // Google Maps directions deep link
   source: string
+  is_evergreen?: boolean  // true = timeless activity, no time/drive filtering applied
 }
 
 // ---------------------------------------------------------------------------
-// Haversine distance in miles
+// Haversine distance in miles (reused from recommend route)
 // ---------------------------------------------------------------------------
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8
@@ -34,10 +35,12 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+// Estimate drive time from straight-line distance
+// Assumes ~28 mph average accounting for traffic, stops, routing overhead
 function estimateDriveMinutes(miles: number): number {
   if (miles < 0.3) return 2
   const raw = (miles / 28) * 60
-  return Math.max(2, Math.round(raw / 5) * 5)
+  return Math.max(2, Math.round(raw / 5) * 5)  // round to nearest 5 min
 }
 
 function driveLabel(mins: number): string {
@@ -87,7 +90,8 @@ async function serperSearch(query: string, key: string, type: 'search' | 'events
 }
 
 // ---------------------------------------------------------------------------
-// Parse event time
+// Parse event time from Serper result
+// Returns null if no parseable time
 // ---------------------------------------------------------------------------
 function parseEventTime(dateObj?: SerperEventResult['date']): { start: Date | null; end: Date | null } {
   if (!dateObj) return { start: null, end: null }
@@ -95,17 +99,20 @@ function parseEventTime(dateObj?: SerperEventResult['date']): { start: Date | nu
   const when = (dateObj.when ?? '').toLowerCase()
   const now = new Date()
 
+  // "Happening now" / "Today" with start time
   if (dateObj.start_date) {
     try {
       const startStr = dateObj.start_date + (dateObj.start_time ? ' ' + dateObj.start_time : '')
       const start = new Date(startStr)
       if (!isNaN(start.getTime())) {
+        // Assume 2-hour duration if no end time
         const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
         return { start, end }
       }
     } catch { /* fall through */ }
   }
 
+  // "Tonight", "Today", time-only strings
   if (when.includes('tonight') || when.includes('today')) {
     const timeMatch = when.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)/i)
     if (timeMatch) {
@@ -119,6 +126,7 @@ function parseEventTime(dateObj?: SerperEventResult['date']): { start: Date | nu
       const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
       return { start, end }
     }
+    // No specific time → treat as ongoing today
     return { start: null, end: null }
   }
 
@@ -146,7 +154,7 @@ function getStartLabel(start: Date | null, end: Date | null): string {
 // ---------------------------------------------------------------------------
 // Category inference
 // ---------------------------------------------------------------------------
-function inferCategory(title: string, description: string): string {
+function inferCategory(title: string, description: string = ''): string {
   const text = (title + ' ' + description).toLowerCase()
   if (/music|concert|band|live\s+show|dj|jazz|blues|country|rock|rap|hip.hop/.test(text)) return 'Music'
   if (/bar|brewery|cocktail|wine|beer|happy.hour|trivia|karaoke/.test(text)) return 'Nightlife'
@@ -158,18 +166,19 @@ function inferCategory(title: string, description: string): string {
   return 'Events'
 }
 
+// Category fallback images
 const CATEGORY_IMAGES: Record<string, string> = {
-  'Music':         'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80',
-  'Nightlife':     'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80',
-  'Food & Drink':  'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&q=80',
+  'Music':        'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&q=80',
+  'Nightlife':    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80',
+  'Food & Drink': 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&q=80',
   'Arts & Culture':'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400&q=80',
-  'Outdoors':      'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&q=80',
-  'Activities':    'https://images.unsplash.com/photo-1576613109753-27804de2cce8?w=400&q=80',
-  'Events':        'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400&q=80',
+  'Outdoors':     'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&q=80',
+  'Activities':   'https://images.unsplash.com/photo-1576613109753-27804de2cce8?w=400&q=80',
+  'Events':       'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400&q=80',
 }
 
 // ---------------------------------------------------------------------------
-// Geocode address via Nominatim
+// Geocode an address string → {lat, lng} via Nominatim
 // ---------------------------------------------------------------------------
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
   try {
@@ -208,6 +217,65 @@ function buildQueries(lat: number, lng: number, vibe: string, locationLabel: str
 }
 
 // ---------------------------------------------------------------------------
+// Evergreen activity queries — scenic walks, viewpoints, romantic spots, etc.
+// These run in parallel and are used when event results are thin
+// ---------------------------------------------------------------------------
+function buildEvergreenQueries(vibe: string, loc: string): string[] {
+  switch (vibe) {
+    case 'food':
+      return [
+        `best late night food spots near ${loc}`,
+        `bars restaurants open late near ${loc}`,
+      ]
+    case 'entertainment':
+      return [
+        `things to do at night near ${loc}`,
+        `best nightlife spots near ${loc}`,
+      ]
+    case 'outdoors':
+      return [
+        `scenic hikes lookout points near ${loc}`,
+        `best viewpoints city views near ${loc}`,
+      ]
+    default:
+      return [
+        `romantic scenic spots date night near ${loc}`,
+        `best things to do nearby ${loc}`,
+      ]
+  }
+}
+
+function mapOrganicToNowResult(r: SerperOrganicResult, idx: number): NowResult {
+  const title  = r.title ?? 'Nearby Activity'
+  const text   = `${title} ${r.snippet ?? ''}`
+  const cat    = inferCategory(text)
+  const image  = r.imageUrl ?? CATEGORY_IMAGES[cat] ?? CATEGORY_IMAGES['Events']!
+  const addr   = r.address ?? ''
+  const mapsUrl = addr
+    ? `https://maps.google.com/?daddr=${encodeURIComponent(addr)}&saddr=Current+Location`
+    : `https://maps.google.com/?q=${encodeURIComponent(title)}+near+me`
+
+  return {
+    id:            `activity-${Date.now()}-${idx}`,
+    title,
+    description:   (r.snippet ?? '').slice(0, 200),
+    venue:         addr,
+    address:       addr,
+    lat:           null,
+    lng:           null,
+    drive_minutes: 5,
+    drive_label:   'Nearby',
+    start_label:   'Anytime ✓',
+    category:      cat,
+    image_url:     image,
+    ticket_url:    r.link ?? null,
+    maps_url:      mapsUrl,
+    source:        'activity',
+    is_evergreen:  true,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main POST handler
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
@@ -215,10 +283,10 @@ export async function POST(req: NextRequest) {
     const {
       lat,
       lng,
-      time_available = 60,
-      max_drive_min  = 15,
-      vibe           = 'any',
-      location_label = '',
+      time_available = 60,    // minutes user has
+      max_drive_min  = 15,    // max drive time user accepts
+      vibe           = 'any', // food | entertainment | outdoors | any
+      location_label = '',    // reverse-geocoded city name for better queries
     } = await req.json()
 
     if (!lat || !lng) {
@@ -233,14 +301,19 @@ export async function POST(req: NextRequest) {
     const now = new Date()
     const cutoff = new Date(now.getTime() + time_available * 60 * 1000)
 
+    // Queries — run up to 2 in parallel to stay fast
     const queries = buildQueries(lat, lng, vibe, location_label)
-    const [r1, r2] = await Promise.all([
+    const evergreenLoc = location_label || `${lat.toFixed(3)},${lng.toFixed(3)}`
+    const evergreenQ   = buildEvergreenQueries(vibe, evergreenLoc)[0]
+    const [r1, r2, activityRaw] = await Promise.all([
       serperSearch(queries[0], serperKey, 'events'),
       serperSearch(queries[2] ?? queries[1], serperKey, 'events'),
+      serperSearch(evergreenQ, serperKey, 'search'),
     ])
 
     const rawResults = [...(r1 as SerperEventResult[]), ...(r2 as SerperEventResult[])]
 
+    // De-duplicate by title
     const seen = new Set<string>()
     const deduped = rawResults.filter(r => {
       const key = (r.title ?? '').toLowerCase().trim()
@@ -249,6 +322,7 @@ export async function POST(req: NextRequest) {
       return true
     })
 
+    // Build NowResult objects
     const candidates: NowResult[] = []
 
     for (const raw of deduped.slice(0, 20)) {
@@ -260,14 +334,20 @@ export async function POST(req: NextRequest) {
       const link = raw.link ?? null
       const thumbnail = raw.thumbnail ?? null
 
+      // Parse timing
       const { start, end } = parseEventTime(raw.date)
       const startLabel = getStartLabel(start, end)
 
+      // Filter out events that have already ended
       if (end && end < now) continue
+
+      // Filter out events starting too far in the future
       if (start && start > cutoff) continue
 
+      // Category
       const category = inferCategory(title, description)
 
+      // Location — geocode the address to get coords for drive time
       let resultLat: number | null = null
       let resultLng: number | null = null
 
@@ -276,20 +356,25 @@ export async function POST(req: NextRequest) {
         if (geo) { resultLat = geo.lat; resultLng = geo.lng }
       }
 
+      // Drive time estimate
       let driveMin = 999
       if (resultLat !== null && resultLng !== null) {
         const miles = haversine(lat, lng, resultLat, resultLng)
         driveMin = estimateDriveMinutes(miles)
       } else {
+        // No address → assume it's somewhere nearby; use a conservative 10 min
         driveMin = 10
       }
 
+      // Filter by max drive time
       if (driveMin > max_drive_min) continue
 
+      // Build Google Maps directions URL
       const mapsUrl = address
         ? `https://maps.google.com/?daddr=${encodeURIComponent(address)}&saddr=Current+Location`
         : `https://maps.google.com/?q=${encodeURIComponent(title)}`
 
+      // Image fallback
       const imageUrl = thumbnail || CATEGORY_IMAGES[category] || CATEGORY_IMAGES['Events']
 
       candidates.push({
@@ -313,6 +398,39 @@ export async function POST(req: NextRequest) {
       if (candidates.length >= 8) break
     }
 
+    // ── Evergreen activities — always supplement when events are sparse ────────
+    const organicItems = (activityRaw as SerperOrganicResult[])
+      .filter(r => r.title && (r.snippet || r.imageUrl))
+    const slotsLeft = Math.max(0, 4 - candidates.length)
+
+    for (let i = 0; i < Math.min(organicItems.length, slotsLeft); i++) {
+      candidates.push(mapOrganicToNowResult(organicItems[i], i))
+    }
+
+    // Nuclear fallback — never return empty-handed
+    if (candidates.length === 0) {
+      const cityLabel = location_label.split(',')[0].trim() || 'the area'
+      candidates.push({
+        id:            `fallback-explore-${Date.now()}`,
+        title:         `Explore ${cityLabel}`,
+        description:   "Sometimes the best night out is unplanned — take a walk, find an open spot, and see where the night takes you.",
+        venue:         '',
+        address:       '',
+        lat:           null,
+        lng:           null,
+        drive_minutes: 5,
+        drive_label:   'Right here',
+        start_label:   'Anytime ✓',
+        category:      'Outdoors',
+        image_url:     CATEGORY_IMAGES['Outdoors'] ?? CATEGORY_IMAGES['Events']!,
+        ticket_url:    null,
+        maps_url:      'https://maps.google.com/?q=things+to+do+near+me',
+        source:        'activity',
+        is_evergreen:  true,
+      })
+    }
+
+    // Sort by drive time
     candidates.sort((a, b) => a.drive_minutes - b.drive_minutes)
 
     return NextResponse.json({ results: candidates.slice(0, 6) })
