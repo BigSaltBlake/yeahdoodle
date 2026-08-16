@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getProfile, trackCitySearch } from '@/lib/history'
 import MoodSurvey from '@/components/MoodSurvey'
+import NowMode from '@/components/NowMode'
 
 const POPULAR_CITIES = ['Austin', 'Nashville', 'Denver', 'Chicago', 'New Orleans', 'Portland', 'Miami', 'Seattle']
 
@@ -14,6 +15,7 @@ export default function HomePage() {
   const [surveyOpen, setSurveyOpen] = useState(false)
   const [surveyCity, setSurveyCity] = useState('')
   const [locating, setLocating] = useState(false)
+  const [nowOpen, setNowOpen] = useState(false)
 
   async function handleLocate() {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
@@ -79,8 +81,12 @@ export default function HomePage() {
         onClose={() => setSurveyOpen(false)}
         initialCity={surveyCity}
       />
+      <NowMode
+        open={nowOpen}
+        onClose={() => setNowOpen(false)}
+      />
 
-      {/* Hero */}
+      {/* ── Hero ── */}
       <section className="relative bg-yd-orange overflow-hidden">
         <div className="absolute inset-0 dot-pattern opacity-40 pointer-events-none" />
         <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-white/5 pointer-events-none" />
@@ -96,16 +102,24 @@ export default function HomePage() {
           </h1>
 
           <p className="text-white/80 text-lg sm:text-xl mb-8 max-w-xl mx-auto leading-relaxed">
-            Answer 5 quick questions and walk away with your top 3 picks &mdash; right now.
+            Answer 5 quick questions and walk away with your top 3 picks — right now.
           </p>
 
-          {/* Primary CTA */}
-          <button
-            onClick={() => openSurvey()}
-            className="inline-flex items-center gap-2 bg-yd-bg hover:bg-yd-navy text-white font-bold px-8 py-4 rounded-xl text-base transition-colors mb-6 shadow-lg"
-          >
-            🎯 Find My Perfect Event Tonight &rarr;
-          </button>
+          {/* CTA row */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+            <button
+              onClick={() => openSurvey()}
+              className="inline-flex items-center gap-2 bg-yd-bg hover:bg-yd-navy text-white font-bold px-8 py-4 rounded-xl text-base transition-colors shadow-lg"
+            >
+              🎯 Find My Perfect Event Tonight →
+            </button>
+            <button
+              onClick={() => setNowOpen(true)}
+              className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold px-6 py-4 rounded-xl text-base transition-colors shadow-lg backdrop-blur-sm border border-white/20"
+            >
+              ⚡ {"What's Happening NOW →"}
+            </button>
+          </div>
 
           {/* Divider */}
           <div className="flex items-center gap-3 max-w-xs mx-auto mb-6">
@@ -159,7 +173,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* AI Survey Feature Card */}
+      {/* ── AI Survey Feature Card ── */}
       <section className="max-w-7xl mx-auto px-4 pt-14 pb-6">
         <div className="relative bg-gradient-to-br from-yd-card to-yd-bg rounded-2xl p-8 sm:p-10 flex flex-col sm:flex-row items-center justify-between gap-6 overflow-hidden border border-white/5">
           <div className="absolute inset-0 bg-gradient-to-br from-yd-orange/8 to-transparent pointer-events-none" />
@@ -170,7 +184,7 @@ export default function HomePage() {
             </div>
             <h3 className="font-display text-2xl text-white mb-2">Your vibe, instantly matched</h3>
             <p className="text-white/50 text-sm max-w-sm leading-relaxed">
-              Tell us your energy, who you&apos;re with, and what sounds fun &mdash; we&apos;l surface the 3 events
+              Tell us your energy, who you&apos;re with, and what sounds fun — we&apos;ll surface the 3 events
               that fit you <em>right now</em>, not just what&apos;s popular.
             </p>
           </div>
@@ -178,14 +192,14 @@ export default function HomePage() {
             onClick={() => openSurvey()}
             className="relative shrink-0 bg-yd-yellow hover:bg-yd-yellowHover text-yd-bg font-bold px-7 py-4 rounded-xl transition-colors text-sm whitespace-nowrap"
           >
-            🎯 Find My Perfect Event &rarr;
+            🎯 Find My Perfect Event →
           </button>
         </div>
       </section>
 
-      {/* What you'll find */}
+      {/* ── What you'll find ── */}
       <section className="max-w-7xl mx-auto px-4 py-8">
-        <h2 className="font-display text-2xl text-white text-center mb-8">What&apos;s waiting for you</h2>
+        <h2 className="font-display text-2xl text-white text-center mb-8">{"What's waiting for you"}</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { icon: '🎸', label: 'Live music you can feel in your chest' },
@@ -205,7 +219,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* How it works */}
+      {/* ── How it works ── */}
       <section className="bg-yd-navy py-14">
         <div className="max-w-7xl mx-auto px-4">
           <h2 className="font-display text-2xl text-white text-center mb-10">How YeahDoodle works</h2>
@@ -219,7 +233,7 @@ export default function HomePage() {
               {
                 step: '02',
                 title: 'AI picks your top 3',
-                body: 'We scan thousands of local events and find the 3 that actually fit your vibe tonight.',
+                body: "We scan thousands of local events and find the 3 that actually fit your vibe tonight.",
               },
               {
                 step: '03',
