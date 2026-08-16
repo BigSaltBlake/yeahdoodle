@@ -261,8 +261,12 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
     timeframe === 'Planning a Trip'  ? 'upcoming' :
     'upcoming'
 
-  // Single query per city — keeps SerpAPI usage at 1–2 calls per session
-  return [`events ${when} in ${city}`]
+  // Two queries: events (qi=0) + evergreen activities (qi=1)
+  // Results at qi≥1 with no parseable date get source:'activity' treatment
+  return [
+    `events ${when} in ${city}`,
+    `best things to do near ${city}`,
+  ]
 }
 
 // ---------------------------------------------------------------------------
@@ -587,8 +591,8 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
             const isFree = price === 0 || (e.description as string ?? '').toLowerCase().includes('free')
             const dateStart = parseGoogleEventDate(date?.start_date ?? date?.when)
 
-            // Activity queries (qi >= 2) typically have no date — mark as timeless activity
-            const isActivity = !dateStart && qi >= 2
+            // Activity queries (qi >= 1) typically have no date — mark as timeless activity
+            const isActivity = !dateStart && qi >= 1
 
             const thumbnail = (e.thumbnail ?? null) as string | null
             const imgUrl = thumbnail ?? fallbackImg(inferCategory(title + ' ' + ((e.description as string) ?? '')))
@@ -806,8 +810,8 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 6. Last-resort: broad SerpAPI sweep — never return empty ────────────
+    const serperKey = process.env.SERPER_API_KEY
     if (rows.length === 0) {
-      // Use best available city: regional hub, local city, or resolved city
       const fallbackCity =
         cities.length > 0
           ? { ...(cities.find(c => !c.isLocal) ?? cities[0]), isLocal: true }
@@ -816,8 +820,45 @@ export async function POST(req: NextRequest) {
             : null
 
       if (fallbackCity) {
+        // 6a. Broad events search
         const broadEvents = await fetchLiveSerpEvents([fallbackCity], 'Planning Ahead')
-        if (broadEvents.length > 0) rows = broadEvents
+        if (broadEvents.length > 0) {
+          rows = broadEvents
+        } else if (serperKey) {
+          // 6b. Organic activities — scenic walks, things to do, etc.
+          const actQuery = `best things to do near ${fallbackCity.name}`
+          const actRes = await fetch('https://google.serper.dev/search', {
+            method:  'POST',
+            headers: { 'X-API-KEY': serperKey, 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ q: actQuery, gl: 'us', hl: 'en', num: 8 }),
+            cache:   'no-store',
+          })
+          if (actRes.ok) {
+            const actData = await actRes.json()
+            const organic = (actData.organic ?? []) as Array<{
+              title?: string; snippet?: string; link?: string; imageUrl?: string; address?: string
+            }>
+            rows = organic
+              .filter(r => r.title && r.snippet)
+              .slice(0, 5)
+              .map((r, i) => ({
+                id:           `activity_fallback_${i}`,
+                title:         r.title ?? 'Local Activity',
+                venue_name:    r.address ?? null,
+                date_start:    null,
+                is_free:       true,
+                price_min:     null,
+                price_max:     null,
+                category:      inferCategory(`${r.title ?? ''} ${r.snippet ?? ''}`),
+                ticket_url:    r.link ?? null,
+                image_url:     r.imageUrl ?? fallbackImg(inferCategory(r.title ?? '')),
+                description:   r.snippet?.slice(0, 200) ?? null,
+                ai_description: null,
+                distanceLabel: 'Nearby',
+                source:        'activity',
+              }))
+          }
+        }
       }
     }
 
