@@ -12,6 +12,9 @@ interface WildBillProps {
   eventContext?: string
 }
 
+// ---------------------------------------------------------------------------
+// Intensity levels — controls voice AND AI persona energy
+// ---------------------------------------------------------------------------
 type Intensity = 0 | 1 | 2
 
 const INTENSITY_LEVELS = [
@@ -25,7 +28,7 @@ const INTENSITY_LEVELS = [
     label: 'Normal',
     emoji: '🤠',
     voice: { pitch: 0.55, rate: 0.82, volume: 0.92 },
-    promptNote: '',
+    promptNote: '',  // default persona — no extra note
   },
   {
     label: 'Wild',
@@ -35,19 +38,28 @@ const INTENSITY_LEVELS = [
   },
 ]
 
+// ---------------------------------------------------------------------------
+// ElevenLabs TTS — streams audio from /api/wild-bill-tts
+// Falls back to Web Speech API if the route isn't configured
+// ---------------------------------------------------------------------------
 let currentAudio: HTMLAudioElement | null = null
 
 async function speakText(text: string, intensity: Intensity, onEnd?: () => void) {
   if (typeof window === 'undefined') return
+
+  // Cancel any in-progress speech
   if (currentAudio) { currentAudio.pause(); currentAudio = null }
   window.speechSynthesis?.cancel()
+
   try {
     const res = await fetch('/api/wild-bill-tts', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ text, intensity }),
     })
+
     if (!res.ok) throw new Error('TTS route returned ' + res.status)
+
     const blob = await res.blob()
     const url  = URL.createObjectURL(blob)
     const audio = new Audio(url)
@@ -56,6 +68,7 @@ async function speakText(text: string, intensity: Intensity, onEnd?: () => void)
     audio.onerror = () => { URL.revokeObjectURL(url); currentAudio = null; onEnd?.() }
     await audio.play()
   } catch {
+    // Fallback: Web Speech API (browser TTS)
     if (!window.speechSynthesis) { onEnd?.(); return }
     const cfg   = INTENSITY_LEVELS[intensity].voice
     const utter = new SpeechSynthesisUtterance(text)
@@ -67,6 +80,9 @@ async function speakText(text: string, intensity: Intensity, onEnd?: () => void)
   }
 }
 
+// ---------------------------------------------------------------------------
+// Wild Bill SVG avatar — cartoon style
+// ---------------------------------------------------------------------------
 function CowboyAvatar({ size = 44, animate = false }: { size?: number; animate?: boolean }) {
   return (
     <div
@@ -74,27 +90,80 @@ function CowboyAvatar({ size = 44, animate = false }: { size?: number; animate?:
       style={{ width: size, height: size }}
     >
       <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" width={size} height={size}>
-        <ellipse cx="50" cy="42" rx="40" ry="8" fill="#5c3a1e" />
-        <rect x="22" y="10" width="56" height="34" rx="8" fill="#7a4a28" />
-        <rect x="22" y="38" width="56" height="6" rx="2" fill="#c0392b" />
-        <text x="50" y="44" textAnchor="middle" fontSize="8" fill="#f1c40f">★</text>
-        <circle cx="50" cy="64" r="22" fill="#e8b88a" />
-        <circle cx="42" cy="60" r="3.5" fill="#2c1810" />
-        <circle cx="58" cy="60" r="3.5" fill="#2c1810" />
-        <circle cx="43.5" cy="58.5" r="1" fill="white" />
-        <circle cx="59.5" cy="58.5" r="1" fill="white" />
-        <ellipse cx="50" cy="67" rx="3" ry="2" fill="#d4956b" />
-        <path d="M41 73 Q50 80 59 73" stroke="#7a3b1e" strokeWidth="2" fill="none" strokeLinecap="round" />
-        <path d="M42 70 Q50 74 58 70" stroke="#5c3a1e" strokeWidth="3" fill="none" strokeLinecap="round" />
-        <circle cx="28" cy="64" r="5" fill="#e8b88a" />
-        <circle cx="72" cy="64" r="5" fill="#e8b88a" />
-        <path d="M32 84 Q50 92 68 84 L65 96 Q50 100 35 96 Z" fill="#c0392b" />
-        <circle cx="50" cy="88" r="3" fill="#e74c3c" />
+        {/* -- Shirt / body -- */}
+        <path d="M30 88 Q50 100 70 88 L72 100 L28 100 Z" fill="#2c6e8a" />
+        {/* -- Bandana -- */}
+        <path d="M37 84 L50 94 L63 84 L61 100 L39 100 Z" fill="#e74c3c" />
+        <path d="M37 84 L50 94 L63 84" stroke="#c0392b" strokeWidth="1.5" fill="none" />
+        {/* -- Neck -- */}
+        <rect x="42" y="82" width="16" height="10" rx="3" fill="#f5c080" />
+
+        {/* -- Hat brim -- */}
+        <ellipse cx="50" cy="42" rx="37" ry="6.5" fill="#3d1f08" />
+
+        {/* -- Hat crown -- */}
+        <path d="M27 42 L28 16 Q29 7 50 6 Q71 7 72 16 L73 42 Z" fill="#7a4820" />
+        <path d="M27 42 L28 16 Q29 7 50 6 Q71 7 72 16 L73 42 Z" fill="none" stroke="#2a1505" strokeWidth="1.5" />
+
+        {/* -- Crown crease / dent (classic Stetson pinch) -- */}
+        <path d="M36 11 Q43 20 50 15 Q57 20 64 11" stroke="#5a3010" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+
+        {/* -- Crown highlight -- */}
+        <path d="M32 28 Q33 18 41 13" stroke="#a06535" strokeWidth="1.5" fill="none" strokeLinecap="round" opacity="0.55" />
+
+        {/* -- Hat band -- */}
+        <rect x="27" y="37" width="46" height="7" rx="2" fill="#c0392b" />
+        {/* -- Sheriff star -- */}
+        <text x="50" y="43.5" textAnchor="middle" fontSize="8" fill="#f1c40f" fontFamily="Arial">&#9733;</text>
+
+        {/* -- Ears -- */}
+        <circle cx="29.5" cy="63" r="5.5" fill="#f5c080" stroke="#d4956b" strokeWidth="1" />
+        <circle cx="29.5" cy="63" r="2.8" fill="#e09060" />
+        <circle cx="70.5" cy="63" r="5.5" fill="#f5c080" stroke="#d4956b" strokeWidth="1" />
+        <circle cx="70.5" cy="63" r="2.8" fill="#e09060" />
+
+        {/* -- Face -- */}
+        <circle cx="50" cy="63" r="21" fill="#f5c080" stroke="#d4956b" strokeWidth="1" />
+        {/* chin shadow */}
+        <ellipse cx="50" cy="75" rx="14" ry="8" fill="#e09050" opacity="0.3" />
+
+        {/* -- Eyebrows - thick cartoon arches -- */}
+        <path d="M35.5 54 Q40.5 49.5 46 52.5" stroke="#4a2c0a" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+        <path d="M54 52.5 Q59.5 49.5 64.5 54" stroke="#4a2c0a" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+
+        {/* -- Eyes - white sclera -- */}
+        <ellipse cx="41" cy="61" rx="5.5" ry="5" fill="white" />
+        <ellipse cx="59" cy="61" rx="5.5" ry="5" fill="white" />
+        {/* Iris */}
+        <circle cx="41" cy="62" r="3.3" fill="#6b3f10" />
+        <circle cx="59" cy="62" r="3.3" fill="#6b3f10" />
+        {/* Pupil */}
+        <circle cx="41" cy="62" r="1.9" fill="#1a0800" />
+        <circle cx="59" cy="62" r="1.9" fill="#1a0800" />
+        {/* Shine */}
+        <circle cx="42.5" cy="60.5" r="1.1" fill="white" />
+        <circle cx="60.5" cy="60.5" r="1.1" fill="white" />
+
+        {/* -- Blush cheeks -- */}
+        <circle cx="34" cy="68.5" r="5.5" fill="#f06040" opacity="0.22" />
+        <circle cx="66" cy="68.5" r="5.5" fill="#f06040" opacity="0.22" />
+
+        {/* -- Nose -- */}
+        <ellipse cx="50" cy="68" rx="3.5" ry="2.5" fill="#d98040" />
+
+        {/* -- Mustache - bold filled shape -- */}
+        <path d="M38.5 71.5 Q44 77.5 50 74 Q56 77.5 61.5 71.5 Q56 72.5 50 71 Q44 72.5 38.5 71.5 Z" fill="#4a2c0a" />
+
+        {/* -- Smile -- */}
+        <path d="M44 78.5 Q50 84 56 78.5" stroke="#8b4020" strokeWidth="2" fill="none" strokeLinecap="round" />
       </svg>
     </div>
   )
 }
 
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 export default function WildBill({ city, eventContext }: WildBillProps) {
   const [open, setOpen]           = useState(false)
   const [messages, setMessages]   = useState<Message[]>([])
@@ -110,12 +179,14 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
   const abortRef        = useRef<AbortController | null>(null)
   const introPlayedRef  = useRef(false)
 
+  // Real recorded voice files mapped to intensity level
   const CATCHPHRASE_FILES: Record<Intensity, string> = {
-    0: '/WB-YD3.m4a',
-    1: '/WB-YD1.m4a',
-    2: '/WB-YD2.m4a',
+    0: '/WB-YD3.m4a',  // Mellow
+    1: '/WB-YD1.m4a',  // Normal
+    2: '/WB-YD2.m4a',  // Wild
   }
 
+  // Restore saved intensity preference
   useEffect(() => {
     try {
       const saved = localStorage.getItem('wb_intensity')
@@ -140,6 +211,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     setShowBadge(false)
     setShowTagline(true)
     setBillSpeaking(true)
+
     const audio = new Audio(CATCHPHRASE_FILES[currentIntensity])
     const onFinish = () => {
       setBillSpeaking(false)
@@ -174,14 +246,17 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || streaming) return
+
     const userMsg: Message = { role: 'user', content: text.trim() }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setInput('')
     setStreaming(true)
     setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
     abortRef.current = new AbortController()
     let fullText = ''
+
     try {
       const res = await fetch('/api/wild-bill', {
         method: 'POST',
@@ -189,9 +264,11 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
         body: JSON.stringify({ messages: newMessages, city, eventContext, intensity }),
         signal: abortRef.current.signal,
       })
+
       const reader  = res.body?.getReader()
       const decoder = new TextDecoder()
       if (!reader) throw new Error('No stream')
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -241,7 +318,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
         <div className="fixed bottom-24 right-6 z-50 animate-fade-in">
           <div className="bg-yd-orange text-white font-display text-lg px-4 py-2 rounded-2xl rounded-br-none shadow-lg">
             Yeah Doodle! 🤠
-  #       </div>
+          </div>
         </div>
       )}
 
@@ -300,7 +377,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
               onClick={() => setOpen(false)}
               className="text-white/40 hover:text-white/80 transition-colors text-lg ml-1"
             >
-              ✕
+              &#x2715;
             </button>
           </div>
 
@@ -356,7 +433,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
               disabled={!input.trim() || streaming}
               className="bg-yd-orange hover:bg-amber-500 disabled:opacity-40 text-white rounded-xl px-3 py-2 text-sm font-bold transition-colors"
             >
-              →
+              &#x2192;
             </button>
           </form>
         </div>
