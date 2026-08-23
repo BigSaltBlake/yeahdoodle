@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { dateNightSearch, yelpToResult } from '@/lib/yelp'
+import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -263,12 +265,9 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
 
   // Two queries: events (qi=0) + evergreen activities (qi=1)
   // Results at qi≥1 with no parseable date get source:'activity' treatment
-  // Three queries: events (qi=0) + date night activities (qi=1) + evergreen (qi=2)
-  // Results at qi≥1 with no parseable date get source:'activity' treatment
   return [
     `events ${when} in ${city}`,
-    `date night ideas things to do ${when} near ${city}`,
-    `best romantic activities bars restaurants open near ${city}`,
+    `best things to do near ${city}`,
   ]
 }
 
@@ -293,7 +292,7 @@ const CATEGORY_FALLBACK: Record<string, string> = {
   'Food & Drink':  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=240&fit=crop',
   'Outdoors':      'https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?w=400&h=240&fit=crop',
   'Sports & Outdoors': 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=400&h=240&fit=crop',
-  'Nightlife':     'https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=400&h=240&fit=crop',
+  'Nightlife':     'https://images.unsplash.com/photo-1566417713940-fe7c73a9ef2?w=400&h=240&fit=crop',
   'Community':     'https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=400&h=240&fit=crop',
   'Comedy':        'https://images.unsplash.com/photo-1527224538127-2104bb71c51b?w=400&h=240&fit=crop',
 }
@@ -321,14 +320,14 @@ async function fetchOgImage(url: string): Promise<string | null> {
     })
     clearTimeout(timeout)
     if (!res.ok) return null
-    // og:image is always in <head> — only parse the first chunk
+    // og:image is always in <head> — c�ly parse the first chunk
     const html = (await res.text()).slice(0, 25000)
     const m =
       html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
       html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
     const img = m?.[1]?.trim()
     // Skip placeholder/icon images
-    return img && !/placeholder|logo|icon|blank/i.test(img) ? img : null
+    return img && !/placeholder|logo|icon|blank/i;.test(img) ? img : null
   } catch {
     return null
   }
@@ -723,6 +722,36 @@ export async function POST(req: NextRequest) {
         })
       : Promise.resolve([] as EventRow[])
 
+    // Place profile — fetch in parallel, used to enrich Serper queries below
+    const profilePromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
+      ? getPlaceProfile(lat, lng, resolvedCity, '').catch(() => null)
+      : Promise.resolve(null)
+
+    // Yelp: open-now activities always available when we have GPS
+    const yelpPromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
+      ? dateNightSearch({ lat, lng, maxResults: 6 }).then(bizs =>
+          bizs.map(b => {
+            const r = yelpToResult(b, lat!, lng!)
+            return {
+              id:             r.id,
+              title:          r.title,
+              venue_name:     r.venue,
+              date_start:     null,
+              is_free:        false,
+              price_min:      null,
+              price_max:      null,
+              category:       r.category,
+              ticket_url:     r.ticket_url,
+              image_url:      r.image_url,
+              description:    r.description,
+              ai_description: null,
+              distanceLabel:  r.drive_label,
+              source:         'activity',
+            } satisfies EventRow
+          })
+        )
+      : Promise.resolve([] as EventRow[])
+
     let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
     if (isSupabaseConfigured() && resolvedCity) {
       let q = supabase
@@ -741,7 +770,47 @@ export async function POST(req: NextRequest) {
       dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
-    const [liveEvents, dbRows] = await Promise.all([liveEventsPromise, dbRowsPromise])
+    const [liveEvents, dbRows, yelpRows, placeProfile] = await Promise.all([
+      liveEventsPromise, dbRowsPromise, yelpPromise, profilePromise,
+    ])
+
+    // If we have a profile, fire one additional profile-specific Serper search
+    const profileActivityRows: EventRow[] = []
+    if (placeProfile && (process.env.SERPER_API_KEY || process.env.SERPAPI_KEY)) {
+      const profileQs = buildProfileQueries(placeProfile, 'anytime')
+      if (profileQs.length > 0) {
+        try {
+          const res = await fetch('https://google.serper.dev/search', {
+            method: 'POST',
+            headers: { 'X-API-KEY': process.env.SERPER_API_KEY ?? '', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ q: profileQs[0], num: 5 }),
+            signal: AbortSignal.timeout(6000),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const organic = (data.organic ?? []) as Record<string, string>[]
+            organic.slice(0, 3).forEach((r, i) => {
+              profileActivityRows.push({
+                id:             `profile-${i}`,
+                title:          r.title ?? 'Local Activity',
+                venue_name:     null,
+                date_start:     null,
+                is_free:        false,
+                price_min:      null,
+                price_max:      null,
+                category:       'Activities',
+                ticket_url:     r.link ?? null,
+                image_url:      null,
+                description:    r.snippet ?? null,
+                ai_description: null,
+                distanceLabel:  '',
+                source:         'activity',
+              })
+            })
+          }
+        } catch { /* non-fatal */ }
+      }
+    }
 
     // ── 3. Merge — live first (fresher), then DB ─────────────────────────────
     const nowMs    = Date.now()
@@ -762,7 +831,19 @@ export async function POST(req: NextRequest) {
       return true
     })
 
-    let rows: EventRow[] = [...uniqueLive, ...dbRows]
+    // Dedupe Yelp rows against live events by title
+    const yelpUnique = yelpRows.filter(y => {
+      const key = y.title.toLowerCase().slice(0, 40)
+      return !seenLive.has(key) && !dbTitles.has(key)
+    })
+
+    // Include profile-specific activity results (de-duped against live events)
+    const profileUnique = profileActivityRows.filter(p => {
+      const key = p.title.toLowerCase().slice(0, 40)
+      return !seenLive.has(key) && !dbTitles.has(key)
+    })
+
+    let rows: EventRow[] = [...uniqueLive, ...dbRows, ...yelpUnique, ...profileUnique]
 
     // Safety net: if SerpAPI returned events but the past-event filter killed them all,
     // include everything (better to show something than nothing)
