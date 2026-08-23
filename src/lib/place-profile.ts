@@ -4,7 +4,6 @@
 // Sources: Wikipedia REST API + OpenStreetMap Overpass API + Claude Haiku
 // ---------------------------------------------------------------------------
 
-import Anthropic from '@anthropic-ai/sdk'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 
 // ---------------------------------------------------------------------------
@@ -221,7 +220,6 @@ async function synthesizeProfile(
 
   if (!apiKey) return fallback
 
-  const client = new Anthropic({ apiKey })
   const prompt = `You are a local activity expert. Based on the information below about ${loc}, generate a structured JSON profile of what this place is known for and the best activities available.
 
 WIKIPEDIA EXTRACT:
@@ -256,12 +254,23 @@ Rules:
 - Max 8 notable_attractions, max 4 per seasonal array, max 10 serper_queries, max 10 activity_tags`
 
   try {
-    const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
+    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+      signal: AbortSignal.timeout(15000),
     })
-    const raw = (msg.content[0] as { text: string }).text.trim()
+    if (!aiRes.ok) return fallback
+    const aiData = await aiRes.json()
+    const raw = (aiData.content[0] as { text: string }).text.trim()
     const json = JSON.parse(raw.replace(/^```json?\n?/, '').replace(/\n?```$/, ''))
     return {
       city, state, country: 'US', lat, lng,
