@@ -149,7 +149,7 @@ export async function dateNightSearch(params: {
 
 // ---------------------------------------------------------------------------
 // Convert a YelpBusiness to a NowResult-compatible shape
-// (imported by /api/now — avoids circular deps by keeping types loose)
+// (imported by /api/now -- avoids circular deps by keeping types loose)
 // ---------------------------------------------------------------------------
 export function yelpToResult(biz: YelpBusiness & { yd_category?: string }, userLat: number, userLng: number) {
   const lat = biz.coordinates.latitude
@@ -159,17 +159,17 @@ export function yelpToResult(biz: YelpBusiness & { yd_category?: string }, userL
 
   // Haversine for drive estimate
   const R = 3958.8
-  const φ1 = userLat * Math.PI / 180, φ2 = lat * Math.PI / 180
-  const Δφ = (lat - userLat) * Math.PI / 180
-  const Δλ = (lng - userLng) * Math.PI / 180
-  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
+  const phi1 = userLat * Math.PI / 180, phi2 = lat * Math.PI / 180
+  const dphi = (lat - userLat) * Math.PI / 180
+  const dlam = (lng - userLng) * Math.PI / 180
+  const a = Math.sin(dphi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlam / 2) ** 2
   const miles = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   const rawMin = (miles / 28) * 60
   const driveMin = miles < 0.3 ? 2 : Math.max(2, Math.round(rawMin / 5) * 5)
 
-  const stars = '★'.repeat(Math.round(biz.rating)) + '☆'.repeat(5 - Math.round(biz.rating))
-  const priceStr = biz.price ? ` · ${biz.price}` : ''
-  const description = `${stars} ${biz.rating.toFixed(1)} (${biz.review_count} reviews)${priceStr} — ${biz.categories.map(c => c.title).join(', ')}`
+  const stars = '?'.repeat(Math.round(biz.rating)) + '?'.repeat(5 - Math.round(biz.rating))
+  const priceStr = biz.price ? ` ? ${biz.price}` : ''
+  const description = `${stars} ${biz.rating.toFixed(1)} (${biz.review_count} reviews)${priceStr} -- ${biz.categories.map(c => c.title).join(', ')}`
 
   return {
     id:            `yelp-${biz.id}`,
@@ -181,7 +181,7 @@ export function yelpToResult(biz: YelpBusiness & { yd_category?: string }, userL
     lng,
     drive_minutes: driveMin,
     drive_label:   driveMin <= 2 ? 'Right here' : `~${driveMin} min away`,
-    start_label:   'Open now ✓',
+    start_label:   'Open now ?',
     category,
     image_url:     biz.image_url,
     ticket_url:    biz.url,
