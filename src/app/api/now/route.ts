@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { dateNightSearch, yelpToResult } from '@/lib/yelp'
+import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,7 +128,7 @@ function parseEventTime(dateObj?: SerperEventResult['date']): { start: Date | nu
       const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
       return { start, end }
     }
-    // No specific time → treat as ongoing today
+    // No specific time => treat as ongoing today
     return { start: null, end: null }
   }
 
@@ -154,14 +156,14 @@ function getStartLabel(start: Date | null, end: Date | null): string {
 // ---------------------------------------------------------------------------
 // Category inference
 // ---------------------------------------------------------------------------
-function inferCategory(title: string, description: string = ''): string {
+function inferCategory(title: string, description: string): string {
   const text = (title + ' ' + description).toLowerCase()
   if (/music|concert|band|live\s+show|dj|jazz|blues|country|rock|rap|hip.hop/.test(text)) return 'Music'
   if (/bar|brewery|cocktail|wine|beer|happy.hour|trivia|karaoke/.test(text)) return 'Nightlife'
   if (/food|eat|restaurant|taco|burger|brunch|dinner|lunch|bbq|sushi/.test(text)) return 'Food & Drink'
   if (/art|gallery|museum|exhibit|theatre|comedy|show|improv|film|movie/.test(text)) return 'Arts & Culture'
   if (/hike|trail|park|outdoor|run|yoga|fitness|climb|kayak|bike/.test(text)) return 'Outdoors'
-  if (/market|fair|festival|farmers|pop-up|craft/.test(text)) return 'Events'
+  if (/market|fair|festival|farmers|pop.up|craft/.test(text)) return 'Events'
   if (/game|sport|bowling|arcade|mini.golf|escape|laser|axe/.test(text)) return 'Activities'
   return 'Events'
 }
@@ -178,7 +180,7 @@ const CATEGORY_IMAGES: Record<string, string> = {
 }
 
 // ---------------------------------------------------------------------------
-// Geocode an address string → {lat, lng} via Nominatim
+// Geocode an address string => {lat, lng} via Nominatim
 // ---------------------------------------------------------------------------
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
   try {
@@ -201,7 +203,7 @@ function buildQueries(lat: number, lng: number, vibe: string, locationLabel: str
   const loc = locationLabel || `${lat.toFixed(3)},${lng.toFixed(3)}`
   const base = [
     `things to do right now near ${loc}`,
-    `events happening today near ${loc}`,
+    `events happening tonight near ${loc}`,
   ]
 
   switch (vibe) {
@@ -212,30 +214,30 @@ function buildQueries(lat: number, lng: number, vibe: string, locationLabel: str
     case 'outdoors':
       return [...base, `outdoor activities near ${loc}`, `parks trails open near ${loc}`]
     default:
-      return [...base, `fun things to do tonight near ${loc}`, `date night ideas tonight near ${loc}`]
+      return [...base, `date night ideas tonight near ${loc}`, `fun things to do right now near ${loc}`]
   }
 }
 
 // ---------------------------------------------------------------------------
-// Evergreen activity queries — scenic walks, viewpoints, romantic spots, etc.
-// These run in parallel and are used when event results are thin
+// Evergreen activity queries -- date night, scenic spots, open-now activities
+// These run in parallel and supplement event results
 // ---------------------------------------------------------------------------
 function buildEvergreenQueries(vibe: string, loc: string): string[] {
   switch (vibe) {
     case 'food':
       return [
-        `best late night food spots near ${loc}`,
-        `bars restaurants open late near ${loc}`,
+        `best romantic dinner restaurants open now near ${loc}`,
+        `cocktail bars wine bars open tonight near ${loc}`,
       ]
     case 'entertainment':
       return [
-        `things to do at night near ${loc}`,
-        `best nightlife spots near ${loc}`,
+        `live music venues open tonight near ${loc}`,
+        `comedy clubs bars nightlife near ${loc}`,
       ]
     case 'outdoors':
       return [
-        `scenic hikes lookout points near ${loc}`,
-        `best viewpoints city views near ${loc}`,
+        `scenic overlooks viewpoints walks near ${loc}`,
+        `outdoor date night ideas near ${loc}`,
       ]
     default:
       return [
@@ -248,7 +250,7 @@ function buildEvergreenQueries(vibe: string, loc: string): string[] {
 function mapOrganicToNowResult(r: SerperOrganicResult, idx: number): NowResult {
   const title  = r.title ?? 'Nearby Activity'
   const text   = `${title} ${r.snippet ?? ''}`
-  const cat    = inferCategory(text)
+  const cat    = inferCategory(text, '')
   const image  = r.imageUrl ?? CATEGORY_IMAGES[cat] ?? CATEGORY_IMAGES['Events']!
   const addr   = r.address ?? ''
   const mapsUrl = addr
@@ -265,7 +267,7 @@ function mapOrganicToNowResult(r: SerperOrganicResult, idx: number): NowResult {
     lng:           null,
     drive_minutes: 5,
     drive_label:   'Nearby',
-    start_label:   'Anytime ✓',
+    start_label:   'Anytime',
     category:      cat,
     image_url:     image,
     ticket_url:    r.link ?? null,
@@ -301,15 +303,35 @@ export async function POST(req: NextRequest) {
     const now = new Date()
     const cutoff = new Date(now.getTime() + time_available * 60 * 1000)
 
-    // Queries — run up to 2 in parallel to stay fast
+    // Queries -- run Serper + Yelp in parallel
     const queries = buildQueries(lat, lng, vibe, location_label)
     const evergreenLoc = location_label || `${lat.toFixed(3)},${lng.toFixed(3)}`
     const evergreenQ   = buildEvergreenQueries(vibe, evergreenLoc)[0]
-    const [r1, r2, activityRaw] = await Promise.all([
+
+    const yelpTerms = vibe === 'food'
+      ? ['romantic restaurants', 'cocktail bars', 'wine bars']
+      : vibe === 'entertainment'
+      ? ['live music venues', 'comedy clubs', 'rooftop bars']
+      : vibe === 'outdoors'
+      ? ['outdoor activities', 'scenic spots', 'parks']
+      : ['cocktail bars', 'romantic restaurants', 'escape rooms', 'live music venues', 'comedy clubs']
+
+    // Kick off place profile fetch in parallel
+    const profilePromise = getPlaceProfile(lat, lng, location_label, '').catch(() => null)
+
+    const [r1, r2, activityRaw, yelpResults, placeProfile] = await Promise.all([
       serperSearch(queries[0], serperKey, 'events'),
       serperSearch(queries[2] ?? queries[1], serperKey, 'events'),
       serperSearch(evergreenQ, serperKey, 'search'),
+      dateNightSearch({ lat, lng, terms: yelpTerms, maxResults: 8 }),
+      profilePromise,
     ])
+
+    // If we have a profile, run an extra profile-specific activity search
+    const profileQueries = placeProfile ? buildProfileQueries(placeProfile, 'now') : []
+    const profileActivityRaw = profileQueries[0]
+      ? await serperSearch(profileQueries[0], serperKey, 'search').catch(() => [])
+      : []
 
     const rawResults = [...(r1 as SerperEventResult[]), ...(r2 as SerperEventResult[])]
 
@@ -347,7 +369,7 @@ export async function POST(req: NextRequest) {
       // Category
       const category = inferCategory(title, description)
 
-      // Location — geocode the address to get coords for drive time
+      // Location -- geocode the address to get coords for drive time
       let resultLat: number | null = null
       let resultLng: number | null = null
 
@@ -362,7 +384,6 @@ export async function POST(req: NextRequest) {
         const miles = haversine(lat, lng, resultLat, resultLng)
         driveMin = estimateDriveMinutes(miles)
       } else {
-        // No address → assume it's somewhere nearby; use a conservative 10 min
         driveMin = 10
       }
 
@@ -398,29 +419,50 @@ export async function POST(req: NextRequest) {
       if (candidates.length >= 8) break
     }
 
-    // ── Evergreen activities — always supplement when events are sparse ────────
-    const organicItems = (activityRaw as SerperOrganicResult[])
+    // -- Yelp open-now results --
+    const yelpFiltered = yelpResults.filter(b => {
+      const R = 3958.8
+      const phi1 = lat * Math.PI / 180, phi2 = b.coordinates.latitude * Math.PI / 180
+      const dphi = (b.coordinates.latitude - lat) * Math.PI / 180
+      const dlambda = (b.coordinates.longitude - lng) * Math.PI / 180
+      const a = Math.sin(dphi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlambda / 2) ** 2
+      const miles = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      const rawMin = (miles / 28) * 60
+      const driveMin = miles < 0.3 ? 2 : Math.max(2, Math.round(rawMin / 5) * 5)
+      return driveMin <= max_drive_min
+    })
+
+    for (const biz of yelpFiltered.slice(0, 4)) {
+      candidates.push(yelpToResult(biz, lat, lng) as NowResult)
+    }
+
+    // -- Serper organic / evergreen --
+    const allOrganicRaw = [
+      ...(activityRaw as SerperOrganicResult[]),
+      ...(profileActivityRaw as SerperOrganicResult[]),
+    ]
+    const organicItems = allOrganicRaw
       .filter(r => r.title && (r.snippet || r.imageUrl))
-    const slotsLeft = Math.max(0, 4 - candidates.length)
+    const slotsLeft = Math.max(0, 3 - Math.max(0, candidates.length - yelpFiltered.length))
 
     for (let i = 0; i < Math.min(organicItems.length, slotsLeft); i++) {
       candidates.push(mapOrganicToNowResult(organicItems[i], i))
     }
 
-    // Nuclear fallback — never return empty-handed
+    // Nuclear fallback
     if (candidates.length === 0) {
       const cityLabel = location_label.split(',')[0].trim() || 'the area'
       candidates.push({
         id:            `fallback-explore-${Date.now()}`,
         title:         `Explore ${cityLabel}`,
-        description:   "Sometimes the best night out is unplanned — take a walk, find an open spot, and see where the night takes you.",
+        description:   "Sometimes the best night out is unplanned -- take a walk, find an open spot, and see where the night takes you.",
         venue:         '',
         address:       '',
         lat:           null,
         lng:           null,
         drive_minutes: 5,
         drive_label:   'Right here',
-        start_label:   'Anytime ✓',
+        start_label:   'Anytime',
         category:      'Outdoors',
         image_url:     CATEGORY_IMAGES['Outdoors'] ?? CATEGORY_IMAGES['Events']!,
         ticket_url:    null,
