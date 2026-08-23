@@ -161,7 +161,7 @@ function inferCategory(title: string, description: string = ''): string {
   if (/food|eat|restaurant|taco|burger|brunch|dinner|lunch|bbq|sushi/.test(text)) return 'Food & Drink'
   if (/art|gallery|museum|exhibit|theatre|comedy|show|improv|film|movie/.test(text)) return 'Arts & Culture'
   if (/hike|trail|park|outdoor|run|yoga|fitness|climb|kayak|bike/.test(text)) return 'Outdoors'
-  if (/market|fair|festival|farmers|pop.up|craft/.test(text)) return 'Events'
+  if (/market|fair|festival|farmers|pop-up|craft/.test(text)) return 'Events'
   if (/game|sport|bowling|arcade|mini.golf|escape|laser|axe/.test(text)) return 'Activities'
   return 'Events'
 }
@@ -212,7 +212,7 @@ function buildQueries(lat: number, lng: number, vibe: string, locationLabel: str
     case 'outdoors':
       return [...base, `outdoor activities near ${loc}`, `parks trails open near ${loc}`]
     default:
-      return [...base, `fun things to do tonight near ${loc}`, `open now near ${loc}`]
+      return [...base, `fun things to do tonight near ${loc}`, `date night ideas tonight near ${loc}`]
   }
 }
 
@@ -239,8 +239,8 @@ function buildEvergreenQueries(vibe: string, loc: string): string[] {
       ]
     default:
       return [
-        `romantic scenic spots date night near ${loc}`,
-        `best things to do nearby ${loc}`,
+        `best date night spots open now near ${loc}`,
+        `romantic things to do tonight near ${loc}`,
       ]
   }
 }
