@@ -266,6 +266,7 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
   return [
     `events ${when} in ${city}`,
     `best things to do near ${city}`,
+    `best date night spots open now near ${city}`,
   ]
 }
 
