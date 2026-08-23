@@ -14,7 +14,7 @@ export interface PlaceAttraction {
   name: string
   category: string        // e.g. "Outdoor", "History", "Sports", "Culture"
   description: string
-  seasonal?: string[]     // e.g. ["winter", "summer"] — when it's best
+  seasonal?: string[]     // e.g. ["winter", "summer"] â when it's best
 }
 
 export interface PlaceProfile {
@@ -41,7 +41,7 @@ export interface PlaceProfile {
 // Cache helpers
 // ---------------------------------------------------------------------------
 
-const CACHE_RADIUS_DEG = 0.15   // ~15 km — same "city" tolerance
+const CACHE_RADIUS_DEG = 0.15   // ~15 km â same "city" tolerance
 
 async function getCachedProfile(lat: number, lng: number): Promise<PlaceProfile | null> {
   if (!isSupabaseConfigured()) return null
@@ -127,7 +127,7 @@ async function fetchWikipediaSummary(city: string, state?: string): Promise<stri
 }
 
 // ---------------------------------------------------------------------------
-// OpenStreetMap Overpass API — what's physically present nearby
+// OpenStreetMap Overpass API â what's physically present nearby
 // ---------------------------------------------------------------------------
 
 interface OSMFeature {
@@ -232,7 +232,7 @@ Current month: ${month}
 
 Return ONLY valid JSON matching this exact structure (no markdown, no explanation):
 {
-  "known_for": ["string array — what the area is broadly known for, e.g. skiing, ranching, wine country, history, fishing"],
+  "known_for": ["string array â what the area is broadly known for, e.g. skiing, ranching, wine country, history, fishing"],
   "notable_attractions": [
     {"name": "string", "category": "one of: Outdoor|History|Sports|Culture|Food|Nightlife|Family", "description": "1 sentence", "seasonal": ["winter"]}
   ],
@@ -242,13 +242,13 @@ Return ONLY valid JSON matching this exact structure (no markdown, no explanatio
     "fall": ["activity strings"],
     "winter": ["activity strings"]
   },
-  "serper_queries": ["5-8 specific search queries optimized for finding activities and events in ${loc} — be very specific to what this place is actually known for"],
+  "serper_queries": ["5-8 specific search queries optimized for finding activities and events in ${loc} â be very specific to what this place is actually known for"],
   "activity_tags": ["short tags for query enrichment, e.g. hiking, skiing, golf, wine tasting, history tours"],
   "famous_people": ["notable past or present residents or people associated with this place"]
 }
 
 Rules:
-- Be highly specific to ${loc} — avoid generic results
+- Be highly specific to ${loc} â avoid generic results
 - serper_queries should be ready to paste into Google and return great local results
 - Include seasonal context in serper_queries where appropriate (e.g. current month is ${month})
 - Max 8 notable_attractions, max 4 per seasonal array, max 10 serper_queries, max 10 activity_tags`
@@ -289,7 +289,7 @@ Rules:
 }
 
 // ---------------------------------------------------------------------------
-// Main export — call this from /api/now and /api/recommend
+// Main export â call this from /api/now and /api/recommend
 // ---------------------------------------------------------------------------
 
 export async function getPlaceProfile(
@@ -344,7 +344,7 @@ export function buildProfileQueries(
   const season = getCurrentSeason()
   const loc = profile.state ? `${profile.city}, ${profile.state}` : profile.city
 
-  // Seasonal highlights → queries
+  // Seasonal highlights â queries
   const seasonalActivities = profile.seasonal_highlights[season] ?? []
   const seasonalQueries = seasonalActivities.slice(0, 2).map(a => `${a} near ${loc}`)
 
