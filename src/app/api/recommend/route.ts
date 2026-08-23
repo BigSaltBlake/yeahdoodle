@@ -263,10 +263,12 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
 
   // Two queries: events (qi=0) + evergreen activities (qi=1)
   // Results at qi≥1 with no parseable date get source:'activity' treatment
+  // Three queries: events (qi=0) + date night activities (qi=1) + evergreen (qi=2)
+  // Results at qi≥1 with no parseable date get source:'activity' treatment
   return [
     `events ${when} in ${city}`,
-    `best things to do near ${city}`,
-    `best date night spots open now near ${city}`,
+    `date night ideas things to do ${when} near ${city}`,
+    `best romantic activities bars restaurants open near ${city}`,
   ]
 }
 
