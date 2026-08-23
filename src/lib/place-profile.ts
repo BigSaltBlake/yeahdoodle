@@ -353,5 +353,5 @@ export function buildProfileQueries(
 
   // Combine and dedupe
   const all = [...profileQueries, ...seasonalQueries]
-  return Array.from(new Set(all).slice(0, 5)
+  return Array.from(new Set(all)).slice(0, 5)
 }
