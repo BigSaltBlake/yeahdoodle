@@ -192,6 +192,12 @@ function categoryHints(answers: string[]): string[] | null {
   return null
 }
 
+function getExpType(answers: string[]): string {
+  const crewAns = answers[2] ?? ''
+  const hasGrp = crewAns === 'Small group' || crewAns === 'The whole squad'
+  return answers[hasGrp ? 4 : 3] ?? ''
+}
+
 function getDateRange(timeframe: string): { start: Date; end: Date } {
   const now   = new Date()
   const today = new Date(now)
