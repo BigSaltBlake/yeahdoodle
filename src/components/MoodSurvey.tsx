@@ -470,7 +470,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     const params = new URLSearchParams({ city: city || 'nearby', ids })
     const url = `${window.location.origin}/picks?${params.toString()}`
     if (navigator.share) {
-      navigator.share({ title: `My picks for ${timeframeDisplay} 🎯`, text: `Check out these events in ${city || 'my area'}!`, url })
+      navigator.share({ title: 'Stop scrolling. Go live. 👉', text: `Found something worth doing${city ? ` in ${city}` : ' near me'} through YeahDoodle`, url })
         .catch(() => { /* user cancelled */ })
     } else {
       navigator.clipboard.writeText(url).then(() => {
