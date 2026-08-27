@@ -251,7 +251,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
   return { start: now, end }
 }
 
-function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolean): string[] {
+function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolean, expType = ''): string[] {
   const when =
     timeframe === 'Now'              ? 'tonight' :
     timeframe === 'Tonight'          ? 'tonight' :
@@ -263,12 +263,26 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
     timeframe === 'Planning a Trip'  ? 'upcoming' :
     'upcoming'
 
-  // Two queries: events (qi=0) + evergreen activities (qi=1)
-  // Results at qi>=1 with no parseable date get source:'activity' treatment
-  return [
-    `events ${when} in ${city}`,
-    `best things to do near ${city}`,
-  ]
+  const exp = expType.toLowerCase()
+  if (exp.includes('food') || exp.includes('drink') || exp.includes('dining') || exp.includes('restaurant')) {
+    return [`restaurants dinner ${when} in ${city}`, `food events wine tasting dining ${when} near ${city}`, `best date night restaurants bars open ${city}`]
+  }
+  if (exp.includes('music') || exp.includes('concert') || exp.includes('show')) {
+    return [`live music concerts ${when} in ${city}`, `music events shows ${when} near ${city}`, `best live music venues ${city}`]
+  }
+  if (exp.includes('outdoor') || exp.includes('adventure') || exp.includes('active') || exp.includes('hike')) {
+    return [`outdoor activities adventures ${when} near ${city}`, `hiking trails parks ${when} ${city}`, `best outdoor activities things to do ${city}`]
+  }
+  if (exp.includes('art') || exp.includes('culture') || exp.includes('theater') || exp.includes('museum')) {
+    return [`art events galleries museums ${when} in ${city}`, `theater cultural events ${when} near ${city}`, `best art culture venues ${city}`]
+  }
+  if (exp.includes('comedy')) {
+    return [`comedy shows stand-up ${when} in ${city}`, `comedy clubs improv ${when} near ${city}`, `best comedy venues ${city}`]
+  }
+  if (exp.includes('sport') || exp.includes('game')) {
+    return [`sports games ${when} in ${city}`, `sporting events fitness ${when} near ${city}`, `best sports venues ${city}`]
+  }
+  return [`events ${when} in ${city}`, `date night ideas things to do ${when} near ${city}`, `best activities bars restaurants open near ${city}`]
 }
 
 // ---------------------------------------------------------------------------
@@ -534,7 +548,7 @@ function parseSerpPrice(
 // ---------------------------------------------------------------------------
 // Live SerpAPI crawl
 // ---------------------------------------------------------------------------
-async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): Promise<EventRow[]> {
+async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', expType = ''): Promise<EventRow[]> {
   // Prefer SerpAPI Google Events engine (structured data); fall back to Serper.dev /search
   const serpApiKey  = process.env.SERPAPI_KEY
   const serperKey   = process.env.SERPER_API_KEY
@@ -547,7 +561,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): 
 
   await Promise.all(
     cities.flatMap(({ name: cityName, distanceLabel, isLocal }) => {
-      const queries = getSerpQueriesForCity(timeframe, cityName, isLocal)
+      const queries = getSerpQueriesForCity(timeframe, cityName, isLocal, expType)
 
       return queries.map(async (q, qi) => {
         try {
@@ -665,6 +679,7 @@ export async function POST(req: NextRequest) {
     const { start: dateStart, end: dateEnd } = getDateRange(timeframe)
     const maxBudget = budgetMax(answers)
     const catHints  = categoryHints(answers)
+    const expType   = getExpType(answers)
 
     // -- 1. Resolve location --------------------------------------------------
     let resolvedCity = city.trim()
@@ -708,7 +723,7 @@ export async function POST(req: NextRequest) {
     // -- 2. Parallel fetches --------------------------------------------------
     const liveEventsPromise = cities.length > 0
       ? Promise.all([
-          fetchLiveSerpEvents(cities, timeframe),
+          fetchLiveSerpEvents(cities, timeframe, expType),
           fetchTicketmasterLive(cities, dateStart, dateEnd),
         ]).then(([serp, tm]) => {
           // Merge: dedupe by title, Ticketmaster results first (richer data)
@@ -844,6 +859,15 @@ export async function POST(req: NextRequest) {
     })
 
     let rows: EventRow[] = [...uniqueLive, ...dbRows, ...yelpUnique, ...profileUnique]
+
+    // Boost category-matching results to the top before AI sees them
+    if (catHints) {
+      rows.sort((a, b) => {
+        const aMatch = catHints.includes(a.category) ? 0 : 1
+        const bMatch = catHints.includes(b.category) ? 0 : 1
+        return aMatch - bMatch
+      })
+    }
 
     // Safety net: if SerpAPI returned events but the past-event filter killed them all,
     // include everything (better to show something than nothing)
@@ -1002,7 +1026,7 @@ ${answerSummary}
 Events and activities available ${locationLabel} for ${timeframe.toLowerCase()}:
 ${eventList}
 
-Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote} Consider energy level, group size, experience preference, scene, and budget. Prioritise variety -- don't pick 3 of the same type. If the user is in a rural or outdoor area, outdoor activities are valid picks.
+Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote} CRITICAL: The user selected "${expType}" as their experience preference -- at least 2 of your 3 picks MUST directly match this preference. Only deviate if the list genuinely has nothing matching. Consider energy level, group size, scene, and budget. You may add 1 pick of a different type for variety, but their stated preference takes priority.
 
 Return ONLY a valid JSON array -- no other text, no markdown, no explanation:
 [
