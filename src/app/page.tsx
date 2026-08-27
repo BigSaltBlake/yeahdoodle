@@ -93,16 +93,16 @@ export default function HomePage() {
         <div className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full bg-black/10 pointer-events-none" />
 
         <div className="relative max-w-3xl mx-auto px-4 py-16 sm:py-24 text-center">
-          <div className="inline-block bg-white/15 text-white text-xs font-semibold px-3 py-1.5 rounded-full mb-5 backdrop-blur-sm">
-            🔥 Discover events happening right now
+          <div className="inline-block bg-white/15 text-white text-xs font-semibold px-3 py-1.5 rounded-full mb-5 backdrop-blur-sm tracking-wide uppercase">
+            Stop scrolling. Go live.
           </div>
 
           <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl text-white leading-none mb-4">
-            Find Your<br />Perfect Night
+            Life&apos;s happening<br />out there. Live it!
           </h1>
 
           <p className="text-white/80 text-lg sm:text-xl mb-8 max-w-xl mx-auto leading-relaxed">
-            Answer 5 quick questions and walk away with your top 3 picks — right now.
+            Find amazing things happening near you &mdash; right now, or whenever.
           </p>
 
           {/* CTA row */}
@@ -111,7 +111,7 @@ export default function HomePage() {
               onClick={() => openSurvey()}
               className="inline-flex items-center gap-2 bg-yd-bg hover:bg-yd-navy text-white font-bold px-8 py-4 rounded-xl text-base transition-colors shadow-lg"
             >
-              🎯 Find My Perfect Event Tonight →
+              YeahDoodle! Let&apos;s see what&apos;s out there &rarr;
             </button>
             <button
               onClick={() => setNowOpen(true)}
@@ -182,17 +182,17 @@ export default function HomePage() {
             <div className="inline-flex items-center gap-2 bg-yd-orange/20 text-yd-orange text-xs font-semibold px-3 py-1 rounded-full mb-3">
               ✨ AI-powered
             </div>
-            <h3 className="font-display text-2xl text-white mb-2">Your vibe, instantly matched</h3>
+            <h3 className="font-display text-2xl text-white mb-2">Stop wondering. Start doing.</h3>
             <p className="text-white/50 text-sm max-w-sm leading-relaxed">
-              Tell us your energy, who you&apos;re with, and what sounds fun — we&apos;ll surface the 3 events
-              that fit you <em>right now</em>, not just what&apos;s popular.
+              Tell us your energy, who you&apos;re with, and what sounds fun &mdash; we&apos;ll find the 3 things
+              actually worth doing near you, right now or whenever.
             </p>
           </div>
           <button
             onClick={() => openSurvey()}
             className="relative shrink-0 bg-yd-yellow hover:bg-yd-yellowHover text-yd-bg font-bold px-7 py-4 rounded-xl transition-colors text-sm whitespace-nowrap"
           >
-            🎯 Find My Perfect Event →
+            YeahDoodle! Let&apos;s go &rarr;
           </button>
         </div>
       </section>
@@ -237,8 +237,8 @@ export default function HomePage() {
               },
               {
                 step: '03',
-                title: 'Walk out the door',
-                body: 'Get the venue, time, and ticket link — and go do the thing.',
+                title: 'Stop scrolling. Go live.',
+                body: 'Get the venue, time, and ticket link — then put the phone down and go do the thing.',
               },
             ].map(item => (
               <div key={item.step} className="flex gap-4">
