@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { dateNightSearch, yelpToResult } from '@/lib/yelp'
-import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -183,18 +181,13 @@ function budgetMax(answers: string[]): number | null {
 }
 
 function categoryHints(answers: string[]): string[] | null {
-  // Feeling target is at index 0 in the 2-question schema
-  const feeling = (answers[0] ?? '').toLowerCase()
-  if (feeling.includes('pumped') || feeling.includes('electric')) return ['Music', 'Nightlife', 'Sports & Outdoors']
-  if (feeling.includes('relaxed') || feeling.includes('happy'))   return ['Food & Drink', 'Community', 'Nightlife']
-  if (feeling.includes('curious') || feeling.includes('wow'))     return ['Arts & Culture', 'Community', 'Outdoors']
-  if (feeling.includes('laughing') || feeling.includes('social')) return ['Comedy', 'Community', 'Arts & Culture']
+  // Experience type is at index 3 (no group-size) or index 4 (with group-size)
+  const crewAns = answers[2] ?? ''
+  const hasGrp = crewAns === 'Small group' || crewAns === 'The whole squad'
+  const exp = answers[hasGrp ? 4 : 3] ?? ''
+  if (exp.includes('music') || exp.includes('show')) return ['Music', 'Arts & Culture', 'Nightlife']
+  if (exp.includes('Food') || exp.includes('drinks')) return ['Food & Drink', 'Community', 'Outdoors']
   return null
-}
-
-function getExpType(answers: string[]): string {
-  // Feeling target is at index 0 in the 2-question schema
-  return answers[0] ?? ''
 }
 
 function getDateRange(timeframe: string): { start: Date; end: Date } {
@@ -250,19 +243,13 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     end.setDate(end.getDate() + 90)
     return { start, end }
   }
-  // 'Default' — now through next 3 days (no timeframe filter set)
-  if (timeframe === 'Default') {
-    const end = new Date(today)
-    end.setDate(end.getDate() + 3)
-    return { start: now, end }
-  }
   // Legacy 'Coming weeks' — 4-week lookahead
   const end = new Date(today)
   end.setDate(end.getDate() + 28)
   return { start: now, end }
 }
 
-function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolean, expType = ''): string[] {
+function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolean): string[] {
   const when =
     timeframe === 'Now'              ? 'tonight' :
     timeframe === 'Tonight'          ? 'tonight' :
@@ -272,46 +259,13 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
     timeframe === 'Next Week'        ? 'next week' :
     timeframe === 'Planning Ahead'   ? 'upcoming' :
     timeframe === 'Planning a Trip'  ? 'upcoming' :
-    timeframe === 'Default'          ? 'this weekend' :
     'upcoming'
 
-  const exp = expType.toLowerCase()
-
-  // Category-specific queries — mapped from feeling target (psychology-first survey)
-  if (exp.includes('pumped') || exp.includes('electric')) {
-    return [
-      `live music concerts ${when} in ${city}`,
-      `nightlife events parties clubs ${when} near ${city}`,
-      `best live music venues bars ${city}`,
-    ]
-  }
-  if (exp.includes('relaxed') || exp.includes('happy')) {
-    return [
-      `restaurants dinner ${when} in ${city}`,
-      `food drink events wine tasting dining ${when} near ${city}`,
-      `best date night restaurants bars open ${city}`,
-    ]
-  }
-  if (exp.includes('curious') || exp.includes('wow')) {
-    return [
-      `art events galleries museums ${when} in ${city}`,
-      `unique experiences theater cultural ${when} near ${city}`,
-      `best arts culture unique things to do ${city}`,
-    ]
-  }
-  if (exp.includes('laughing') || exp.includes('social')) {
-    return [
-      `comedy shows stand-up ${when} in ${city}`,
-      `comedy clubs social events activities ${when} near ${city}`,
-      `best comedy social hangout spots ${city}`,
-    ]
-  }
-
-  // Default: generic event queries
+  // Two queries: events (qi=0) + evergreen activities (qi=1)
+  // Results at qi≥1 with no parseable date get source:'activity' treatment
   return [
     `events ${when} in ${city}`,
-    `date night ideas things to do ${when} near ${city}`,
-    `best activities bars restaurants open near ${city}`,
+    `best things to do near ${city}`,
   ]
 }
 
@@ -346,7 +300,7 @@ function fallbackImg(category: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Free image enrichment — no paid API credits required
+// Free image enrichment — paid API credits required
 // ---------------------------------------------------------------------------
 
 /** Pull og:image from a ticket/event page (Ticketmaster, Eventbrite, venue sites, etc.) */
@@ -406,7 +360,7 @@ async function enrichPickImages(
 
   await Promise.all(
     picks.map(async (pick) => {
-      // Already has a real (non-fallback) image — nothing to do
+      // Already has a real (non-fallback) image — paid credits
       if (!pick.imageUrl.includes('unsplash.com')) return
 
       // 1. OG image from the event's ticket/listing page — event-specific, free
@@ -425,6 +379,8 @@ async function enrichPickImages(
       // 3. Keep existing static category fallback — nothing to change
     }),
   )
+}
+)
 }
 
 // ---------------------------------------------------------------------------
@@ -578,7 +534,7 @@ function parseSerpPrice(
 // ---------------------------------------------------------------------------
 // Live SerpAPI crawl
 // ---------------------------------------------------------------------------
-async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', expType = ''): Promise<EventRow[]> {
+async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight'): Promise<EventRow[]> {
   // Prefer SerpAPI Google Events engine (structured data); fall back to Serper.dev /search
   const serpApiKey  = process.env.SERPAPI_KEY
   const serperKey   = process.env.SERPER_API_KEY
@@ -591,7 +547,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
 
   await Promise.all(
     cities.flatMap(({ name: cityName, distanceLabel, isLocal }) => {
-      const queries = getSerpQueriesForCity(timeframe, cityName, isLocal, expType)
+      const queries = getSerpQueriesForCity(timeframe, cityName, isLocal)
 
       return queries.map(async (q, qi) => {
         try {
@@ -634,7 +590,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
             const address = e.address as string[] | undefined
 
             const price = parseSerpPrice(ticketInfo)
-            const isFree = price === 0 || (e.description as string ?? '').toLowerCase().includes('free')
+            const isFree = price === 0 || (e.description as string ?? '').toLowerCase().)ncludes('free')
             const dateStart = parseGoogleEventDate(date?.start_date ?? date?.when)
 
             // Activity queries (qi >= 1) typically have no date — mark as timeless activity
@@ -681,7 +637,6 @@ export async function POST(req: NextRequest) {
       answers: string[]
       lat?: number
       lng?: number
-      filters?: { budget?: string; crew?: string; when?: string }
     }
 
     const { answers } = body
@@ -706,12 +661,10 @@ export async function POST(req: NextRequest) {
       if (cityGeo) { lat = cityGeo.lat; lng = cityGeo.lng; hasGps = true }
     }
 
-    const filters   = body.filters ?? {}
-    const timeframe = filters.when || 'Default'
+    const timeframe = (answers[0] as string) || 'Tonight'
     const { start: dateStart, end: dateEnd } = getDateRange(timeframe)
-    const maxBudget = budgetMax(filters.budget ? [filters.budget] : [])
+    const maxBudget = budgetMax(answers)
     const catHints  = categoryHints(answers)
-    const expType   = getExpType(answers)
 
     // ── 1. Resolve location ──────────────────────────────────────────────────
     let resolvedCity = city.trim()
@@ -755,7 +708,7 @@ export async function POST(req: NextRequest) {
     // ── 2. Parallel fetches ──────────────────────────────────────────────────
     const liveEventsPromise = cities.length > 0
       ? Promise.all([
-          fetchLiveSerpEvents(cities, timeframe, expType),
+          fetchLiveSerpEvents(cities, timeframe),
           fetchTicketmasterLive(cities, dateStart, dateEnd),
         ]).then(([serp, tm]) => {
           // Merge: dedupe by title, Ticketmaster results first (richer data)
@@ -767,36 +720,6 @@ export async function POST(req: NextRequest) {
           }
           return combined
         })
-      : Promise.resolve([] as EventRow[])
-
-    // Place profile — fetch in parallel, used to enrich Serper queries below
-    const profilePromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
-      ? getPlaceProfile(lat, lng, resolvedCity, '').catch(() => null)
-      : Promise.resolve(null)
-
-    // Yelp: open-now activities always available when we have GPS
-    const yelpPromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
-      ? dateNightSearch({ lat, lng, maxResults: 6 }).then(bizs =>
-          bizs.map(b => {
-            const r = yelpToResult(b, lat!, lng!)
-            return {
-              id:             r.id,
-              title:          r.title,
-              venue_name:     r.venue,
-              date_start:     null,
-              is_free:        false,
-              price_min:      null,
-              price_max:      null,
-              category:       r.category,
-              ticket_url:     r.ticket_url,
-              image_url:      r.image_url,
-              description:    r.description,
-              ai_description: null,
-              distanceLabel:  r.drive_label,
-              source:         'activity',
-            } satisfies EventRow
-          })
-        )
       : Promise.resolve([] as EventRow[])
 
     let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
@@ -817,47 +740,7 @@ export async function POST(req: NextRequest) {
       dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
-    const [liveEvents, dbRows, yelpRows, placeProfile] = await Promise.all([
-      liveEventsPromise, dbRowsPromise, yelpPromise, profilePromise,
-    ])
-
-    // If we have a profile, fire one additional profile-specific Serper search
-    const profileActivityRows: EventRow[] = []
-    if (placeProfile && (process.env.SERPER_API_KEY || process.env.SERPAPI_KEY)) {
-      const profileQs = buildProfileQueries(placeProfile, 'anytime')
-      if (profileQs.length > 0) {
-        try {
-          const res = await fetch('https://google.serper.dev/search', {
-            method: 'POST',
-            headers: { 'X-API-KEY': process.env.SERPER_API_KEY ?? '', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ q: profileQs[0], num: 5 }),
-            signal: AbortSignal.timeout(6000),
-          })
-          if (res.ok) {
-            const data = await res.json()
-            const organic = (data.organic ?? []) as Record<string, string>[]
-            organic.slice(0, 3).forEach((r, i) => {
-              profileActivityRows.push({
-                id:             `profile-${i}`,
-                title:          r.title ?? 'Local Activity',
-                venue_name:     null,
-                date_start:     null,
-                is_free:        false,
-                price_min:      null,
-                price_max:      null,
-                category:       'Activities',
-                ticket_url:     r.link ?? null,
-                image_url:      null,
-                description:    r.snippet ?? null,
-                ai_description: null,
-                distanceLabel:  '',
-                source:         'activity',
-              })
-            })
-          }
-        } catch { /* non-fatal */ }
-      }
-    }
+    const [liveEvents, dbRows] = await Promise.all([liveEventsPromise, dbRowsPromise])
 
     // ── 3. Merge — live first (fresher), then DB ─────────────────────────────
     const nowMs    = Date.now()
@@ -878,28 +761,7 @@ export async function POST(req: NextRequest) {
       return true
     })
 
-    // Dedupe Yelp rows against live events by title
-    const yelpUnique = yelpRows.filter(y => {
-      const key = y.title.toLowerCase().slice(0, 40)
-      return !seenLive.has(key) && !dbTitles.has(key)
-    })
-
-    // Include profile-specific activity results (de-duped against live events)
-    const profileUnique = profileActivityRows.filter(p => {
-      const key = p.title.toLowerCase().slice(0, 40)
-      return !seenLive.has(key) && !dbTitles.has(key)
-    })
-
-    let rows: EventRow[] = [...uniqueLive, ...dbRows, ...yelpUnique, ...profileUnique]
-
-    // Sort to boost category matches to the top — ensures AI sees relevant candidates first
-    if (catHints) {
-      rows.sort((a, b) => {
-        const aMatch = catHints.includes(a.category) ? 0 : 1
-        const bMatch = catHints.includes(b.category) ? 0 : 1
-        return aMatch - bMatch
-      })
-    }
+    let rows: EventRow[] = [...uniqueLive, ...dbRows]
 
     // Safety net: if SerpAPI returned events but the past-event filter killed them all,
     // include everything (better to show something than nothing)
@@ -1026,15 +888,13 @@ export async function POST(req: NextRequest) {
       })
       .join('\n')
 
-    // Label map for the 2-question psychology-first survey
-    const labelMap = ['Feeling target', 'Vibe killer (avoid)']
-    const answerSummary = [
-      ...answers.map((a, i) => `- ${labelMap[i] ?? `Q${i + 1}`}: ${a}`),
-      ...(filters.when   ? [`- Timing preference: ${filters.when}`]   : []),
-      ...(filters.crew   ? [`- Crew: ${filters.crew}`]                : []),
-      ...(filters.budget ? [`- Budget: ${filters.budget}`]            : []),
-    ].join('\n')
-    const killSwitch = answers[1] ?? ''
+    // Dynamic label map handles optional group-size question
+    const crewAns2 = answers[2] ?? ''
+    const hasGrpQ = crewAns2 === 'Small group' || crewAns2 === 'The whole squad'
+    const labelMap = hasGrpQ
+      ? ['When', 'Energy (1=Low Key, 10=High Energy)', 'Crew', 'Group size', 'Experience type', 'Scene/crowd', 'Budget']
+      : ['When', 'Energy (1=Low Key, 10=High Energy)', 'Crew', 'Experience type', 'Scene/crowd', 'Budget']
+    const answerSummary = answers.map((a, i) => `- ${labelMap[i] ?? `Q${i + 1}`}: ${a}`).join('\n')
 
     const timeframeInstruction =
       timeframe === 'Now'             ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
@@ -1044,8 +904,7 @@ export async function POST(req: NextRequest) {
       timeframe === 'This weekend'    ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
       timeframe === 'Next Week'       ? 'Prefer events happening NEXT WEEK (3–14 days from now).' :
       timeframe === 'Planning Ahead'  ? 'Show events across the next 2–8 weeks — the user is calendar-planning, highlight anything worth booking early.' :
-      timeframe === 'Planning a Trip' ? 'Show a variety of events 2 weeks to 3 months out — user is trip planning, include destination-worthy or unique experiences.' :
-      timeframe === 'Default'         ? 'Show the best options happening in the next 2–3 days — no specific time constraint, so prioritise quality and relevance.' :
+      timeframe === 'Planning a Trip' ? 'Show a variety of events 2 weeks to 3 months out — user is trip planning, include destination-worthy or s�edunique experiences.' :
       'Show a variety across the coming weeks — the user is calendar-planning, so spread dates out and highlight anything worth booking early.'
 
     const hasActivities = rows.some(r => r.source === 'activity')
@@ -1059,9 +918,9 @@ User preferences:
 ${answerSummary}
 
 Events and activities available ${locationLabel} for ${timeframe.toLowerCase()}:
-${eventList}
+entList}
 
-Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote} CRITICAL: The user wants to feel "${expType}" — at least 2 of your 3 picks MUST evoke this feeling. They specifically want to AVOID: "${killSwitch}" — do not recommend anything that triggers this dealbreaker. Only deviate from their feeling target if the list genuinely has no matching options. Consider crew size and budget constraints. You may add 1 wildcard pick for variety, but their stated feeling takes absolute priority.
+Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote} Consider energy level, group size, experience preference, scene, and budget. Prioritise variety — don't pick 3 of the same type. If the user is in a rural or outdoor area, outdoor activities are valid picks.
 
 Return ONLY a valid JSON array — no other text, no markdown, no explanation:
 [
