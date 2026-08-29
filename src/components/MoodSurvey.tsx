@@ -44,21 +44,10 @@ interface Question {
 }
 
 // ---------------------------------------------------------------------------
-// Questions — psychology-first: feeling target → crew → kill switch → budget
+// Questions — psychology-first: feeling target → kill switch (2 questions)
+// When, crew, and budget are result-page filters — not survey questions
 // ---------------------------------------------------------------------------
 const ALL_QUESTIONS: Question[] = [
-  {
-    id: 'when',
-    question: 'When are you planning this?',
-    subtitle: '',
-    options: [
-      { label: 'Now',            desc: "Let's make something happen right now",       emoji: '⚡', quality: 'Spontaneous'  },
-      { label: 'Soon',           desc: 'This weekend — Friday through Sunday',        emoji: '🎉', quality: 'Weekend'      },
-      { label: 'Next Week',      desc: 'Lining something up for next week',           emoji: '🗓️', quality: 'Coming up'    },
-      { label: 'Planning Ahead', desc: 'Looking out a few weeks or more',             emoji: '📅', quality: 'Looking ahead'},
-      { label: 'Planning a Trip',desc: "I'm traveling and want to plan ahead",        emoji: '✈️', quality: 'Trip planning' },
-    ],
-  },
   {
     id: 'feeling',
     question: 'How do you want to feel?',
@@ -71,37 +60,14 @@ const ALL_QUESTIONS: Question[] = [
     ],
   },
   {
-    id: 'crew',
-    question: "Who's your crew?",
-    subtitle: '',
-    options: [
-      { label: 'Just me',        desc: "Solo mission — flying solo tonight",          emoji: '🧍', quality: 'Solo'       },
-      { label: 'Date Night',     desc: 'Me and my person — just the two of us',       emoji: '💑', quality: 'Couple'     },
-      { label: 'Small group',    desc: 'A few close friends or fam',                  emoji: '👯', quality: 'Social'     },
-      { label: 'The whole squad',desc: "Big group energy, everyone's coming",         emoji: '🎊', quality: 'Party mode' },
-    ],
-  },
-  {
     id: 'killswitch',
     question: 'What would kill the vibe?',
-    subtitle: 'Pick your dealbreaker — we\'ll steer clear',
+    subtitle: "Pick your dealbreaker — we'll steer clear",
     options: [
       { label: 'Huge crowds & noise',       desc: "Can't hear myself think in big venues",          emoji: '🙉', quality: 'Avoid crowds'  },
       { label: 'Blowing my budget',         desc: 'Spending way more than I planned',               emoji: '💸', quality: 'Budget-aware'  },
       { label: 'Sitting still for hours',   desc: 'Long performances, lectures, sit-down shows',    emoji: '🧘', quality: 'Stay active'    },
       { label: 'Lots of planning required', desc: 'Figuring it out on the fly is a nightmare',      emoji: '🗺️', quality: 'Keep it simple' },
-    ],
-  },
-  {
-    id: 'budget',
-    question: "What's your budget?",
-    subtitle: '',
-    special: 'budget',
-    options: [
-      { label: 'Free',            desc: 'Free fun is real fun',                emoji: '💚', quality: 'Good',   perPerson: 0,    forCouple: 0    },
-      { label: '$25 or so',       desc: 'A little spend for a good time',      emoji: '💛', quality: 'Better', perPerson: 25,   forCouple: 50   },
-      { label: 'Around $50',      desc: 'Worth it for the right experience',   emoji: '🧡', quality: 'Great',  perPerson: 50,   forCouple: 100  },
-      { label: "Sky's the Limit", desc: 'The experience is what matters',      emoji: '💜', quality: 'Best',   perPerson: null, forCouple: null },
     ],
   },
 ]
@@ -142,24 +108,18 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [showHistConsent, setShowHistConsent] = useState(false)
   const [hasReturnHistory, setHasReturnHistory] = useState(false)
   const [lastAnswers, setLastAnswers] = useState<string[] | null>(null)
+  const [filterBudget, setFilterBudget] = useState<string>('')
+  const [filterCrew, setFilterCrew]     = useState<string>('')
+  const [filterWhen, setFilterWhen]     = useState<string>('')
+  const [openFilter, setOpenFilter]     = useState<'when' | 'budget' | 'crew' | null>(null)
   const cancelGps = useRef(false)
 
   // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
-  const crewAnswer = answers[2] ?? ''
-  const isCouple = crewAnswer === 'Date Night'
   const activeQuestions = ALL_QUESTIONS
 
-  const timeframeDisplay = (() => {
-    const tf = answers[0] ?? ''
-    if (tf === 'Now')              return 'tonight'
-    if (tf === 'Soon')             return 'this weekend'
-    if (tf === 'Next Week')        return 'next week'
-    if (tf === 'Planning Ahead')   return 'soon'
-    if (tf === 'Planning a Trip')  return 'your trip'
-    return 'tonight'
-  })()
+  const timeframeDisplay = 'the next few days'
 
   // ---------------------------------------------------------------------------
   // GPS + modal lifecycle
@@ -332,12 +292,25 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   // ---------------------------------------------------------------------------
   // Core submit (used by both normal survey flow and "Same vibe" shortcut)
   // ---------------------------------------------------------------------------
-  async function doSubmit(submittedAnswers: string[]) {
+  async function doSubmit(submittedAnswers: string[], filterOverrides?: { budget?: string; crew?: string; when?: string }) {
+    const activeBudget = filterOverrides !== undefined ? (filterOverrides.budget ?? '') : filterBudget
+    const activeCrew   = filterOverrides !== undefined ? (filterOverrides.crew   ?? '') : filterCrew
+    const activeWhen   = filterOverrides !== undefined ? (filterOverrides.when   ?? '') : filterWhen
     setAnswers(submittedAnswers)
     setPhase('loading')
     setLoadingMsg(0)
     try {
-      const body: Record<string, unknown> = { city, answers: submittedAnswers }
+      const body: Record<string, unknown> = {
+        city,
+        answers: submittedAnswers,
+        ...(activeBudget || activeCrew || activeWhen ? {
+          filters: {
+            ...(activeBudget ? { budget: activeBudget } : {}),
+            ...(activeCrew   ? { crew:   activeCrew   } : {}),
+            ...(activeWhen   ? { when:   activeWhen   } : {}),
+          }
+        } : {}),
+      }
       if (lat !== null) body.lat = lat
       if (lng !== null) body.lng = lng
 
@@ -392,6 +365,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     setEmailInput('')
     setEmailState('idle')
     setShowHistConsent(false)
+    setFilterBudget('')
+    setFilterCrew('')
+    setFilterWhen('')
+    setOpenFilter(null)
     setPhase('question')
   }
 
@@ -468,7 +445,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           <div className="p-8 text-center">
             <div className="text-5xl mb-4">🎯</div>
             <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
-            <p className="text-white/50 text-sm mb-7">6 quick questions → your 3 best picks</p>
+            <p className="text-white/50 text-sm mb-7">2 quick questions → your 3 best picks</p>
             <input
               autoFocus
               value={city}
@@ -558,39 +535,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
-            {/* ── Budget (with couple display) ──────────────────────────── */}
-            {currentQ.special === 'budget' && (
-              <div className="space-y-2.5">
-                {isCouple && (
-                  <p className="text-white/40 text-xs mb-3 -mt-2">
-                    💑 Showing per-person and couple pricing
-                  </p>
-                )}
-                {currentQ.options.map(opt => (
-                  <button
-                    key={opt.label}
-                    onClick={() => handleAnswer(opt.label)}
-                    className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-white/10 hover:border-yd-orange/60 hover:bg-yd-orange/5 text-left transition-all group"
-                  >
-                    <span className="text-2xl shrink-0">{opt.emoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                        <span className="font-semibold text-white text-sm">{opt.label}</span>
-                        {isCouple && opt.perPerson != null && opt.forCouple != null && opt.perPerson > 0 && (
-                          <span className="text-xs text-white/50">
-                            ${opt.perPerson}/person · ${opt.forCouple} together
-                          </span>
-                        )}
-                        <span className="text-xs bg-white/10 text-white/40 px-2 py-0.5 rounded-full shrink-0">{opt.quality}</span>
-                      </div>
-                      <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors truncate">{opt.desc}</p>
-                    </div>
-                    <span className="text-white/20 group-hover:text-yd-orange transition-colors shrink-0">→</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
             {/* ── Standard option buttons ───────────────────────────────── */}
             {!currentQ.special && (
               <div className="space-y-2.5">
@@ -639,11 +583,90 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {/* ── Results ──────────────────────────────────────────────────────── */}
         {phase === 'results' && (
           <div className="p-5">
-            <div className="text-center mb-4">
-              <h2 className="font-display text-xl text-white">Your picks for {timeframeDisplay}</h2>
+            <div className="text-center mb-3">
+              <h2 className="font-display text-xl text-white">Your picks</h2>
               <p className="text-white/30 text-xs mt-0.5">
                 {lat ? `📍 near you` : `in ${city}`}
               </p>
+            </div>
+
+            {/* ── Filters ─────────────────────────────────────────────────── */}
+            <div className="flex flex-wrap gap-1.5 mb-3" onClick={() => setOpenFilter(null)}>
+              {/* When */}
+              <div className="relative" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => setOpenFilter(openFilter === 'when' ? null : 'when')}
+                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${filterWhen ? 'bg-yd-orange/20 border-yd-orange/60 text-yd-orange font-semibold' : 'border-white/15 text-white/45 hover:border-white/30 hover:text-white/70'}`}
+                >
+                  📅 {filterWhen || 'When'}
+                </button>
+                {openFilter === 'when' && (
+                  <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-30 min-w-[150px] overflow-hidden">
+                    {filterWhen && (
+                      <button onClick={() => { setFilterWhen(''); setOpenFilter(null); doSubmit(answers, { when: '', budget: filterBudget, crew: filterCrew }) }}
+                        className="w-full text-left px-3 py-2 text-xs text-white/40 hover:bg-white/10 border-b border-white/10 transition-colors">
+                        ✕ Any time
+                      </button>
+                    )}
+                    {['Now', 'This weekend', 'Next Week', 'Planning Ahead'].map(o => (
+                      <button key={o} onClick={() => { setFilterWhen(o); setOpenFilter(null); doSubmit(answers, { when: o, budget: filterBudget, crew: filterCrew }) }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${filterWhen === o ? 'text-yd-orange font-semibold' : 'text-white/70'}`}>
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Budget */}
+              <div className="relative" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => setOpenFilter(openFilter === 'budget' ? null : 'budget')}
+                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${filterBudget ? 'bg-yd-orange/20 border-yd-orange/60 text-yd-orange font-semibold' : 'border-white/15 text-white/45 hover:border-white/30 hover:text-white/70'}`}
+                >
+                  💰 {filterBudget || 'Budget'}
+                </button>
+                {openFilter === 'budget' && (
+                  <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-30 min-w-[150px] overflow-hidden">
+                    {filterBudget && (
+                      <button onClick={() => { setFilterBudget(''); setOpenFilter(null); doSubmit(answers, { budget: '', when: filterWhen, crew: filterCrew }) }}
+                        className="w-full text-left px-3 py-2 text-xs text-white/40 hover:bg-white/10 border-b border-white/10 transition-colors">
+                        ✕ Any budget
+                      </button>
+                    )}
+                    {['Free', '$25 or so', 'Around $50', "Sky's the Limit"].map(o => (
+                      <button key={o} onClick={() => { setFilterBudget(o); setOpenFilter(null); doSubmit(answers, { budget: o, when: filterWhen, crew: filterCrew }) }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${filterBudget === o ? 'text-yd-orange font-semibold' : 'text-white/70'}`}>
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Crew */}
+              <div className="relative" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => setOpenFilter(openFilter === 'crew' ? null : 'crew')}
+                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${filterCrew ? 'bg-yd-orange/20 border-yd-orange/60 text-yd-orange font-semibold' : 'border-white/15 text-white/45 hover:border-white/30 hover:text-white/70'}`}
+                >
+                  👥 {filterCrew || 'Crew'}
+                </button>
+                {openFilter === 'crew' && (
+                  <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-30 min-w-[155px] overflow-hidden">
+                    {filterCrew && (
+                      <button onClick={() => { setFilterCrew(''); setOpenFilter(null); doSubmit(answers, { crew: '', when: filterWhen, budget: filterBudget }) }}
+                        className="w-full text-left px-3 py-2 text-xs text-white/40 hover:bg-white/10 border-b border-white/10 transition-colors">
+                        ✕ Any crew
+                      </button>
+                    )}
+                    {['Just me', 'Date Night', 'Small group', 'The whole squad'].map(o => (
+                      <button key={o} onClick={() => { setFilterCrew(o); setOpenFilter(null); doSubmit(answers, { crew: o, when: filterWhen, budget: filterBudget }) }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${filterCrew === o ? 'text-yd-orange font-semibold' : 'text-white/70'}`}>
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Saved count + sign-in nudge */}
