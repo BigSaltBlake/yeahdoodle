@@ -183,8 +183,8 @@ function budgetMax(answers: string[]): number | null {
 }
 
 function categoryHints(answers: string[]): string[] | null {
-  // Feeling target is always at index 1 in the new 5-question schema
-  const feeling = (answers[1] ?? '').toLowerCase()
+  // Feeling target is at index 0 in the 2-question schema
+  const feeling = (answers[0] ?? '').toLowerCase()
   if (feeling.includes('pumped') || feeling.includes('electric')) return ['Music', 'Nightlife', 'Sports & Outdoors']
   if (feeling.includes('relaxed') || feeling.includes('happy'))   return ['Food & Drink', 'Community', 'Nightlife']
   if (feeling.includes('curious') || feeling.includes('wow'))     return ['Arts & Culture', 'Community', 'Outdoors']
@@ -193,8 +193,8 @@ function categoryHints(answers: string[]): string[] | null {
 }
 
 function getExpType(answers: string[]): string {
-  // Feeling target is always at index 1
-  return answers[1] ?? ''
+  // Feeling target is at index 0 in the 2-question schema
+  return answers[0] ?? ''
 }
 
 function getDateRange(timeframe: string): { start: Date; end: Date } {
@@ -250,6 +250,12 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     end.setDate(end.getDate() + 90)
     return { start, end }
   }
+  // 'Default' — now through next 3 days (no timeframe filter set)
+  if (timeframe === 'Default') {
+    const end = new Date(today)
+    end.setDate(end.getDate() + 3)
+    return { start: now, end }
+  }
   // Legacy 'Coming weeks' — 4-week lookahead
   const end = new Date(today)
   end.setDate(end.getDate() + 28)
@@ -266,6 +272,7 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
     timeframe === 'Next Week'        ? 'next week' :
     timeframe === 'Planning Ahead'   ? 'upcoming' :
     timeframe === 'Planning a Trip'  ? 'upcoming' :
+    timeframe === 'Default'          ? 'this weekend' :
     'upcoming'
 
   const exp = expType.toLowerCase()
@@ -674,6 +681,7 @@ export async function POST(req: NextRequest) {
       answers: string[]
       lat?: number
       lng?: number
+      filters?: { budget?: string; crew?: string; when?: string }
     }
 
     const { answers } = body
@@ -698,9 +706,10 @@ export async function POST(req: NextRequest) {
       if (cityGeo) { lat = cityGeo.lat; lng = cityGeo.lng; hasGps = true }
     }
 
-    const timeframe = (answers[0] as string) || 'Tonight'
+    const filters   = body.filters ?? {}
+    const timeframe = filters.when || 'Default'
     const { start: dateStart, end: dateEnd } = getDateRange(timeframe)
-    const maxBudget = budgetMax(answers)
+    const maxBudget = budgetMax(filters.budget ? [filters.budget] : [])
     const catHints  = categoryHints(answers)
     const expType   = getExpType(answers)
 
@@ -1017,10 +1026,15 @@ export async function POST(req: NextRequest) {
       })
       .join('\n')
 
-    // Fixed label map for the 5-question psychology-first survey
-    const labelMap = ['When', 'Feeling target', 'Crew', 'Vibe killer (avoid)', 'Budget']
-    const answerSummary = answers.map((a, i) => `- ${labelMap[i] ?? `Q${i + 1}`}: ${a}`).join('\n')
-    const killSwitch = answers[3] ?? ''
+    // Label map for the 2-question psychology-first survey
+    const labelMap = ['Feeling target', 'Vibe killer (avoid)']
+    const answerSummary = [
+      ...answers.map((a, i) => `- ${labelMap[i] ?? `Q${i + 1}`}: ${a}`),
+      ...(filters.when   ? [`- Timing preference: ${filters.when}`]   : []),
+      ...(filters.crew   ? [`- Crew: ${filters.crew}`]                : []),
+      ...(filters.budget ? [`- Budget: ${filters.budget}`]            : []),
+    ].join('\n')
+    const killSwitch = answers[1] ?? ''
 
     const timeframeInstruction =
       timeframe === 'Now'             ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
@@ -1031,6 +1045,7 @@ export async function POST(req: NextRequest) {
       timeframe === 'Next Week'       ? 'Prefer events happening NEXT WEEK (3–14 days from now).' :
       timeframe === 'Planning Ahead'  ? 'Show events across the next 2–8 weeks — the user is calendar-planning, highlight anything worth booking early.' :
       timeframe === 'Planning a Trip' ? 'Show a variety of events 2 weeks to 3 months out — user is trip planning, include destination-worthy or unique experiences.' :
+      timeframe === 'Default'         ? 'Show the best options happening in the next 2–3 days — no specific time constraint, so prioritise quality and relevance.' :
       'Show a variety across the coming weeks — the user is calendar-planning, so spread dates out and highlight anything worth booking early.'
 
     const hasActivities = rows.some(r => r.source === 'activity')
