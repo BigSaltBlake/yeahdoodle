@@ -44,7 +44,7 @@ interface Question {
 }
 
 // ---------------------------------------------------------------------------
-// All questions — group-size is conditional (shown only for groups)
+// Questions — psychology-first: feeling target → crew → kill switch → budget
 // ---------------------------------------------------------------------------
 const ALL_QUESTIONS: Question[] = [
   {
@@ -52,61 +52,44 @@ const ALL_QUESTIONS: Question[] = [
     question: 'When are you planning this?',
     subtitle: '',
     options: [
-      { label: 'Now',            desc: "Let's make something happen right now",          emoji: '⚡', quality: 'Spontaneous'   },
-      { label: 'Soon',           desc: 'This weekend — Friday through Sunday',           emoji: '🎉', quality: 'Weekend'        },
-      { label: 'Next Week',      desc: 'Lining something up for next week',              emoji: '🗓️', quality: 'Coming up'      },
-      { label: 'Planning Ahead', desc: 'Looking out a few weeks or more',               emoji: '📅', quality: 'Looking ahead'  },
-      { label: 'Planning a Trip',desc: "I'm traveling and want to plan ahead",           emoji: '✈️', quality: 'Trip planning'  },
+      { label: 'Now',            desc: "Let's make something happen right now",       emoji: '⚡', quality: 'Spontaneous'  },
+      { label: 'Soon',           desc: 'This weekend — Friday through Sunday',        emoji: '🎉', quality: 'Weekend'      },
+      { label: 'Next Week',      desc: 'Lining something up for next week',           emoji: '🗓️', quality: 'Coming up'    },
+      { label: 'Planning Ahead', desc: 'Looking out a few weeks or more',             emoji: '📅', quality: 'Looking ahead'},
+      { label: 'Planning a Trip',desc: "I'm traveling and want to plan ahead",        emoji: '✈️', quality: 'Trip planning' },
     ],
   },
   {
-    id: 'energy',
-    question: "What's your energy?",
-    subtitle: 'Slide to set your vibe — drag to pick a range',
-    special: 'energy-slider',
-    options: [],
+    id: 'feeling',
+    question: 'How do you want to feel?',
+    subtitle: 'Go with your gut — the right answer comes fast',
+    options: [
+      { label: 'Pumped up & electric', desc: 'High energy, big moments, electric atmosphere',   emoji: '🔥', quality: 'High energy' },
+      { label: 'Relaxed & happy',      desc: 'Chill vibes, good food, good company',            emoji: '😌', quality: 'Laid back'   },
+      { label: "Curious & wow'd",      desc: 'Something that surprises or inspires me',         emoji: '🤯', quality: 'Inspired'    },
+      { label: 'Laughing & social',    desc: 'Fun, loose, laughing with people I like',         emoji: '😂', quality: 'Social'      },
+    ],
   },
   {
     id: 'crew',
     question: "Who's your crew?",
     subtitle: '',
     options: [
-      { label: 'Just me',        desc: "Solo mission — flying solo tonight",              emoji: '🧍', quality: 'Solo'         },
-      { label: 'Date Night',     desc: 'Me and my person — just the two of us',          emoji: '💑', quality: 'Couple'       },
-      { label: 'Small group',    desc: 'A few close friends or fam',                     emoji: '👯', quality: 'Social'       },
-      { label: 'The whole squad',desc: "Big group energy, everyone's coming",            emoji: '🎊', quality: 'Party mode'   },
+      { label: 'Just me',        desc: "Solo mission — flying solo tonight",          emoji: '🧍', quality: 'Solo'       },
+      { label: 'Date Night',     desc: 'Me and my person — just the two of us',       emoji: '💑', quality: 'Couple'     },
+      { label: 'Small group',    desc: 'A few close friends or fam',                  emoji: '👯', quality: 'Social'     },
+      { label: 'The whole squad',desc: "Big group energy, everyone's coming",         emoji: '🎊', quality: 'Party mode' },
     ],
   },
   {
-    id: 'group-size',
-    question: 'Roughly how many people?',
-    subtitle: '',
-    conditional: true,
+    id: 'killswitch',
+    question: 'What would kill the vibe?',
+    subtitle: 'Pick your dealbreaker — we\'ll steer clear',
     options: [
-      { label: '2–4',  desc: 'Small and close-knit',    emoji: '👥', quality: 'Intimate'  },
-      { label: '5–8',  desc: 'A solid crew',            emoji: '👫', quality: 'Medium'    },
-      { label: '9–15', desc: 'Getting bigger!',         emoji: '🎉', quality: 'Large'     },
-      { label: '16+',  desc: "It's a full-on party",   emoji: '🎊', quality: 'Big group' },
-    ],
-  },
-  {
-    id: 'experience',
-    question: 'What sounds good?',
-    subtitle: 'Go with your gut',
-    options: [
-      { label: 'Live music or show',      desc: 'Something to watch and feel',          emoji: '🎵', quality: 'Entertainment' },
-      { label: 'Food & drinks',           desc: 'Good eats, good drinks, good company', emoji: '🍕', quality: 'Chill'         },
-      { label: 'One-of-a-kind experience',desc: "Something I've never done before",    emoji: '✨', quality: 'Unique'        },
-    ],
-  },
-  {
-    id: 'scene',
-    question: "What's the scene?",
-    subtitle: 'Pick the vibe that fits',
-    options: [
-      { label: 'Small & intimate', desc: 'Real atmosphere, you can actually talk',       emoji: '🏡', quality: 'Cozy'   },
-      { label: 'Buzzing & social', desc: 'Medium energy, meeting-people kind of night',  emoji: '🍻', quality: 'Social' },
-      { label: 'Big & electric',   desc: "Massive crowd, everyone's there for it",      emoji: '🎆', quality: 'Epic'   },
+      { label: 'Huge crowds & noise',       desc: "Can't hear myself think in big venues",          emoji: '🙉', quality: 'Avoid crowds'  },
+      { label: 'Blowing my budget',         desc: 'Spending way more than I planned',               emoji: '💸', quality: 'Budget-aware'  },
+      { label: 'Sitting still for hours',   desc: 'Long performances, lectures, sit-down shows',    emoji: '🧘', quality: 'Stay active'    },
+      { label: 'Lots of planning required', desc: 'Figuring it out on the fly is a nightmare',      emoji: '🗺️', quality: 'Keep it simple' },
     ],
   },
   {
@@ -115,10 +98,10 @@ const ALL_QUESTIONS: Question[] = [
     subtitle: '',
     special: 'budget',
     options: [
-      { label: 'Free',            desc: 'Free fun is real fun',                    emoji: '💚', quality: 'Good',   perPerson: 0,    forCouple: 0    },
-      { label: '$25 or so',       desc: 'A little spend for a good time',          emoji: '💛', quality: 'Better', perPerson: 25,   forCouple: 50   },
-      { label: 'Around $50',      desc: 'Worth it for the right experience',       emoji: '🧡', quality: 'Great',  perPerson: 50,   forCouple: 100  },
-      { label: "Sky's the Limit", desc: 'The experience is what matters',          emoji: '💜', quality: 'Best',   perPerson: null, forCouple: null },
+      { label: 'Free',            desc: 'Free fun is real fun',                emoji: '💚', quality: 'Good',   perPerson: 0,    forCouple: 0    },
+      { label: '$25 or so',       desc: 'A little spend for a good time',      emoji: '💛', quality: 'Better', perPerson: 25,   forCouple: 50   },
+      { label: 'Around $50',      desc: 'Worth it for the right experience',   emoji: '🧡', quality: 'Great',  perPerson: 50,   forCouple: 100  },
+      { label: "Sky's the Limit", desc: 'The experience is what matters',      emoji: '💜', quality: 'Best',   perPerson: null, forCouple: null },
     ],
   },
 ]
@@ -146,8 +129,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [phase, setPhase] = useState<Phase>(initialCity ? 'question' : 'locating')
   const [qIndex, setQIndex] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
-  const [energyMin, setEnergyMin] = useState(5)
-  const [energyMax, setEnergyMax] = useState(5)
   const [loadingMsg, setLoadingMsg] = useState(0)
   const [picks, setPicks] = useState<Pick[]>([])
   const [animating, setAnimating] = useState(false)
@@ -162,33 +143,13 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [hasReturnHistory, setHasReturnHistory] = useState(false)
   const [lastAnswers, setLastAnswers] = useState<string[] | null>(null)
   const cancelGps = useRef(false)
-  const sliderRef = useRef<HTMLDivElement>(null)
-  const activeDragRef = useRef<'min' | 'max' | null>(null)
 
   // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
   const crewAnswer = answers[2] ?? ''
-  const showGroupSize = crewAnswer === 'Small group' || crewAnswer === 'The whole squad'
   const isCouple = crewAnswer === 'Date Night'
-  const activeQuestions = ALL_QUESTIONS.filter(q => !q.conditional || showGroupSize)
-
-  const isAnyEnergy = energyMin === 1 && energyMax === 10
-  const isSingleEnergy = energyMin === energyMax
-  const energyLabel = isAnyEnergy ? 'Any energy 🎲' : isSingleEnergy ? `${energyMin}` : `${energyMin}–${energyMax}`
-  const energyQuality = isAnyEnergy ? 'Any level' : isSingleEnergy && energyMin <= 3 ? 'Low Key' : isSingleEnergy && energyMin >= 8 ? 'Wild' : isSingleEnergy && energyMin >= 6 ? 'High energy' : isSingleEnergy ? 'Moderate' : 'Range'
-  const energyDesc = isAnyEnergy
-    ? 'Open to anything — surprise me'
-    : isSingleEnergy && energyMin <= 3 ? 'Low key, easy, familiar'
-    : isSingleEnergy && energyMin <= 6 ? 'Somewhere in the middle'
-    : isSingleEnergy ? 'High energy, adventurous'
-    : energyMax - energyMin >= 7 ? "Pretty open — give me something good"
-    : energyMax <= 4 ? 'Low to moderate energy'
-    : energyMin >= 6 ? 'Medium-high to high energy'
-    : 'Somewhere in the middle'
-
-  const minFrac = (energyMin - 1) / 9
-  const maxFrac = (energyMax - 1) / 9
+  const activeQuestions = ALL_QUESTIONS
 
   const timeframeDisplay = (() => {
     const tf = answers[0] ?? ''
@@ -214,8 +175,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         setPhase(initialCity ? 'question' : 'locating')
         setQIndex(0)
         setAnswers([])
-        setEnergyMin(5)
-        setEnergyMax(5)
         setPicks([])
         setLoadingMsg(0)
         setShowHistConsent(false)
@@ -415,12 +374,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     setAnswers(newAnswers)
     capture('question_answered', { question_index: qIndex, answer })
 
-    // Recompute active questions with NEW answers to handle conditional group-size
-    const newCrew = newAnswers[2] ?? ''
-    const newShowGroupSize = newCrew === 'Small group' || newCrew === 'The whole squad'
-    const newActiveQ = ALL_QUESTIONS.filter(q => !q.conditional || newShowGroupSize)
-
-    if (qIndex < newActiveQ.length - 1) {
+    if (qIndex < ALL_QUESTIONS.length - 1) {
       setAnimating(true)
       setTimeout(() => {
         setQIndex(i => i + 1)
@@ -431,19 +385,12 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     }
   }
 
-  function handleEnergyConfirm() {
-    const ans = isAnyEnergy ? 'Any' : isSingleEnergy ? String(energyMin) : `${energyMin}-${energyMax}`
-    handleAnswer(ans)
-  }
-
   function handleReset() {
     setQIndex(0)
     setAnswers([])
     setPicks([])
     setEmailInput('')
     setEmailState('idle')
-    setEnergyMin(5)
-    setEnergyMax(5)
     setShowHistConsent(false)
     setPhase('question')
   }
@@ -480,41 +427,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
       })
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Energy slider pointer handlers
-  // ---------------------------------------------------------------------------
-  function energyFromPointer(e: React.PointerEvent<HTMLDivElement>): number {
-    if (!sliderRef.current) return 5
-    const rect = sliderRef.current.getBoundingClientRect()
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-    return Math.max(1, Math.min(10, Math.round(1 + ratio * 9)))
-  }
-
-  function handleSliderDown(e: React.PointerEvent<HTMLDivElement>) {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    const v = energyFromPointer(e)
-    let drag: 'min' | 'max'
-    if (energyMin === energyMax) {
-      drag = v >= energyMax ? 'max' : 'min'
-    } else {
-      const dMin = Math.abs(v - energyMin)
-      const dMax = Math.abs(v - energyMax)
-      drag = dMin <= dMax ? 'min' : 'max'
-    }
-    activeDragRef.current = drag
-    if (drag === 'min') setEnergyMin(Math.min(v, energyMax))
-    else setEnergyMax(Math.max(v, energyMin))
-  }
-
-  function handleSliderMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!activeDragRef.current) return
-    const v = energyFromPointer(e)
-    if (activeDragRef.current === 'min') setEnergyMin(Math.min(v, energyMax))
-    else setEnergyMax(Math.max(v, energyMin))
-  }
-
-  function handleSliderUp() { activeDragRef.current = null }
 
   // ---------------------------------------------------------------------------
   // Render
@@ -596,7 +508,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                 <span className="text-yd-orange/60 group-hover:text-yd-orange transition-colors shrink-0">→</span>
               </button>
               <button
-                onClick={() => { setQIndex(0); setAnswers([]); setEnergyMin(5); setEnergyMax(5); setPhase('question') }}
+                onClick={() => { setQIndex(0); setAnswers([]); setPhase('question') }}
                 className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-white/10 hover:border-white/25 hover:bg-white/5 text-left transition-all group"
               >
                 <span className="text-2xl shrink-0">✨</span>
@@ -643,72 +555,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     change
                   </button>
                 )}
-              </div>
-            )}
-
-            {/* ── Energy slider ─────────────────────────────────────────── */}
-            {currentQ.special === 'energy-slider' && (
-              <div>
-                {/* Selection display */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-4 text-center">
-                  <div className="text-2xl font-bold text-yd-orange mb-0.5">{energyLabel}</div>
-                  <div className="text-xs text-white/40">{energyDesc}</div>
-                  <div className="inline-block mt-1 px-2 py-0.5 rounded-full bg-yd-orange/15 text-yd-orange/80 text-[10px] font-medium">{energyQuality}</div>
-                </div>
-
-                {/* Slider track */}
-                <div
-                  ref={sliderRef}
-                  className="relative h-10 cursor-pointer select-none mb-1"
-                  onPointerDown={handleSliderDown}
-                  onPointerMove={handleSliderMove}
-                  onPointerUp={handleSliderUp}
-                  onPointerLeave={handleSliderUp}
-                >
-                  {/* Background track */}
-                  <div className="absolute top-1/2 -translate-y-1/2 inset-x-0 h-1.5 rounded-full bg-white/15 pointer-events-none" />
-                  {/* Active fill */}
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-yd-orange pointer-events-none"
-                    style={{ left: `${minFrac * 100}%`, right: `${(1 - maxFrac) * 100}%` }}
-                  />
-                  {/* Min thumb */}
-                  <div
-                    className="absolute w-5 h-5 rounded-full bg-yd-orange border-2 border-white shadow-md pointer-events-none"
-                    style={{ left: `${minFrac * 100}%`, top: '50%', transform: 'translate(-50%, -50%)' }}
-                  />
-                  {/* Max thumb (only if different) */}
-                  {!isSingleEnergy && (
-                    <div
-                      className="absolute w-5 h-5 rounded-full bg-yd-orange border-2 border-white shadow-md pointer-events-none"
-                      style={{ left: `${maxFrac * 100}%`, top: '50%', transform: 'translate(-50%, -50%)' }}
-                    />
-                  )}
-                </div>
-                {/* Scale labels */}
-                <div className="flex justify-between text-[10px] text-white/25 mb-3">
-                  <span>1 — Low Key</span>
-                  <span>10 — High Energy</span>
-                </div>
-
-                {/* Any energy toggle */}
-                <button
-                  onClick={() => {
-                    if (isAnyEnergy) { setEnergyMin(5); setEnergyMax(5) }
-                    else { setEnergyMin(1); setEnergyMax(10) }
-                  }}
-                  className={`w-full text-xs py-2 rounded-lg border transition-colors mb-4 ${isAnyEnergy ? 'border-yd-orange/60 bg-yd-orange/10 text-yd-orange' : 'border-white/15 text-white/35 hover:border-white/30 hover:text-white/60'}`}
-                >
-                  {isAnyEnergy ? '✓ Any energy (1–10) — surprise me' : 'Any energy — open to any level'}
-                </button>
-
-                {/* Continue */}
-                <button
-                  onClick={handleEnergyConfirm}
-                  className="w-full bg-yd-orange hover:bg-yd-orangeHover text-white font-bold py-3 rounded-xl transition-colors text-sm"
-                >
-                  Continue →
-                </button>
               </div>
             )}
 
