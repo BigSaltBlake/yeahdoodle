@@ -732,7 +732,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                   </div>
                   <div className="p-3">
                     <span className="font-medium font-semibold text-white text-sm leading-snug">{pick.title}</span>
-                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowrap max-w-[200px]">{pick.venue}</span>
+                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowraw max-w-[200px]">{pick.venue}</span>
                     <span className="text-xs text-white/40 block">{pick.dateFormatted} &middot; {pick.priceFormatted}</span>
                     {pick.distanceLabel && (
                       <span className="text-xs text-[#4f9b85]/80 block">📍 {pick.distanceLabel}</span>
