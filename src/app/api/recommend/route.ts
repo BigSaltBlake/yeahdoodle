@@ -47,7 +47,7 @@ function formatDate(isoDate: string | null): string {
 function formatPrice(priceMin: number | null, priceMax: number | null, isFree: boolean): string {
   if (priceMin === 0 || isFree && priceMin !== null) return 'Free'
   if (priceMin === null) return ''
-  if (priceMax && priceMax > priceMin) return `$${Math.round(priceMin)}-$${Math.round(priceMax)}`
+  if (priceMax && priceMax > priceMin) return `$${Math.round(priceMin)}–$${Math.round(priceMax)}`
   return `$${Math.round(priceMin)}`
 }
 
@@ -149,11 +149,11 @@ async function geocodeCity(query: string): Promise<{ lat: number; lng: number } 
 // Haversine distance in miles
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8
-  const phi1 = lat1 * Math.PI / 180
-  const phi2 = lat2 * Math.PI / 180
-  const dphi = (lat2 - lat1) * Math.PI / 180
-  const dlam = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dphi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlam / 2) ** 2
+  const φ1 = lat1 * Math.PI / 180
+  const φ2 = lat2 * Math.PI / 180
+  const Δφ = (lat2 - lat1) * Math.PI / 180
+  const Δλ = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
@@ -183,19 +183,18 @@ function budgetMax(answers: string[]): number | null {
 }
 
 function categoryHints(answers: string[]): string[] | null {
-  // Experience type is at index 3 (no group-size) or index 4 (with group-size)
-  const crewAns = answers[2] ?? ''
-  const hasGrp = crewAns === 'Small group' || crewAns === 'The whole squad'
-  const exp = answers[hasGrp ? 4 : 3] ?? ''
-  if (exp.includes('music') || exp.includes('show')) return ['Music', 'Arts & Culture', 'Nightlife']
-  if (exp.includes('Food') || exp.includes('drinks')) return ['Food & Drink', 'Community', 'Outdoors']
+  // Feeling target is always at index 1 in the new 5-question schema
+  const feeling = (answers[1] ?? '').toLowerCase()
+  if (feeling.includes('pumped') || feeling.includes('electric')) return ['Music', 'Nightlife', 'Sports & Outdoors']
+  if (feeling.includes('relaxed') || feeling.includes('happy'))   return ['Food & Drink', 'Community', 'Nightlife']
+  if (feeling.includes('curious') || feeling.includes('wow'))     return ['Arts & Culture', 'Community', 'Outdoors']
+  if (feeling.includes('laughing') || feeling.includes('social')) return ['Comedy', 'Community', 'Arts & Culture']
   return null
 }
 
 function getExpType(answers: string[]): string {
-  const crewAns = answers[2] ?? ''
-  const hasGrp = crewAns === 'Small group' || crewAns === 'The whole squad'
-  return answers[hasGrp ? 4 : 3] ?? ''
+  // Feeling target is always at index 1
+  return answers[1] ?? ''
 }
 
 function getDateRange(timeframe: string): { start: Date; end: Date } {
@@ -203,7 +202,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
   const today = new Date(now)
   today.setHours(0, 0, 0, 0)
 
-  // 'Now' and legacy 'Tonight' -- 18-hour rolling window
+  // 'Now' and legacy 'Tonight' — 18-hour rolling window
   if (timeframe === 'Now' || timeframe === 'Tonight') {
     const end = new Date(now.getTime() + 18 * 60 * 60 * 1000)
     return { start: now, end }
@@ -214,7 +213,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     const end   = new Date(now.getTime() + 42 * 60 * 60 * 1000)
     return { start, end }
   }
-  // 'Soon' and legacy 'This weekend' -- next Friday-Sunday
+  // 'Soon' and legacy 'This weekend' — next Friday–Sunday
   if (timeframe === 'Soon' || timeframe === 'This weekend') {
     const dow = now.getDay()
     const daysUntilFri = dow === 0 ? 6 : (5 - dow + 7) % 7 || 7
@@ -227,7 +226,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     const start = (dow === 0 || dow === 6) ? now : friday
     return { start, end: sunday }
   }
-  // 'Next Week' -- 3-14 days out
+  // 'Next Week' — 3–14 days out
   if (timeframe === 'Next Week') {
     const start = new Date(today)
     start.setDate(start.getDate() + 3)
@@ -235,7 +234,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     end.setDate(end.getDate() + 14)
     return { start, end }
   }
-  // 'Planning Ahead' -- 1-8 weeks out
+  // 'Planning Ahead' — 1–8 weeks out
   if (timeframe === 'Planning Ahead') {
     const start = new Date(today)
     start.setDate(start.getDate() + 7)
@@ -243,7 +242,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     end.setDate(end.getDate() + 60)
     return { start, end }
   }
-  // 'Planning a Trip' -- 2 weeks to 3 months out
+  // 'Planning a Trip' — 2 weeks to 3 months out
   if (timeframe === 'Planning a Trip') {
     const start = new Date(today)
     start.setDate(start.getDate() + 14)
@@ -251,7 +250,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     end.setDate(end.getDate() + 90)
     return { start, end }
   }
-  // Legacy 'Coming weeks' -- 4-week lookahead
+  // Legacy 'Coming weeks' — 4-week lookahead
   const end = new Date(today)
   end.setDate(end.getDate() + 28)
   return { start: now, end }
@@ -270,25 +269,43 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
     'upcoming'
 
   const exp = expType.toLowerCase()
-  if (exp.includes('food') || exp.includes('drink') || exp.includes('dining') || exp.includes('restaurant')) {
-    return [`restaurants dinner ${when} in ${city}`, `food events wine tasting dining ${when} near ${city}`, `best date night restaurants bars open ${city}`]
+
+  // Category-specific queries — mapped from feeling target (psychology-first survey)
+  if (exp.includes('pumped') || exp.includes('electric')) {
+    return [
+      `live music concerts ${when} in ${city}`,
+      `nightlife events parties clubs ${when} near ${city}`,
+      `best live music venues bars ${city}`,
+    ]
   }
-  if (exp.includes('music') || exp.includes('concert') || exp.includes('show')) {
-    return [`live music concerts ${when} in ${city}`, `music events shows ${when} near ${city}`, `best live music venues ${city}`]
+  if (exp.includes('relaxed') || exp.includes('happy')) {
+    return [
+      `restaurants dinner ${when} in ${city}`,
+      `food drink events wine tasting dining ${when} near ${city}`,
+      `best date night restaurants bars open ${city}`,
+    ]
   }
-  if (exp.includes('outdoor') || exp.includes('adventure') || exp.includes('active') || exp.includes('hike')) {
-    return [`outdoor activities adventures ${when} near ${city}`, `hiking trails parks ${when} ${city}`, `best outdoor activities things to do ${city}`]
+  if (exp.includes('curious') || exp.includes('wow')) {
+    return [
+      `art events galleries museums ${when} in ${city}`,
+      `unique experiences theater cultural ${when} near ${city}`,
+      `best arts culture unique things to do ${city}`,
+    ]
   }
-  if (exp.includes('art') || exp.includes('culture') || exp.includes('theater') || exp.includes('museum')) {
-    return [`art events galleries museums ${when} in ${city}`, `theater cultural events ${when} near ${city}`, `best art culture venues ${city}`]
+  if (exp.includes('laughing') || exp.includes('social')) {
+    return [
+      `comedy shows stand-up ${when} in ${city}`,
+      `comedy clubs social events activities ${when} near ${city}`,
+      `best comedy social hangout spots ${city}`,
+    ]
   }
-  if (exp.includes('comedy')) {
-    return [`comedy shows stand-up ${when} in ${city}`, `comedy clubs improv ${when} near ${city}`, `best comedy venues ${city}`]
-  }
-  if (exp.includes('sport') || exp.includes('game')) {
-    return [`sports games ${when} in ${city}`, `sporting events fitness ${when} near ${city}`, `best sports venues ${city}`]
-  }
-  return [`events ${when} in ${city}`, `date night ideas things to do ${when} near ${city}`, `best activities bars restaurants open near ${city}`]
+
+  // Default: generic event queries
+  return [
+    `events ${when} in ${city}`,
+    `date night ideas things to do ${when} near ${city}`,
+    `best activities bars restaurants open near ${city}`,
+  ]
 }
 
 // ---------------------------------------------------------------------------
@@ -312,7 +329,7 @@ const CATEGORY_FALLBACK: Record<string, string> = {
   'Food & Drink':  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=240&fit=crop',
   'Outdoors':      'https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?w=400&h=240&fit=crop',
   'Sports & Outdoors': 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=400&h=240&fit=crop',
-  'Nightlife':     'https://images.unsplash.com/photo-1566417713940-fe7c73a9ef2?w=400&h=240&fit=crop',
+  'Nightlife':     'https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=400&h=240&fit=crop',
   'Community':     'https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=400&h=240&fit=crop',
   'Comedy':        'https://images.unsplash.com/photo-1527224538127-2104bb71c51b?w=400&h=240&fit=crop',
 }
@@ -322,7 +339,7 @@ function fallbackImg(category: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Free image enrichment -- no paid API credits required
+// Free image enrichment — no paid API credits required
 // ---------------------------------------------------------------------------
 
 /** Pull og:image from a ticket/event page (Ticketmaster, Eventbrite, venue sites, etc.) */
@@ -340,7 +357,7 @@ async function fetchOgImage(url: string): Promise<string | null> {
     })
     clearTimeout(timeout)
     if (!res.ok) return null
-    // og:image is always in <head> -- c?ly parse the first chunk
+    // og:image is always in <head> — only parse the first chunk
     const html = (await res.text()).slice(0, 25000)
     const m =
       html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
@@ -372,8 +389,8 @@ async function fetchUnsplashImage(query: string, accessKey: string): Promise<str
 }
 
 /**
- * Enrich the 3 final picks with better images -- free, no Serper credits.
- * Chain: og:image from ticketUrl -> Unsplash keyword search -> keep existing fallback
+ * Enrich the 3 final picks with better images — free, no Serper credits.
+ * Chain: og:image from ticketUrl → Unsplash keyword search → keep existing fallback
  */
 async function enrichPickImages(
   picks: Array<{ title: string; venue?: string; imageUrl: string; ticketUrl?: string | null }>,
@@ -382,29 +399,29 @@ async function enrichPickImages(
 
   await Promise.all(
     picks.map(async (pick) => {
-      // Already has a real (non-fallback) image -- nothing to do
+      // Already has a real (non-fallback) image — nothing to do
       if (!pick.imageUrl.includes('unsplash.com')) return
 
-      // 1. OG image from the event's ticket/listing page -- event-specific, free
+      // 1. OG image from the event's ticket/listing page — event-specific, free
       if (pick.ticketUrl) {
         const og = await fetchOgImage(pick.ticketUrl)
         if (og) { pick.imageUrl = og; return }
       }
 
-      // 2. Unsplash keyword search -- beautiful stock photo, free tier
+      // 2. Unsplash keyword search — beautiful stock photo, free tier
       if (unsplashKey) {
         const keywords = `${pick.title} ${pick.venue ?? ''}`.replace(/[^\w\s]/g, ' ').trim()
         const img = await fetchUnsplashImage(keywords, unsplashKey)
         if (img) { pick.imageUrl = img; return }
       }
 
-      // 3. Keep existing static category fallback -- nothing to change
+      // 3. Keep existing static category fallback — nothing to change
     }),
   )
 }
 
 // ---------------------------------------------------------------------------
-// Ticketmaster Discovery API -- free live event source (5000 calls/day)
+// Ticketmaster Discovery API — free live event source (5000 calls/day)
 // ---------------------------------------------------------------------------
 function tmBestImage(images: Array<{ url: string; width: number; height: number; ratio?: string }> | undefined): string | null {
   if (!images?.length) return null
@@ -437,7 +454,7 @@ async function fetchTicketmasterLive(
   await Promise.all(
     cities.map(async ({ name: cityName, distanceLabel }) => {
       try {
-        // Geocode city -> latlong so TM can find areas like "Jackson Hole"
+        // Geocode city → latlong so TM can find areas like "Jackson Hole"
         // (TM's city DB uses "Jackson, WY" not "Jackson Hole, WY")
         const geo = await geocodeCity(cityName)
         const paramObj: Record<string, string> = {
@@ -528,7 +545,7 @@ async function fetchTicketmasterLive(
 function parseGoogleEventDate(dateStr: string | undefined): string | null {
   if (!dateStr) return null
   try {
-    const cleaned = dateStr.replace(/\s*[--]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
+    const cleaned = dateStr.replace(/\s*[–-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
     const d = new Date(cleaned)
     if (!isNaN(d.getTime())) return d.toISOString()
     const withYear = `${cleaned} ${new Date().getFullYear()}`
@@ -574,7 +591,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
           let events: unknown[] = []
 
           if (hasSerp) {
-            // SerpAPI Google Events -- returns structured events_results[]
+            // SerpAPI Google Events — returns structured events_results[]
             const url = `https://serpapi.com/search?engine=google_events&q=${encodeURIComponent(q)}&hl=en&gl=us&api_key=${serpApiKey}`
             const res = await fetch(url, { cache: 'no-store' })
             if (res.ok) {
@@ -584,7 +601,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
           }
 
           if (events.length === 0 && hasSerper) {
-            // Fallback: Serper.dev /search -- returns data.events[] when Google events panel triggers
+            // Fallback: Serper.dev /search — returns data.events[] when Google events panel triggers
             const res = await fetch('https://google.serper.dev/search', {
               method: 'POST',
               headers: { 'X-API-KEY': serperKey!, 'Content-Type': 'application/json' },
@@ -613,7 +630,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
             const isFree = price === 0 || (e.description as string ?? '').toLowerCase().includes('free')
             const dateStart = parseGoogleEventDate(date?.start_date ?? date?.when)
 
-            // Activity queries (qi >= 1) typically have no date -- mark as timeless activity
+            // Activity queries (qi >= 1) typically have no date — mark as timeless activity
             const isActivity = !dateStart && qi >= 1
 
             const thumbnail = (e.thumbnail ?? null) as string | null
@@ -669,13 +686,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'answers required' }, { status: 400 })
     }
 
-    // -- Zip code -> GPS ------------------------------------------------------
+    // ── Zip code → GPS ──────────────────────────────────────────────────────
     if (!hasGps && /^\d{5}$/.test(city.trim())) {
       const zipGeo = await geocodeZipCode(city.trim())
       if (zipGeo) { lat = zipGeo.lat; lng = zipGeo.lng; hasGps = true; city = '' }
     }
 
-    // -- City string -> GPS (forward geocode) ---------------------------------
+    // ── City string → GPS (forward geocode) ─────────────────────────────────
     if (!hasGps && city.trim()) {
       const cityGeo = await geocodeCity(city.trim())
       if (cityGeo) { lat = cityGeo.lat; lng = cityGeo.lng; hasGps = true }
@@ -687,7 +704,7 @@ export async function POST(req: NextRequest) {
     const catHints  = categoryHints(answers)
     const expType   = getExpType(answers)
 
-    // -- 1. Resolve location --------------------------------------------------
+    // ── 1. Resolve location ──────────────────────────────────────────────────
     let resolvedCity = city.trim()
     let geoDisplayName = city.trim()
     let cities: CityQuery[] = []
@@ -726,7 +743,7 @@ export async function POST(req: NextRequest) {
       cities = [{ name: resolvedCity, distanceLabel: '', isLocal: false }]
     }
 
-    // -- 2. Parallel fetches --------------------------------------------------
+    // ── 2. Parallel fetches ──────────────────────────────────────────────────
     const liveEventsPromise = cities.length > 0
       ? Promise.all([
           fetchLiveSerpEvents(cities, timeframe, expType),
@@ -743,7 +760,7 @@ export async function POST(req: NextRequest) {
         })
       : Promise.resolve([] as EventRow[])
 
-    // Place profile -- fetch in parallel, used to enrich Serper queries below
+    // Place profile — fetch in parallel, used to enrich Serper queries below
     const profilePromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
       ? getPlaceProfile(lat, lng, resolvedCity, '').catch(() => null)
       : Promise.resolve(null)
@@ -833,7 +850,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // -- 3. Merge -- live first (fresher), then DB -----------------------------
+    // ── 3. Merge — live first (fresher), then DB ─────────────────────────────
     const nowMs    = Date.now()
     const dbTitles = new Set(dbRows.map(r => r.title.toLowerCase().slice(0, 40)))
     const seenLive = new Set<string>()
@@ -842,7 +859,7 @@ export async function POST(req: NextRequest) {
       const key = e.title.toLowerCase().slice(0, 40)
       if (dbTitles.has(key) || seenLive.has(key)) return false
       // Only drop events that are clearly in the past (more than 1 hour ago)
-      // Do NOT filter future events -- SerpAPI queries are already scoped by timeframe keyword
+      // Do NOT filter future events — SerpAPI queries are already scoped by timeframe keyword
       // and local-time vs UTC mismatches would kill valid results
       if (e.date_start && e.source !== 'activity') {
         const t = new Date(e.date_start).getTime()
@@ -866,7 +883,7 @@ export async function POST(req: NextRequest) {
 
     let rows: EventRow[] = [...uniqueLive, ...dbRows, ...yelpUnique, ...profileUnique]
 
-    // Boost category-matching results to the top before AI sees them
+    // Sort to boost category matches to the top — ensures AI sees relevant candidates first
     if (catHints) {
       rows.sort((a, b) => {
         const aMatch = catHints.includes(a.category) ? 0 : 1
@@ -887,7 +904,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // -- 4. Radius expansion -- if thin results, also query regional city in DB -
+    // ── 4. Radius expansion — if thin results, also query regional city in DB ─
     if (rows.length < 5 && hasGps && isSupabaseConfigured()) {
       const regionalCity = cities.find(c => !c.isLocal)?.name
       if (regionalCity && regionalCity !== resolvedCity) {
@@ -908,7 +925,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // -- 5. Standard DB fallback for thin results -----------------------------
+    // ── 5. Standard DB fallback for thin results ─────────────────────────────
     if (rows.length < 3 && isSupabaseConfigured() && resolvedCity) {
       const { data: fallback } = await supabase
         .from('events')
@@ -923,7 +940,7 @@ export async function POST(req: NextRequest) {
       if (fallbackRows.length > rows.length) rows = [...uniqueLive, ...fallbackRows]
     }
 
-    // -- 6. Last-resort: broad SerpAPI sweep -- never return empty ------------
+    // ── 6. Last-resort: broad SerpAPI sweep — never return empty ────────────
     const serperKey = process.env.SERPER_API_KEY
     if (rows.length === 0) {
       const fallbackCity =
@@ -939,7 +956,7 @@ export async function POST(req: NextRequest) {
         if (broadEvents.length > 0) {
           rows = broadEvents
         } else if (serperKey) {
-          // 6b. Organic activities -- scenic walks, things to do, etc.
+          // 6b. Organic activities — scenic walks, things to do, etc.
           const actQuery = `best things to do near ${fallbackCity.name}`
           const actRes = await fetch('https://google.serper.dev/search', {
             method:  'POST',
@@ -980,7 +997,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ picks: [] })
     }
 
-    // -- 7. Build AI prompt ---------------------------------------------------
+    // ── 7. Build AI prompt ───────────────────────────────────────────────────
     const locationLabel = hasGps
       ? `near your location (${geoDisplayName})`
       : `in ${resolvedCity}`
@@ -1000,28 +1017,25 @@ export async function POST(req: NextRequest) {
       })
       .join('\n')
 
-    // Dynamic label map handles optional group-size question
-    const crewAns2 = answers[2] ?? ''
-    const hasGrpQ = crewAns2 === 'Small group' || crewAns2 === 'The whole squad'
-    const labelMap = hasGrpQ
-      ? ['When', 'Energy (1=Low Key, 10=High Energy)', 'Crew', 'Group size', 'Experience type', 'Scene/crowd', 'Budget']
-      : ['When', 'Energy (1=Low Key, 10=High Energy)', 'Crew', 'Experience type', 'Scene/crowd', 'Budget']
+    // Fixed label map for the 5-question psychology-first survey
+    const labelMap = ['When', 'Feeling target', 'Crew', 'Vibe killer (avoid)', 'Budget']
     const answerSummary = answers.map((a, i) => `- ${labelMap[i] ?? `Q${i + 1}`}: ${a}`).join('\n')
+    const killSwitch = answers[3] ?? ''
 
     const timeframeInstruction =
-      timeframe === 'Now'             ? 'Prefer events happening TODAY or TONIGHT -- prioritise the soonest options.' :
-      timeframe === 'Tonight'         ? 'Prefer events happening TODAY or TONIGHT -- prioritise the soonest options.' :
+      timeframe === 'Now'             ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
+      timeframe === 'Tonight'         ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
       timeframe === 'Tomorrow'        ? 'Prefer events happening TOMORROW.' :
-      timeframe === 'Soon'            ? 'Prefer events happening THIS WEEKEND (Friday-Sunday).' :
-      timeframe === 'This weekend'    ? 'Prefer events happening THIS WEEKEND (Friday-Sunday).' :
-      timeframe === 'Next Week'       ? 'Prefer events happening NEXT WEEK (3-14 days from now).' :
-      timeframe === 'Planning Ahead'  ? 'Show events across the next 2-8 weeks -- the user is calendar-planning, highlight anything worth booking early.' :
-      timeframe === 'Planning a Trip' ? 'Show a variety of events 2 weeks to 3 months out -- user is trip planning, include destination-worthy or unique experiences.' :
-      'Show a variety across the coming weeks -- the user is calendar-planning, so spread dates out and highlight anything worth booking early.'
+      timeframe === 'Soon'            ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
+      timeframe === 'This weekend'    ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
+      timeframe === 'Next Week'       ? 'Prefer events happening NEXT WEEK (3–14 days from now).' :
+      timeframe === 'Planning Ahead'  ? 'Show events across the next 2–8 weeks — the user is calendar-planning, highlight anything worth booking early.' :
+      timeframe === 'Planning a Trip' ? 'Show a variety of events 2 weeks to 3 months out — user is trip planning, include destination-worthy or unique experiences.' :
+      'Show a variety across the coming weeks — the user is calendar-planning, so spread dates out and highlight anything worth booking early.'
 
     const hasActivities = rows.some(r => r.source === 'activity')
     const activityNote  = hasActivities
-      ? " Some entries are [activity] -- timeless things to do (hiking, kayaking, tours, etc.) rather than ticketed events. Include these if they match the user's vibe."
+      ? " Some entries are [activity] — timeless things to do (hiking, kayaking, tours, etc.) rather than ticketed events. Include these if they match the user's vibe."
       : ''
 
     const prompt = `You are a local expert helping someone find their perfect outing.
@@ -1032,9 +1046,9 @@ ${answerSummary}
 Events and activities available ${locationLabel} for ${timeframe.toLowerCase()}:
 ${eventList}
 
-Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote} CRITICAL: The user selected "${expType}" as their experience preference -- at least 2 of your 3 picks MUST directly match this preference. Only deviate if the list genuinely has nothing matching. Consider energy level, group size, scene, and budget. You may add 1 pick of a different type for variety, but their stated preference takes priority.
+Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote} CRITICAL: The user wants to feel "${expType}" — at least 2 of your 3 picks MUST evoke this feeling. They specifically want to AVOID: "${killSwitch}" — do not recommend anything that triggers this dealbreaker. Only deviate from their feeling target if the list genuinely has no matching options. Consider crew size and budget constraints. You may add 1 wildcard pick for variety, but their stated feeling takes absolute priority.
 
-Return ONLY a valid JSON array -- no other text, no markdown, no explanation:
+Return ONLY a valid JSON array — no other text, no markdown, no explanation:
 [
   {"id":"<exact event ID from the list above>","rank":1,"pitch":"<one punchy sentence, max 25 words, why this is perfect for them>"},
   {"id":"<id>","rank":2,"pitch":"<...>"},
@@ -1043,7 +1057,7 @@ Return ONLY a valid JSON array -- no other text, no markdown, no explanation:
 
     const anthropicKey = process.env.ANTHROPIC_API_KEY
 
-    // -- 8. No API key: return top 3 ------------------------------------------
+    // ── 8. No API key: return top 3 ──────────────────────────────────────────
     if (!anthropicKey) {
       const top3 = rows.slice(0, 3).map((r, i) => ({
         id:             r.id,
@@ -1063,7 +1077,7 @@ Return ONLY a valid JSON array -- no other text, no markdown, no explanation:
       return NextResponse.json({ picks: top3 })
     }
 
-    // -- 9. Call Claude Haiku -------------------------------------------------
+    // ── 9. Call Claude Haiku ─────────────────────────────────────────────────
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -1130,7 +1144,7 @@ Return ONLY a valid JSON array -- no other text, no markdown, no explanation:
       return NextResponse.json({ picks: fallback })
     }
 
-    // Enrich images for the 3 AI-selected picks (free: OG tag -> Unsplash -> fallback)
+    // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
     await enrichPickImages(picks)
 
     return NextResponse.json({ picks })
