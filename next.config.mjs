@@ -1,5 +1,3 @@
-import { withSentryConfig } from '@sentry/nextjs'
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: { ignoreBuildErrors: true },
@@ -13,12 +11,7 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.seatgeek.com' },
     ],
   },
+
 }
 
-export default withSentryConfig(nextConfig, {
-  silent: !process.env.CI,
-  widenClientFileUpload: true,
-  hideSourceMaps: true,
-  disableLogger: true,
-  automaticVercelMonitors: true,
-})
+export default nextConfig
