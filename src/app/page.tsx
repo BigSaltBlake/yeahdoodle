@@ -1,205 +1,108 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { getProfile, trackCitySearch } from '@/lib/history'
+import { useState } from 'react'
 import MoodSurvey from '@/components/MoodSurvey'
-import NowMode from '@/components/NowMode'
-
-const POPULAR_CITIES = ['Austin', 'Nashville', 'Denver', 'Chicago', 'New Orleans', 'Portland', 'Miami', 'Seattle']
 
 export default function HomePage() {
-  const router = useRouter()
-  const [city, setCity] = useState('')
-  const [recentCities, setRecentCities] = useState<string[]>([])
   const [surveyOpen, setSurveyOpen] = useState(false)
-  const [surveyCity, setSurveyCity] = useState('')
-  const [locating, setLocating] = useState(false)
-  const [nowOpen, setNowOpen] = useState(false)
-
-  async function handleLocate() {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return
-    setLocating(true)
-    try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
-      )
-      const { latitude, longitude } = pos.coords
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-        { headers: { 'User-Agent': 'YeahDoodle/1.0' } }
-      )
-      const data = await res.json()
-      const detected =
-        data.address?.city ||
-        data.address?.town ||
-        data.address?.village ||
-        data.address?.county ||
-        ''
-      if (detected) {
-        trackCitySearch(detected)
-        router.push(`/discover?city=${encodeURIComponent(detected)}`)
-      }
-    } catch {
-      // User denied or timed out — silently fall back
-    } finally {
-      setLocating(false)
-    }
-  }
-
-  useEffect(() => {
-    const profile = getProfile()
-    setRecentCities(profile.cityHistory.slice(0, 4))
-  }, [])
-
-  function handleSearch(e?: React.FormEvent) {
-    e?.preventDefault()
-    const c = city.trim()
-    if (!c) return
-    trackCitySearch(c)
-    router.push(`/discover?city=${encodeURIComponent(c)}`)
-  }
-
-  function handleCityClick(c: string) {
-    trackCitySearch(c)
-    router.push(`/discover?city=${encodeURIComponent(c)}`)
-  }
-
-  function openSurvey(prefillCity?: string) {
-    setSurveyCity(prefillCity ?? city.trim())
-    setSurveyOpen(true)
-  }
-
-  const suggestedCities = recentCities.length > 0
-    ? recentCities
-    : POPULAR_CITIES.slice(0, 5)
 
   return (
     <>
       <MoodSurvey
         open={surveyOpen}
         onClose={() => setSurveyOpen(false)}
-        initialCity={surveyCity}
-      />
-      <NowMode
-        open={nowOpen}
-        onClose={() => setNowOpen(false)}
       />
 
       {/* ── Hero ── */}
-      <section className="relative bg-yd-orange overflow-hidden">
-        <div className="absolute inset-0 dot-pattern opacity-40 pointer-events-none" />
-        <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-white/5 pointer-events-none" />
-        <div className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full bg-black/10 pointer-events-none" />
+      <section className="relative min-h-screen flex items-center justify-center bg-yd-bg overflow-hidden">
+        {/* Layered background atmosphere */}
+        <div className="absolute inset-0 bg-gradient-to-br from-yd-orange/15 via-transparent to-yd-navy/50 pointer-events-none" />
+        <div className="absolute inset-0 dot-pattern opacity-15 pointer-events-none" />
+        {/* Warm radial glow behind content */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full bg-yd-orange/6 blur-[120px] pointer-events-none" />
+        {/* Accent orbs */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full bg-white/[0.018] -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-yd-orange/5 translate-y-1/3 -translate-x-1/4 pointer-events-none" />
 
-        <div className="relative max-w-3xl mx-auto px-4 py-16 sm:py-24 text-center">
-          <div className="inline-block bg-white/15 text-white text-xs font-semibold px-3 py-1.5 rounded-full mb-5 backdrop-blur-sm tracking-wide uppercase">
+        <div className="relative max-w-2xl mx-auto px-4 text-center">
+
+          {/* Pulse badge */}
+          <div className="inline-flex items-center gap-2 bg-yd-orange/12 text-yd-orange text-xs font-semibold px-4 py-2 rounded-full mb-8 tracking-widest uppercase border border-yd-orange/25 backdrop-blur-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-yd-orange animate-pulse shrink-0" />
             Stop scrolling. Go live.
           </div>
 
-          <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl text-white leading-none mb-4">
-            Life&apos;s happening<br />out there. Live it!
+          {/* Headline */}
+          <h1 className="font-display text-6xl sm:text-7xl lg:text-8xl text-white leading-[0.92] mb-6 tracking-tight">
+            What&apos;s the<br />
+            <span className="text-yd-orange">move</span> tonight?
           </h1>
 
-          <p className="text-white/80 text-lg sm:text-xl mb-8 max-w-xl mx-auto leading-relaxed">
-            Find amazing things happening near you &mdash; right now, or whenever.
+          {/* Subhead */}
+          <p className="text-white/50 text-xl sm:text-2xl mb-10 max-w-xs mx-auto leading-relaxed font-light">
+            2 questions. Your 3 best picks. Near you, right now.
           </p>
 
-          {/* CTA row */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
-            <button
-              onClick={() => openSurvey()}
-              className="inline-flex items-center gap-2 bg-yd-bg hover:bg-yd-navy text-white font-bold px-8 py-4 rounded-xl text-base transition-colors shadow-lg"
-            >
-              YeahDoodle! Let&apos;s see what&apos;s out there &rarr;
-            </button>
-            <button
-              onClick={() => setNowOpen(true)}
-              className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold px-6 py-4 rounded-xl text-base transition-colors shadow-lg backdrop-blur-sm border border-white/20"
-            >
-              ⚡ {"What's Happening NOW →"}
-            </button>
-          </div>
+          {/* Single CTA */}
+          <button
+            onClick={() => setSurveyOpen(true)}
+            className="group inline-flex items-center gap-3 bg-yd-orange hover:bg-yd-orangeHover text-white font-bold px-10 py-5 rounded-2xl text-lg transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
+            style={{ boxShadow: '0 0 50px rgba(255, 100, 0, 0.28)' }}
+          >
+            YeahDoodle! Let&apos;s go
+            <span className="group-hover:translate-x-1.5 transition-transform duration-200 text-xl">→</span>
+          </button>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 max-w-xs mx-auto mb-6">
-            <div className="flex-1 h-px bg-white/20" />
-            <span className="text-white/40 text-xs font-medium">or search by city or zip code</span>
-            <div className="flex-1 h-px bg-white/20" />
-          </div>
+          {/* Reassurance */}
+          <p className="text-white/20 text-sm mt-6 tracking-wide">
+            📍 Auto-detects your location
+          </p>
+        </div>
 
-          {/* City search */}
-          <form onSubmit={handleSearch} className="flex gap-2 max-w-xl mx-auto">
-            <div className="flex-1 relative">
-              <button
-                type="button"
-                onClick={handleLocate}
-                disabled={locating}
-                title="Use my location"
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-yd-orange hover:text-yd-orangeHover disabled:opacity-50 transition-colors px-1"
-              >
-                {locating ? '⏳' : '📍'}
-              </button>
-              <input
-                value={city}
-                onChange={e => setCity(e.target.value)}
-                placeholder={locating ? 'Detecting your location...' : 'Enter a city or zip code...'}
-                className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-white text-yd-navy placeholder-yd-navy/40 font-medium text-base focus:outline-none focus:ring-2 focus:ring-white/50"
-              />
-            </div>
-            <button
-              type="submit"
-              className="bg-white/20 hover:bg-white/30 text-white px-5 py-3.5 rounded-xl font-semibold text-sm transition-colors shrink-0 backdrop-blur-sm border border-white/20"
-            >
-              Search
-            </button>
-          </form>
+        {/* Scroll nudge */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 select-none pointer-events-none">
+          <div className="w-px h-8 bg-gradient-to-b from-white/0 to-white/25" />
+          <div className="w-1 h-1 rounded-full bg-white/25" />
+        </div>
+      </section>
 
-          {/* City chips */}
-          <div className="flex flex-wrap justify-center gap-2 mt-4">
-            <span className="text-white/50 text-xs self-center">
-              {recentCities.length > 0 ? 'Recent:' : 'Popular:'}
-            </span>
-            {suggestedCities.map(c => (
-              <button
-                key={c}
-                onClick={() => handleCityClick(c)}
-                className="bg-white/15 hover:bg-white/25 text-white text-xs px-3 py-1.5 rounded-full transition-colors border border-white/20 backdrop-blur-sm"
-              >
-                {c}
-              </button>
+      {/* ── How it works ── */}
+      <section className="bg-yd-navy py-16">
+        <div className="max-w-4xl mx-auto px-4">
+          <h2 className="font-display text-2xl text-white text-center mb-10">How it works</h2>
+          <div className="grid sm:grid-cols-3 gap-8">
+            {[
+              {
+                step: '01',
+                title: '2 quick questions',
+                body: 'How do you want to feel? What would kill the vibe? Takes 10 seconds — we handle the rest.',
+              },
+              {
+                step: '02',
+                title: 'AI finds your top 3',
+                body: 'We scan local events and surface the 3 that actually match where you\'re at right now.',
+              },
+              {
+                step: '03',
+                title: 'Put the phone down.',
+                body: 'Get the venue, time, and ticket link. Then go do the thing.',
+              },
+            ].map(item => (
+              <div key={item.step} className="flex gap-4">
+                <span className="font-display text-4xl text-yd-orange/30 leading-none shrink-0 select-none">{item.step}</span>
+                <div>
+                  <h4 className="font-semibold text-white mb-1.5">{item.title}</h4>
+                  <p className="text-sm text-white/45 leading-relaxed">{item.body}</p>
+                </div>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── AI Survey Feature Card ── */}
-      <section className="max-w-7xl mx-auto px-4 pt-14 pb-6">
-        <div className="relative bg-gradient-to-br from-yd-card to-yd-bg rounded-2xl p-8 sm:p-10 flex flex-col sm:flex-row items-center justify-between gap-6 overflow-hidden border border-white/5">
-          <div className="absolute inset-0 bg-gradient-to-br from-yd-orange/8 to-transparent pointer-events-none" />
-          <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-yd-orange/5 -translate-y-8 translate-x-8 pointer-events-none" />
-          <div className="relative text-center sm:text-left">
-            <div className="inline-flex items-center gap-2 bg-yd-orange/20 text-yd-orange text-xs font-semibold px-3 py-1 rounded-full mb-3">
-              ✨ AI-powered
-            </div>
-            <h3 className="font-display text-2xl text-white mb-2">Stop wondering. Start doing.</h3>
-            <p className="text-white/50 text-sm max-w-sm leading-relaxed">
-              Tell us your energy, who you&apos;re with, and what sounds fun &mdash; we&apos;ll find the 3 things
-              actually worth doing near you, right now or whenever.
-            </p>
-          </div>
-          <button
-            onClick={() => openSurvey()}
-            className="relative shrink-0 bg-yd-yellow hover:bg-yd-yellowHover text-yd-bg font-bold px-7 py-4 rounded-xl transition-colors text-sm whitespace-nowrap"
-          >
-            YeahDoodle! Let&apos;s go &rarr;
-          </button>
-        </div>
-      </section>
-
-      {/* ── What you'll find ── */}
-      <section className="max-w-7xl mx-auto px-4 py-8">
-        <h2 className="font-display text-2xl text-white text-center mb-8">{"What's waiting for you"}</h2>
+      {/* ── What you\'ll find ── */}
+      <section className="max-w-5xl mx-auto px-4 py-14">
+        <h2 className="font-display text-2xl text-white text-center mb-8">What&apos;s waiting for you</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { icon: '🎸', label: 'Live music you can feel in your chest' },
@@ -209,47 +112,13 @@ export default function HomePage() {
           ].map(v => (
             <button
               key={v.label}
-              onClick={() => openSurvey()}
-              className="bg-yd-card border border-white/5 rounded-xl p-5 text-center hover:border-yd-orange/30 transition-colors group cursor-pointer"
+              onClick={() => setSurveyOpen(true)}
+              className="bg-yd-card border border-white/5 rounded-xl p-5 text-center hover:border-yd-orange/30 transition-all group cursor-pointer"
             >
               <div className="text-3xl mb-3">{v.icon}</div>
-              <p className="text-sm text-white/60 group-hover:text-white/80 transition-colors leading-snug">{v.label}</p>
+              <p className="text-sm text-white/55 group-hover:text-white/80 transition-colors leading-snug">{v.label}</p>
             </button>
           ))}
-        </div>
-      </section>
-
-      {/* ── How it works ── */}
-      <section className="bg-yd-navy py-14">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="font-display text-2xl text-white text-center mb-10">How YeahDoodle works</h2>
-          <div className="grid sm:grid-cols-3 gap-6">
-            {[
-              {
-                step: '01',
-                title: 'Take the 5-question survey',
-                body: "Tell us your energy, who you're with, and what sounds fun. Takes 30 seconds.",
-              },
-              {
-                step: '02',
-                title: 'AI picks your top 3',
-                body: "We scan thousands of local events and find the 3 that actually fit your vibe tonight.",
-              },
-              {
-                step: '03',
-                title: 'Stop scrolling. Go live.',
-                body: 'Get the venue, time, and ticket link — then put the phone down and go do the thing.',
-              },
-            ].map(item => (
-              <div key={item.step} className="flex gap-4">
-                <span className="font-display text-4xl text-yd-orange/30 leading-none shrink-0">{item.step}</span>
-                <div>
-                  <h4 className="font-semibold text-white mb-1">{item.title}</h4>
-                  <p className="text-sm text-white/50 leading-relaxed">{item.body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
     </>
