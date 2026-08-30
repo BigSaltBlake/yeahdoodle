@@ -112,6 +112,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [filterCrew, setFilterCrew]     = useState<string>('')
   const [filterWhen, setFilterWhen]     = useState<string>('')
   const [openFilter, setOpenFilter]     = useState<'when' | 'budget' | 'crew' | null>(null)
+  const [refineStep, setRefineStep]     = useState<'when' | 'crew' | 'done' | null>(null)
   const cancelGps = useRef(false)
 
   // ---------------------------------------------------------------------------
@@ -206,6 +207,15 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
       setLoadingMsg(i => (i + 1) % LOADING_MESSAGES.length)
     }, 900)
     return () => clearInterval(interval)
+  }, [phase])
+
+  // Trigger conversational refinement steps after results load
+  useEffect(() => {
+    if (phase !== 'results') return
+    setRefineStep(null)
+    const t = setTimeout(() => setRefineStep('when'), 400)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
 
   // ---------------------------------------------------------------------------
@@ -369,6 +379,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     setFilterCrew('')
     setFilterWhen('')
     setOpenFilter(null)
+    setRefineStep(null)
     setPhase('question')
   }
 
@@ -590,7 +601,63 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </p>
             </div>
 
-            {/* ── Filters ─────────────────────────────────────────────────── */}
+            {/* ── Conversational refinement → chips after done ───────────── */}
+
+            {/* Step 1: When */}
+            {refineStep === 'when' && (
+              <div className="mb-3">
+                <p className="text-white/40 text-xs mb-2">📅 When are you thinking?</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Right now', 'This weekend', 'Next week', 'No rush'].map(label => {
+                    const val = label === 'Right now' ? 'Now' : label === 'No rush' ? '' : label
+                    return (
+                      <button
+                        key={label}
+                        onClick={() => {
+                          setFilterWhen(val)
+                          if (val) doSubmit(answers, { when: val, budget: filterBudget, crew: filterCrew })
+                          setRefineStep('crew')
+                        }}
+                        className="px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 text-white/70 hover:border-yd-orange/60 hover:bg-yd-orange/10 hover:text-white transition-all"
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Crew */}
+            {refineStep === 'crew' && (
+              <div className="mb-3">
+                <p className="text-white/40 text-xs mb-2">👥 Who&apos;s going?</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Just me', 'Date night', 'Small group', 'The whole squad'].map(o => (
+                    <button
+                      key={o}
+                      onClick={() => {
+                        setFilterCrew(o)
+                        doSubmit(answers, { crew: o, when: filterWhen, budget: filterBudget })
+                        setRefineStep('done')
+                      }}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 text-white/70 hover:border-yd-orange/60 hover:bg-yd-orange/10 hover:text-white transition-all"
+                    >
+                      {o}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setRefineStep('done')}
+                    className="px-3 py-1.5 rounded-full text-xs border border-white/10 text-white/30 hover:text-white/50 transition-colors"
+                  >
+                    Skip
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Chips — shown after refinement done, or for further tweaking */}
+            {refineStep === 'done' && (
             <div className="flex flex-wrap gap-1.5 mb-3" onClick={() => setOpenFilter(null)}>
               {/* When */}
               <div className="relative" onClick={e => e.stopPropagation()}>
@@ -668,6 +735,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                 )}
               </div>
             </div>
+            )}
 
             {/* Saved count + sign-in nudge */}
             {Object.keys(saved).length > 0 && (
