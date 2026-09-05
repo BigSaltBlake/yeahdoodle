@@ -40,7 +40,7 @@ export default function HomePage() {
 
           {/* Subhead */}
           <p className="text-white/50 text-xl sm:text-2xl mb-10 max-w-sm mx-auto leading-relaxed font-light">
-            Want to find 3 options for things to do near you right now?
+            Three perfect picks near you, right now.
           </p>
 
           {/* Single CTA */}
