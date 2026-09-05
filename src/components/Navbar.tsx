@@ -20,51 +20,109 @@ export default function Navbar() {
     wipeHistory()
     setWiped(true)
     setShowConfirm(false)
-    setTimeout(() => { setWiped(false); router.push('/'); router.refresh() }, 1200)
+    setTimeout(() => {
+      setWiped(false)
+      router.push('/')
+      router.refresh()
+    }, 1200)
   }
 
   const navLink = (href: string, label: string) => (
-    <Link href={href} className={`text-sm font-medium transition-colors hover:text-white ${pathname === href ? 'text-white' : 'text-white/50'}`}>{label}</Link>
+    <Link
+      href={href}
+      className={`text-sm font-medium transition-colors hover:text-white ${
+        pathname === href ? 'text-white' : 'text-white/50'
+      }`}
+    >
+      {label}
+    </Link>
   )
 
   return (
     <>
       <nav className="sticky top-0 z-40 bg-yd-bg/95 backdrop-blur border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-          <Link href="/" className="font-display text-xl text-yd-orange tracking-wide shrink-0">YeahDoodle</Link>
+          {/* Logo */}
+          <Link href="/" className="flex flex-col leading-tight shrink-0">
+            <span className="font-display text-xl text-yd-orange tracking-wide">YeahDoodle</span>
+            <span className="text-[11px] text-white/55 tracking-wide font-light">
+              = Go Live. <em>Go Live.</em>
+            </span>
+          </Link>
+
+          {/* Nav links */}
           <div className="hidden sm:flex items-center gap-6">
             {navLink('/', 'Home')}
             {navLink('/discover', 'Discover')}
             {navLink('/saved', 'Saved')}
           </div>
+
+          {/* Right side actions */}
           <div className="flex items-center gap-2">
+            {/* Fresh Slate */}
             {wiped ? (
-              <span className="text-xs text-yd-yellow font-medium px-3 py-1.5">✓ Clean slate!</span>
+              <span className="text-xs text-yd-yellow font-medium px-3 py-1.5">
+                ✓ Clean slate!
+              </span>
             ) : showConfirm ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-white/60">Wipe everything?</span>
-                <button onClick={handleFreshSlate} className="text-xs bg-red-500/80 hover:bg-red-500 text-white px-3 py-1.5 rounded-lg transition-colors font-medium">Yes, reset</button>
-                <button onClick={() => setShowConfirm(false)} className="text-xs text-white/50 hover:text-white px-2 py-1.5 transition-colors">Cancel</button>
+                <button
+                  onClick={handleFreshSlate}
+                  className="text-xs bg-red-500/80 hover:bg-red-500 text-white px-3 py-1.5 rounded-lg transition-colors font-medium"
+                >
+                  Yes, reset
+                </button>
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  className="text-xs text-white/50 hover:text-white px-2 py-1.5 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             ) : (
-              <button onClick={handleFreshSlate} title="Wipe your history and start fresh" className="text-xs text-white/40 hover:text-white/70 transition-colors px-2 py-1.5 rounded-lg hover:bg-white/5">🧹 Fresh Slate</button>
+              <button
+                onClick={handleFreshSlate}
+                title="Wipe your history and start fresh"
+                className="text-xs text-white/40 hover:text-white/70 transition-colors px-2 py-1.5 rounded-lg hover:bg-white/5"
+              >
+                🧹 Fresh Slate
+              </button>
             )}
+
+            {/* Auth */}
             {user ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-white/40 hidden md:block truncate max-w-[120px]">{user.email}</span>
-                <button onClick={signOut} className="text-xs text-white/50 hover:text-white border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-lg transition-colors">Sign out</button>
+                <span className="text-xs text-white/40 hidden md:block truncate max-w-[120px]">
+                  {user.email}
+                </span>
+                <button
+                  onClick={signOut}
+                  className="text-xs text-white/50 hover:text-white border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Sign out
+                </button>
               </div>
             ) : (
-              <button onClick={() => setShowAuthModal(true)} className="text-sm font-semibold bg-yd-orange hover:bg-yd-orangeHover text-white px-4 py-1.5 rounded-lg transition-colors">Sign in</button>
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="text-sm font-semibold bg-yd-orange hover:bg-yd-orangeHover text-white px-4 py-1.5 rounded-lg transition-colors"
+              >
+                Sign in
+              </button>
             )}
           </div>
         </div>
       </nav>
+
+      {/* Mobile nav */}
       <div className="sm:hidden flex items-center gap-6 px-4 py-2 bg-yd-navy border-b border-white/5">
         {navLink('/', 'Home')}
         {navLink('/discover', 'Discover')}
         {navLink('/saved', 'Saved')}
       </div>
+
+      {/* Auth modal */}
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
     </>
   )
