@@ -34,13 +34,13 @@ export default function HomePage() {
 
           {/* Headline */}
           <h1 className="font-display text-6xl sm:text-7xl lg:text-8xl text-white leading-[0.92] mb-6 tracking-tight">
-            What&apos;s the<br />
-            <span className="text-yd-orange">move</span> tonight?
+            Life&apos;s Happening<br />
+            <span className="text-yd-orange">Out There.</span> Live It!
           </h1>
 
           {/* Subhead */}
-          <p className="text-white/50 text-xl sm:text-2xl mb-10 max-w-xs mx-auto leading-relaxed font-light">
-            2 questions. Your 3 best picks. Near you, right now.
+          <p className="text-white/50 text-xl sm:text-2xl mb-10 max-w-sm mx-auto leading-relaxed font-light">
+            Want to find 3 options for things to do near you right now?
           </p>
 
           {/* Single CTA */}
@@ -49,7 +49,7 @@ export default function HomePage() {
             className="group inline-flex items-center gap-3 bg-yd-orange hover:bg-yd-orangeHover text-white font-bold px-10 py-5 rounded-2xl text-lg transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
             style={{ boxShadow: '0 0 50px rgba(255, 100, 0, 0.28)' }}
           >
-            YeahDoodle! Let&apos;s go
+            Yeah Doodle!
             <span className="group-hover:translate-x-1.5 transition-transform duration-200 text-xl">→</span>
           </button>
 
