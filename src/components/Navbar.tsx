@@ -43,11 +43,9 @@ export default function Navbar() {
       <nav className="sticky top-0 z-40 bg-yd-bg/95 backdrop-blur border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           {/* Logo */}
-          <Link href="/" className="flex flex-col leading-tight shrink-0">
-            <span className="font-display text-xl text-yd-orange tracking-wide">YeahDoodle</span>
-            <span className="text-[11px] text-white/55 tracking-wide font-light">
-              = Go Live. <em>Go Live.</em>
-            </span>
+          <Link href="/" className="font-display text-xl tracking-wide shrink-0 flex items-baseline gap-2">
+            <span className="text-yd-orange">YeahDoodle</span>
+            <span className="text-white/55 font-light">Go Live. <em>Go Live.</em></span>
           </Link>
 
           {/* Nav links */}
