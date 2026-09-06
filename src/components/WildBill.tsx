@@ -115,7 +115,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
   const messagesEndRef  = useRef<HTMLDivElement>(null)
   const inputRef        = useRef<HTMLInputElement>(null)
   const abortRef        = useRef<AbortController | null>(null)
-  const introPlayedRef  = useRef(false)
+  const catchphraseCooldownRef = useRef(false)
 
   // Real recorded voice files mapped to intensity level
   const CATCHPHRASE_FILES: Record<Intensity, string> = {
@@ -132,10 +132,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
         setIntensity(Number(saved) as Intensity)
       }
     } catch { /* ignore */ }
-    // Show badge after a delay if intro hasn't been played yet
-    if (!sessionStorage.getItem('wb_intro')) {
-      setTimeout(() => setShowBadge(true), 2500)
-    }
+    setTimeout(() => setShowBadge(true), 2500)
   }, [])
 
   const saveIntensity = (level: Intensity) => {
@@ -143,12 +140,13 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     try { localStorage.setItem('wb_intensity', String(level)) } catch { /* ignore */ }
   }
 
-  // Play catchphrase — called on first avatar click (requires user gesture for autoplay)
-  const playIntro = (currentIntensity: Intensity) => {
-    if (introPlayedRef.current || sessionStorage.getItem('wb_intro')) return
-    introPlayedRef.current = true
-    sessionStorage.setItem('wb_intro', '1')
-    setShowBadge(false)
+  // Play "Yeah Doodle!" catchphrase — triggered by CTA button hover
+  // 3-second cooldown prevents audio spam on rapid hover
+  const playCatchphrase = useCallback((currentIntensity: Intensity) => {
+    if (catchphraseCooldownRef.current) return
+    catchphraseCooldownRef.current = true
+    setTimeout(() => { catchphraseCooldownRef.current = false }, 3000)
+
     setShowTagline(true)
     setBillSpeaking(true)
 
@@ -158,9 +156,16 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       setTimeout(() => setShowTagline(false), 1500)
     }
     audio.onended = onFinish
-    audio.onerror = onFinish  // silently end — no TTS fallback for catchphrase
+    audio.onerror = onFinish
     audio.play().catch(onFinish)
-  }
+  }, [CATCHPHRASE_FILES])
+
+  // Listen for CTA button event from homepage
+  useEffect(() => {
+    const handler = () => playCatchphrase(intensity)
+    window.addEventListener('wb-yeahdoodle', handler)
+    return () => window.removeEventListener('wb-yeahdoodle', handler)
+  }, [intensity, playCatchphrase])
 
   // Scroll to bottom when messages update
   useEffect(() => {
@@ -267,7 +272,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
 
       {/* Floating trigger button */}
       <button
-        onClick={() => { playIntro(intensity); setOpen(o => !o) }}
+        onClick={() => setOpen(o => !o)}
         aria-label="Chat with Wild Bill"
         className="fixed bottom-6 right-6 z-50 group"
       >
