@@ -1002,7 +1002,65 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── 7a. Knowledge fallback — no DB results, ask Claude from memory ─────────
     if (rows.length === 0) {
+      const anthropicKeyKb = process.env.ANTHROPIC_API_KEY
+      if (!anthropicKeyKb) return NextResponse.json({ picks: [] })
+
+      const locationKb = hasGps ? geoDisplayName : city
+      const kbAnswerSummary = [
+        answers[0] ? `- What they want to feel: ${answers[0]}` : '',
+        answers[1] ? `- What to avoid: ${answers[1]}`          : '',
+        filters.crew   ? `- Who they're with: ${filters.crew}` : '',
+        filters.budget ? `- Budget: ${filters.budget}`         : '',
+        filters.when   ? `- Timing: ${filters.when}`           : '',
+      ].filter(Boolean).join('\n')
+
+      const kbPrompt = `You are an expert local guide helping someone find the perfect thing to do tonight in ${locationKb || 'their city'}.
+
+Their profile:
+${kbAnswerSummary}
+
+No live event data is available right now. Draw on your deep knowledge of ${locationKb || 'this city'} to suggest 3 genuinely specific, actionable things this person should do tonight. Think like a trusted local friend who knows this city and this person.
+
+Requirements:
+- Real, specific venues or activity types with enough detail to actually go do them
+- Each pick must scratch the itch: "${answers[0] ?? 'a memorable evening'}"
+- Nothing that triggers: "${answers[1] || 'none stated'}"
+- Pitches make not going feel like a missed opportunity — write to close, not to describe. First-person energy, present tense. Max 30 words.
+
+Return ONLY a valid JSON array:
+[
+  {"id":"kb_1","rank":1,"title":"<specific activity or venue>","venue":"<venue name or neighborhood>","date":"Tonight","price":"<rough cost or Free>","category":"<music|food|art|sports|outdoor|general>","pitch":"<urgent, personal, makes them want to go tonight>"},
+  {"id":"kb_2","rank":2,"title":"...","venue":"...","date":"Tonight","price":"...","category":"...","pitch":"..."},
+  {"id":"kb_3","rank":3,"title":"...","venue":"...","date":"Tonight","price":"...","category":"...","pitch":"..."}
+]`
+
+      try {
+        const kbRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'x-api-key': anthropicKeyKb, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 700, messages: [{ role: 'user', content: kbPrompt }] }),
+        })
+        if (kbRes.ok) {
+          const kbData = await kbRes.json()
+          const kbText: string = kbData.content?.[0]?.text ?? '[]'
+          const kbMatch = kbText.match(/\[\s\S]*\]/)
+          if (kbMatch) {
+            type KbPick = { id: string; rank: number; title: string; venue: string; date: string; price: string; category: string; pitch: string }
+            const kbPicks = JSON.parse(kbMatch[0]) as KbPick[]
+            const picks = kbPicks.slice(0, 3).map(p => ({
+              id: p.id, rank: p.rank, pitch: p.pitch,
+              title: p.title, venue: p.venue,
+              dateFormatted: p.date, priceFormatted: p.price,
+              ticketUrl: null, imageUrl: fallbackImg(p.category),
+              category: p.category, source: 'knowledge', distanceLabel: undefined,
+            }))
+            return NextResponse.json({ picks })
+          }
+        }
+      } catch { /* fall through */ }
+
       return NextResponse.json({ picks: [] })
     }
 
@@ -1053,21 +1111,28 @@ export async function POST(req: NextRequest) {
       ? " Some entries are [activity] — timeless things to do (hiking, kayaking, tours, etc.) rather than ticketed events. Include these if they match the user's vibe."
       : ''
 
-    const prompt = `You are a local expert helping someone find their perfect outing.
+    const prompt = `You are YeahDoodle's sharpest scout. Your ONLY job is to get this specific person off the couch and out the door tonight. You are NOT writing event descriptions. You are writing the case for why they should go, right now.
 
-User preferences:
+Tonight's profile:
 ${answerSummary}
 
-Events and activities available ${locationLabel} for ${timeframe.toLowerCase()}:
+What's available ${locationLabel}:
 ${eventList}
 
-Pick the 3 BEST events or activities that match this person's vibe. ${timeframeInstruction}${activityNote} CRITICAL: The user wants to feel "${expType}" — at least 2 of your 3 picks MUST evoke this feeling. They specifically want to AVOID: "${killSwitch}" — do not recommend anything that triggers this dealbreaker. Only deviate from their feeling target if the list genuinely has no matching options. Consider crew size and budget constraints. You may add 1 wildcard pick for variety, but their stated feeling takes absolute priority.
+Your mission: Pick the 3 options most likely to make this person put down their phone and actually go.
 
-Return ONLY a valid JSON array — no other text, no markdown, no explanation:
+Follow every rule:
+1. SCRATCH THE ITCH — They want to feel "${expType}". Picks must deliver that specific feeling, not a watered-down version.
+2. KILL THE DEALBREAKER — They want to avoid "${killSwitch}". Any pick that even hints at this is disqualified, no exceptions.
+3. ${timeframeInstruction}
+4. WRITE TO CLOSE — Each pitch is a reason to go, not a description. Write like a trusted friend: urgent, specific, personal. "This is the room where..." not "This event features..." Make not going feel like a mistake. Max 30 words. No filler.
+5. MIX IT UP — 2 picks that directly match their itch + 1 that surprises them in a way they'll thank you for.${activityNote}
+
+Return ONLY a valid JSON array — no markdown, no explanation:
 [
-  {"id":"<exact event ID from the list above>","rank":1,"pitch":"<one punchy sentence, max 25 words, why this is perfect for them>"},
-  {"id":"<id>","rank":2,"pitch":"<...>"},
-  {"id":"<id>","rank":3,"pitch":"<...>"}
+  {"id":"<exact ID from list above>","rank":1,"pitch":"<urgent, personal, makes them want to go tonight>"},
+  {"id":"<exact ID>","rank":2,"pitch":"<...>"},
+  {"id":"<exact ID>","rank":3,"pitch":"<...>"}
 ]`
 
     const anthropicKey = process.env.ANTHROPIC_API_KEY
@@ -1077,7 +1142,7 @@ Return ONLY a valid JSON array — no other text, no markdown, no explanation:
       const top3 = rows.slice(0, 3).map((r, i) => ({
         id:             r.id,
         rank:           i + 1,
-        pitch:          r.ai_description?.slice(0, 120) ?? r.description?.slice(0, 120) ?? 'A great local experience.',
+        pitch:          r.ai_description?.slice(0, 120) ?? r.description?.slice(0, 120) ?? 'A local favorite worth checking out tonight.',
         title:          r.title,
         venue:          r.venue_name ?? '',
         dateFormatted:  r.date_start ? formatDate(r.date_start) : 'Anytime',
