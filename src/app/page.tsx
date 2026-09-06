@@ -46,6 +46,7 @@ export default function HomePage() {
           {/* Single CTA */}
           <button
             onClick={() => setSurveyOpen(true)}
+            onMouseEnter={() => window.dispatchEvent(new CustomEvent('wb-yeahdoodle'))}
             className="group inline-flex items-center gap-3 bg-yd-orange hover:bg-yd-orangeHover text-white font-bold px-10 py-5 rounded-2xl text-lg transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
             style={{ boxShadow: '0 0 50px rgba(255, 100, 0, 0.28)' }}
           >
