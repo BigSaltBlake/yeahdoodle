@@ -2,9 +2,21 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
+interface RecommendPick {
+  title: string
+  venue: string
+  date: string
+  price: string
+  ticketUrl: string | null
+  imageUrl: string | null
+  pitch: string
+}
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  picks?: RecommendPick[]
+  fetchingPicks?: boolean
 }
 
 interface WildBillProps {
@@ -237,7 +249,51 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       }
     } finally {
       setStreaming(false)
-      if (fullText) {
+
+      // Check for FETCH_PICKS marker
+      const markerMatch = fullText.match(/\[FETCH_PICKS:(\{[\s\S]*?\})\]\s*$/)
+      const cleanText = fullText.replace(/\[FETCH_PICKS:\{[\s\S]*?\}\]\s*$/, '').trim()
+
+      if (markerMatch) {
+        setMessages(prev => {
+          const updated = [...prev]
+          updated[updated.length - 1] = { role: 'assistant', content: cleanText, fetchingPicks: true }
+          return updated
+        })
+
+        try {
+          const params = JSON.parse(markerMatch[1])
+          const recRes = await fetch('/api/recommend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+          })
+          const data = await recRes.json()
+          const picks: RecommendPick[] = (data.picks ?? []).map((p: Record<string, unknown>) => ({
+            title:     String(p.title ?? ''),
+            venue:     String(p.venue ?? ''),
+            date:      String(p.date ?? ''),
+            price:     String(p.price ?? ''),
+            ticketUrl: (p.ticketUrl ?? p.ticket_url ?? null) as string | null,
+            imageUrl:  (p.imageUrl ?? p.image_url ?? null) as string | null,
+            pitch:     String(p.pitch ?? ''),
+          }))
+          setMessages(prev => {
+            const updated = [...prev]
+            updated[updated.length - 1] = { role: 'assistant', content: cleanText, picks, fetchingPicks: false }
+            return updated
+          })
+        } catch {
+          setMessages(prev => {
+            const updated = [...prev]
+            updated[updated.length - 1] = { role: 'assistant', content: cleanText, fetchingPicks: false }
+            return updated
+          })
+        }
+
+        const speakable = cleanText.length > 200 ? cleanText.substring(0, 200) + '...' : cleanText
+        if (speakable) { setBillSpeaking(true); speakText(speakable, intensity, () => setBillSpeaking(false)) }
+      } else if (fullText) {
         const speakable = fullText.length > 200 ? fullText.substring(0, 200) + '...' : fullText
         setBillSpeaking(true)
         speakText(speakable, intensity, () => setBillSpeaking(false))
@@ -336,23 +392,57 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-80 min-h-48">
             {messages.map((msg, i) => (
-              <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {msg.role === 'assistant' && <AvatarImage size={24} />}
-                <div
-                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-yd-orange text-white rounded-tr-sm'
-                      : 'bg-white/10 text-white/90 rounded-tl-sm'
-                  }`}
-                >
-                  {msg.content || (
-                    <span className="flex gap-1 py-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </span>
-                  )}
+              <div key={i} className={`flex flex-col gap-2 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                  {msg.role === 'assistant' && <AvatarImage size={24} />}
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-yd-orange text-white rounded-tr-sm'
+                        : 'bg-white/10 text-white/90 rounded-tl-sm'
+                    }`}
+                  >
+                    {msg.content || (
+                      <span className="flex gap-1 py-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {/* Pick cards */}
+                {msg.fetchingPicks && (
+                  <div className="w-full pl-8 text-xs text-white/40 animate-pulse">Scouting your picks...</div>
+                )}
+                {msg.picks && msg.picks.length > 0 && (
+                  <div className="w-full pl-8 flex flex-col gap-2">
+                    {msg.picks.map((pick, pi) => (
+                      <div key={pi} className="bg-white/8 border border-white/10 rounded-xl overflow-hidden">
+                        {pick.imageUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={pick.imageUrl} alt={pick.title} className="w-full h-20 object-cover" />
+                        )}
+                        <div className="p-2.5">
+                          <p className="text-white text-xs font-semibold leading-tight mb-0.5">{pick.title}</p>
+                          {pick.pitch && <p className="text-white/55 text-[11px] leading-snug mb-1">{pick.pitch}</p>}
+                          <p className="text-white/40 text-[11px]">{pick.venue}{pick.date ? ` · ${pick.date}` : ''}{pick.price ? ` · ${pick.price}` : ''}</p>
+                          {pick.ticketUrl && (
+                            <a
+                              href={pick.ticketUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block mt-1.5 text-[11px] font-semibold text-yd-orange hover:underline"
+                            >
+                              Let&apos;s go →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <div ref={messagesEndRef} />
