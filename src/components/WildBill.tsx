@@ -180,7 +180,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       if (messages.length === 0) {
         const greeting = city
           ? `Well, howdy! Wild Bill here — your personal adventure scout. You're lookin' around ${city}? Good taste, partner. What are we huntin' for today?`
-          : `Well, howdy! Wild Bill here — your personal adventure scout. Tell me what city you're in and what kinda trouble you're lookin' to get into!`
+          : `Well, howdy! Wild Bill here — your personal adventure scout. May I use your location to see what's happenin' close by? Or would you rather look somewhere specific? Just let me know where you want to go and we'll find out what kinda trouble you'd like to get into!`
         setMessages([{ role: 'assistant', content: greeting }])
         setBillSpeaking(true)
         speakText(greeting, intensity, () => setBillSpeaking(false))
