@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     },
     body: JSON.stringify({
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 180,
+      max_tokens: 320,
       system:     systemWithContext,
       messages,
       stream:     true,
