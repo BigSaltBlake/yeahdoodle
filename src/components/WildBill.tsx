@@ -232,7 +232,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       setShowBadge(false)
       if (messages.length === 0) {
         const greeting = city
-          ? `Well, howdy! Wild Bill here — your personal adventure scout. You're lookin' around ${city}? Good taste, partner. What are we huntin' for today?`
+          ? `Well, howdy! Wild Bill here — your personal adventure scout. You're lookin' around ${city}? Good taste, partner. What are we huntin' for now?`
           : `Well, howdy! Wild Bill here — your personal adventure scout. Tell me what city you're in and what kinda trouble you're lookin' to get into!`
         setMessages([{ role: 'assistant', content: greeting }])
         setBillSpeaking(true)
@@ -331,7 +331,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
           {billSpeaking && (
             <span className="absolute inset-0 rounded-full bg-yd-orange/40 animate-ping" />
           )}
-          <div className="relative bg-gradient-to-br from-yd-orange to-amber-600 rounded-full p-1 shadow-xl hover:scale-105 transition-transform">
+          <div className="relative bg-gradient-to-br from-yd-orange to-amber-600 rounded-full p-1 shadow-xl hover:sscale-105 transition-transform">
             <CowboyAvatar size={52} />
           </div>
           {showBadge && !open && (
@@ -389,7 +389,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
                   className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
                     msg.role === 'user'
                       ? 'bg-yd-orange text-white rounded-tr-sm'
-                      : 'bg-white/10 text-white/90 rounded-tl-sm'
+                      : 'bg-white/10 text-white/90 ro/unded-tl-sm'
                   }`}
                 >
                   {msg.content || (
