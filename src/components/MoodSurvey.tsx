@@ -40,34 +40,39 @@ interface Question {
   subtitle: string
   options: QuestionOption[]
   special?: 'energy-slider' | 'budget'
+  layout?: 'chips' | 'buttons'
   conditional?: boolean
 }
 
 // ---------------------------------------------------------------------------
-// Questions — psychology-first: feeling target → kill switch (2 questions)
-// When, crew, and budget are result-page filters — not survey questions
+// Questions — action-first: Go ___ taxonomy → kill switch (2 questions)
+// Q1 uses compact chip layout; Q2 uses full button cards
 // ---------------------------------------------------------------------------
 const ALL_QUESTIONS: Question[] = [
   {
     id: 'feeling',
-    question: 'How do you want to feel?',
-    subtitle: 'Go with your gut — the right answer comes fast',
+    question: "What do you want to do?",
+    subtitle: 'Tap the move that fits — go with your gut',
+    layout: 'chips',
     options: [
-      { label: 'Pumped up & electric', desc: 'High energy, big moments, electric atmosphere',   emoji: '🔥', quality: 'High energy' },
-      { label: 'Relaxed & happy',      desc: 'Chill vibes, good food, good company',            emoji: '😌', quality: 'Laid back'   },
-      { label: "Curious & wow'd",      desc: 'Something that surprises or inspires me',         emoji: '🤯', quality: 'Inspired'    },
-      { label: 'Laughing & social',    desc: 'Fun, loose, laughing with people I like',         emoji: '😂', quality: 'Social'      },
+      { label: 'Go eat',     desc: 'Dining, drinks, food experiences',       emoji: '🍽️', quality: 'Food & drink'  },
+      { label: 'Go listen',  desc: 'Live music, concerts, DJ nights',         emoji: '🎵', quality: 'Live music'    },
+      { label: 'Go out',     desc: 'Bars, rooftops, social scene',            emoji: '🥂', quality: 'Nightlife'     },
+      { label: 'Go move',    desc: 'Dancing, outdoor sports, active fun',     emoji: '⚡', quality: 'Active'        },
+      { label: 'Go see',     desc: 'Comedy, theatre, film, sports, art',      emoji: '🎭', quality: 'Shows & arts'  },
+      { label: 'Go explore', desc: 'Markets, neighborhoods, hidden gems',     emoji: '🌆', quality: 'Discovery'     },
+      { label: 'Go play',    desc: 'Trivia, escape rooms, bowling, games',    emoji: '🎲', quality: 'Games'         },
     ],
   },
   {
     id: 'killswitch',
-    question: 'What would kill the vibe?',
-    subtitle: "Pick your dealbreaker — we'll steer clear",
+    question: "What would kill it?",
+    subtitle: "Your one dealbreaker — we'll dodge it",
     options: [
-      { label: 'Huge crowds & noise',       desc: "Can't hear myself think in big venues",          emoji: '🙉', quality: 'Avoid crowds'  },
-      { label: 'Blowing my budget',         desc: 'Spending way more than I planned',               emoji: '💸', quality: 'Budget-aware'  },
-      { label: 'Sitting still for hours',   desc: 'Long performances, lectures, sit-down shows',    emoji: '🧘', quality: 'Stay active'    },
-      { label: 'Lots of planning required', desc: 'Figuring it out on the fly is a nightmare',      emoji: '🗺️', quality: 'Keep it simple' },
+      { label: "Spending more than planned", desc: "Surprise $80 tickets or a $200 tab",       emoji: '💸', quality: 'Budget-sensitive'  },
+      { label: "Chaos I can't escape",       desc: "Packed in, can't hear, can't move",        emoji: '🙉', quality: 'Avoid crowds'      },
+      { label: "Needing to plan anything",   desc: "If it needs a reservation, I'm out",       emoji: '📅', quality: 'Spontaneous only'  },
+      { label: "Being stuck in a seat",      desc: "Long sit-downs, no freedom to wander",     emoji: '🪑', quality: 'Stay active'        },
     ],
   },
 ]
@@ -546,8 +551,27 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
-            {/* ── Standard option buttons ───────────────────────────────── */}
-            {!currentQ.special && (
+            {/* ── Chip layout (compact grid — used for Go ___ taxonomy) ── */}
+            {!currentQ.special && currentQ.layout === 'chips' && (
+              <div className="grid grid-cols-2 gap-2">
+                {currentQ.options.map(opt => (
+                  <button
+                    key={opt.label}
+                    onClick={() => handleAnswer(opt.label)}
+                    className="flex items-center gap-2.5 p-3 rounded-xl border border-white/10 hover:border-yd-orange/60 hover:bg-yd-orange/5 text-left transition-all group"
+                  >
+                    <span className="text-xl shrink-0">{opt.emoji}</span>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-white text-sm leading-tight">{opt.label}</div>
+                      <p className="text-white/35 text-[11px] group-hover:text-white/55 transition-colors leading-tight mt-0.5 line-clamp-1">{opt.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* ── Standard option buttons (full cards — used for kill switch) ── */}
+            {!currentQ.special && !currentQ.layout && (
               <div className="space-y-2.5">
                 {currentQ.options.map(opt => (
                   <button
@@ -559,9 +583,8 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="font-semibold text-white text-sm">{opt.label}</span>
-                        <span className="text-xs bg-white/10 text-white/40 px-2 py-0.5 rounded-full shrink-0">{opt.quality}</span>
                       </div>
-                      <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors truncate">{opt.desc}</p>
+                      <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors">{opt.desc}</p>
                     </div>
                     <span className="text-white/20 group-hover:text-yd-orange transition-colors shrink-0">→</span>
                   </button>
@@ -601,7 +624,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </p>
             </div>
 
-            {/* ── Conversational refinement → chips after done ───────────── */}
+            {/* ── Conversational refinement → chips after done ─────────── */}
 
             {/* Step 1: When */}
             {refineStep === 'when' && (
@@ -638,7 +661,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                       key={o}
                       onClick={() => {
                         setFilterCrew(o)
-                        doSubmit(answers, { crew: o, when: filterWhen, budget: filterBudget })
+                        doSubmit(answers, {(crew: o, when: filterWhen, budget: filterBudget })
                         setRefineStep('done')
                       }}
                       className="px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 text-white/70 hover:border-yd-orange/60 hover:bg-yd-orange/10 hover:text-white transition-all"
@@ -658,83 +681,83 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
 
             {/* Chips — shown after refinement done, or for further tweaking */}
             {refineStep === 'done' && (
-            <div className="flex flex-wrap gap-1.5 mb-3" onClick={() => setOpenFilter(null)}>
-              {/* When */}
-              <div className="relative" onClick={e => e.stopPropagation()}>
-                <button
-                  onClick={() => setOpenFilter(openFilter === 'when' ? null : 'when')}
-                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${filterWhen ? 'bg-yd-orange/20 border-yd-orange/60 text-yd-orange font-semibold' : 'border-white/15 text-white/45 hover:border-white/30 hover:text-white/70'}`}
-                >
-                  📅 {filterWhen || 'When'}
-                </button>
-                {openFilter === 'when' && (
-                  <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-30 min-w-[150px] overflow-hidden">
-                    {filterWhen && (
-                      <button onClick={() => { setFilterWhen(''); setOpenFilter(null); doSubmit(answers, { when: '', budget: filterBudget, crew: filterCrew }) }}
-                        className="w-full text-left px-3 py-2 text-xs text-white/40 hover:bg-white/10 border-b border-white/10 transition-colors">
-                        ✕ Any time
-                      </button>
-                    )}
-                    {['Now', 'This weekend', 'Next Week', 'Planning Ahead'].map(o => (
-                      <button key={o} onClick={() => { setFilterWhen(o); setOpenFilter(null); doSubmit(answers, { when: o, budget: filterBudget, crew: filterCrew }) }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${filterWhen === o ? 'text-yd-orange font-semibold' : 'text-white/70'}`}>
-                        {o}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div className="flex flex-wrap gap-1.5 mb-3" onClick={() => setOpenFilter(null)}>
+                {/* When */}
+                <div className="relative" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => setOpenFilter(openFilter === 'when' ? null : 'when')}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${filterWhen ? 'bg-yd-orange/20 border-yd-orange/60 text-yd-orange font-semibold' : 'border-white/15 text-white/45 hover:border-white/30 hover:text-white/70'}`}
+                  >
+                    📅 {filterWhen || 'When'}
+                  </button>
+                  {openFilter === 'when' && (
+                    <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-30 min-w-[150px] overflow-hidden">
+                      {filterWhen && (
+                        <button onClick={() => { setFilterWhen(''); setOpenFilter(null); doSubmit(answers, { when: '', budget: filterBudget, crew: filterCrew }) }}
+                          className="w-full text-left px-3 py-2 text-xs text-white/40 hover:bg-white/10 border-b border-white/10 transition-colors">
+                          ✕ Any time
+                        </button>
+                      )}
+                      {['Now', 'This weekend', 'Next Week', 'Planning Ahead'].map(o => (
+                        <button key={o} onClick={() => { setFilterWhen(o); setOpenFilter(null); doSubmit(answers, { when: o, budget: filterBudget, crew: filterCrew }) }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${filterWhen === o ? 'text-yd-orange font-semibold' : 'text-white/70'}`}>
+                          {o}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Budget */}
+                <div className="relative" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => setOpenFilter(openFilter === 'budget' ? null : 'budget')}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${filterBudget ? 'bg-yd-orange/20 border-yd-orange/60 text-yd-orange font-semibold' : 'border-white/15 text-white/45 hover:border-white/30 hover:text-white/70'}`}
+                  >
+                    💰 {filterBudget || 'Budget'}
+                  </button>
+                  {openFilter === 'budget' && (
+                    <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-30 min-w-[150px] overflow-hidden">
+                      {filterBudget && (
+                        <button onClick={() => { setFilterBudget(''); setOpenFilter(null); doSubmit(answers, { budget: '', when: filterWhen, crew: filterCrew }) }}
+                          className="w-full text-left px-3 py-2 text-xs text-white/40 hover:bg-white/10 border-b border-white/10 transition-colors">
+                          ✕ Any budget
+                        </button>
+                      )}
+                      {['Free', '$25 or so', 'Around $50', "Sky's the Limit"].map(o => (
+                        <button key={o} onClick={() => { setFilterBudget(o); setOpenFilter(null); doSubmit(answers, { budget: o, when: filterWhen, crew: filterCrew }) }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${filterBudget === o ? 'text-yd-orange font-semibold' : 'text-white/70'}`}>
+                          {o}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Crew */}
+                <div className="relative" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => setOpenFilter(openFilter === 'crew' ? null : 'crew')}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${filterCrew ? 'bg-yd-orange/20 border-yd-orange/60 text-yd-orange font-semibold' : 'border-white/15 text-white/45 hover:border-white/30 hover:text-white/70'}`}
+                  >
+                    👥 {filterCrew || 'Crew'}
+                  </button>
+                  {openFilter === 'crew' && (
+                    <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-30 min-w-[155px] overflow-hidden">
+                      {filterCrew && (
+                        <button onClick={() => { setFilterCrew(''); setOpenFilter(null); doSubmit(answers, { crew: '', when: filterWhen, budget: filterBudget }) }}
+                          className="w-full text-left px-3 py-2 text-xs text-white/40 hover:bg-white/10 border-b border-white/10 transition-colors">
+                          ✕ Any crew
+                        </button>
+                      )}
+                      {['Just me', 'Date Night', 'Small group', 'The whole squad'].map(o => (
+                        <button key={o} onClick={() => { setFilterCrew(o); setOpenFilter(null); doSubmit(answers, { crew: o, when: filterWhen, budget: filterBudget }) }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${filterCrew === o ? 'text-yd-orange font-semibold' : 'text-white/70'}`}>
+                          {o}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              {/* Budget */}
-              <div className="relative" onClick={e => e.stopPropagation()}>
-                <button
-                  onClick={() => setOpenFilter(openFilter === 'budget' ? null : 'budget')}
-                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${filterBudget ? 'bg-yd-orange/20 border-yd-orange/60 text-yd-orange font-semibold' : 'border-white/15 text-white/45 hover:border-white/30 hover:text-white/70'}`}
-                >
-                  💰 {filterBudget || 'Budget'}
-                </button>
-                {openFilter === 'budget' && (
-                  <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-30 min-w-[150px] overflow-hidden">
-                    {filterBudget && (
-                      <button onClick={() => { setFilterBudget(''); setOpenFilter(null); doSubmit(answers, { budget: '', when: filterWhen, crew: filterCrew }) }}
-                        className="w-full text-left px-3 py-2 text-xs text-white/40 hover:bg-white/10 border-b border-white/10 transition-colors">
-                        ✕ Any budget
-                      </button>
-                    )}
-                    {['Free', '$25 or so', 'Around $50', "Sky's the Limit"].map(o => (
-                      <button key={o} onClick={() => { setFilterBudget(o); setOpenFilter(null); doSubmit(answers, { budget: o, when: filterWhen, crew: filterCrew }) }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${filterBudget === o ? 'text-yd-orange font-semibold' : 'text-white/70'}`}>
-                        {o}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {/* Crew */}
-              <div className="relative" onClick={e => e.stopPropagation()}>
-                <button
-                  onClick={() => setOpenFilter(openFilter === 'crew' ? null : 'crew')}
-                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${filterCrew ? 'bg-yd-orange/20 border-yd-orange/60 text-yd-orange font-semibold' : 'border-white/15 text-white/45 hover:border-white/30 hover:text-white/70'}`}
-                >
-                  👥 {filterCrew || 'Crew'}
-                </button>
-                {openFilter === 'crew' && (
-                  <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-30 min-w-[155px] overflow-hidden">
-                    {filterCrew && (
-                      <button onClick={() => { setFilterCrew(''); setOpenFilter(null); doSubmit(answers, { crew: '', when: filterWhen, budget: filterBudget }) }}
-                        className="w-full text-left px-3 py-2 text-xs text-white/40 hover:bg-white/10 border-b border-white/10 transition-colors">
-                        ✕ Any crew
-                      </button>
-                    )}
-                    {['Just me', 'Date Night', 'Small group', 'The whole squad'].map(o => (
-                      <button key={o} onClick={() => { setFilterCrew(o); setOpenFilter(null); doSubmit(answers, { crew: o, when: filterWhen, budget: filterBudget }) }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${filterCrew === o ? 'text-yd-orange font-semibold' : 'text-white/70'}`}>
-                        {o}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
             )}
 
             {/* Saved count + sign-in nudge */}
@@ -800,7 +823,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                   </div>
                   <div className="p-3">
                     <span className="font-medium font-semibold text-white text-sm leading-snug">{pick.title}</span>
-                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowraw max-w-[200px]">{pick.venue}</span>
+                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowrap max-w-[200px]">{pick.venue}</span>
                     <span className="text-xs text-white/40 block">{pick.dateFormatted} &middot; {pick.priceFormatted}</span>
                     {pick.distanceLabel && (
                       <span className="text-xs text-[#4f9b85]/80 block">📍 {pick.distanceLabel}</span>
