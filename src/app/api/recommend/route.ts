@@ -1070,10 +1070,3 @@ Return ONLY a valid JSON array â valid picks. No markdown, no explanation:
     )
   }
 }
-r).message)
-    return NextResponse.json(
-      { picks: [], error: 'Failed to generate recommendations' },
-      { status: 500 },
-    )
-  }
-}
