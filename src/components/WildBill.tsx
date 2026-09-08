@@ -25,33 +25,33 @@ interface WildBillProps {
 }
 
 // ---------------------------------------------------------------------------
-// Intensity levels â controls voice AND AI persona energy
+// Intensity levels Ã¢ÂÂ controls voice AND AI persona energy
 // ---------------------------------------------------------------------------
 type Intensity = 0 | 1 | 2
 
 const INTENSITY_LEVELS = [
   {
     label: 'Mellow',
-    emoji: 'ð¤ ',
+    emoji: 'Ã°ÂÂ¤Â ',
     voice: { pitch: 0.45, rate: 0.72, volume: 0.85 },
-    promptNote: 'Keep your energy calm and measured today. Still colorful, but dialed back â like a cowboy at rest by the campfire. Less exclamation marks, shorter sentences, easy pace.',
+    promptNote: 'Keep your energy calm and measured today. Still colorful, but dialed back Ã¢ÂÂ like a cowboy at rest by the campfire. Less exclamation marks, shorter sentences, easy pace.',
   },
   {
     label: 'Normal',
-    emoji: 'ð¤ ',
+    emoji: 'Ã°ÂÂ¤Â ',
     voice: { pitch: 0.55, rate: 0.82, volume: 0.92 },
-    promptNote: '',  // default persona â no extra note
+    promptNote: '',  // default persona Ã¢ÂÂ no extra note
   },
   {
     label: 'Wild',
-    emoji: 'ð¥',
+    emoji: 'Ã°ÂÂÂ¥',
     voice: { pitch: 0.70, rate: 0.95, volume: 1.0 },
-    promptNote: "You're fired up today, partner! Full cowboy energy â more exclamation marks, more catchphrases, more color. You've had three cups of trail coffee and you are READY. Don't hold back.",
+    promptNote: "You're fired up today, partner! Full cowboy energy Ã¢ÂÂ more exclamation marks, more catchphrases, more color. You've had three cups of trail coffee and you are READY. Don't hold back.",
   },
 ]
 
 // ---------------------------------------------------------------------------
-// ElevenLabs TTS â streams audio from /api/wild-bill-tts
+// ElevenLabs TTS Ã¢ÂÂ streams audio from /api/wild-bill-tts
 // Falls back to Web Speech API if the route isn't configured
 // ---------------------------------------------------------------------------
 let currentAudio: HTMLAudioElement | null = null
@@ -93,7 +93,7 @@ async function speakText(text: string, intensity: Intensity, onEnd?: () => void)
 }
 
 // ---------------------------------------------------------------------------
-// Wild Bill avatar â ElevenLabs Headshot image
+// Wild Bill avatar Ã¢ÂÂ ElevenLabs Headshot image
 // ---------------------------------------------------------------------------
 function AvatarImage({ size = 44, animate = false }: { size?: number; animate?: boolean }) {
   return (
@@ -137,9 +137,9 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
 
   // Real recorded voice files mapped to intensity level
   const CATCHPHRASE_FILES: Record<Intensity, string> = {
-    0: '/WB-YD3.m4a',  // Mellow â shortest/calmest take
+    0: '/WB-YD3.m4a',  // Mellow Ã¢ÂÂ shortest/calmest take
     1: '/WB-YD1.m4a',  // Normal
-    2: '/WB-YD2.m4a',  // Wild â biggest take
+    2: '/WB-YD2.m4a',  // Wild Ã¢ÂÂ biggest take
   }
 
   // Restore saved intensity preference
@@ -158,7 +158,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     try { localStorage.setItem('wb_intensity', String(level)) } catch { /* ignore */ }
   }
 
-  // Play "Yeah Doodle!" catchphrase â triggered by CTA button hover/click
+  // Play "Yeah Doodle!" catchphrase Ã¢ÂÂ triggered by CTA button hover/click
   // Has a 3-second cooldown to prevent audio spam on rapid hover
   const playCatchphrase = useCallback((currentIntensity: Intensity) => {
     if (catchphraseCooldownRef.current) return
@@ -199,6 +199,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
         setUserLoc(loc)
         setLocDone(true)
       }
+      setMessages([])  // clear stale messages so greeting re-fires with new city
       setOpen(true)
     }
     window.addEventListener('wb-open-with-city', handler)
@@ -217,8 +218,8 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       setShowBadge(false)
       if (messages.length === 0 && locDone) {
         const greeting = userLoc || city
-          ? `Well, howdy! Wild Bill here. You're in ${userLoc || city} â let's find your move for tonight. Tap what sounds right:`
-          : `Well, howdy! Wild Bill here â your personal adventure scout. May I use your location to see what's happenin' close by? Or just tell me what city you're in!`
+          ? `Well, howdy! Wild Bill here. You're in ${userLoc || city} Ã¢ÂÂ let's find your move for tonight. Tap what sounds right:`
+          : `Well, howdy! Wild Bill here Ã¢ÂÂ your personal adventure scout. May I use your location to see what's happenin' close by? Or just tell me what city you're in!`
         setMessages([{ role: 'assistant', content: greeting }])
         if (city) { setPendingChips('vibe'); setShowAllVibeChips(false) }
         setBillSpeaking(true)
@@ -233,7 +234,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
   useEffect(() => {
     if (locDone && open && messages.length === 0) {
       const loc = userLoc || city
-      setMessages([{ role: 'assistant', content: `Well, howdy! I'm Wild Bill â your personal adventure scout. You're in ${loc} â let's find your next adventure. Tap what sounds right:` }])
+      setMessages([{ role: 'assistant', content: `Well, howdy! I'm Wild Bill Ã¢ÂÂ your personal adventure scout. You're in ${loc} Ã¢ÂÂ let's find your next adventure. Tap what sounds right:` }])
     }
   }, [locDone]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -281,7 +282,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       if (e instanceof Error && e.name !== 'AbortError') {
         setMessages(prev => {
           const updated = [...prev]
-          updated[updated.length - 1] = { role: 'assistant', content: "Well, shoot â my telegraph wire went down. Try again in a sec, partner." }
+          updated[updated.length - 1] = { role: 'assistant', content: "Well, shoot Ã¢ÂÂ my telegraph wire went down. Try again in a sec, partner." }
           return updated
         })
       }
@@ -300,7 +301,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       const askAvoid = fullText.includes('[ASK:avoid]')
 
       if (markerMatch) {
-        // FETCH_PICKS flow â pull recommendations
+        // FETCH_PICKS flow Ã¢ÂÂ pull recommendations
         setMessages(prev => {
           const updated = [...prev]
           updated[updated.length - 1] = { role: 'assistant', content: cleanText, fetchingPicks: true }
@@ -341,7 +342,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
         if (speakable) { setBillSpeaking(true); speakText(speakable, intensity, () => setBillSpeaking(false)) }
 
       } else if (fullText) {
-        // Regular response â strip markers from display
+        // Regular response Ã¢ÂÂ strip markers from display
         if (askVibe || askAvoid) {
           setMessages(prev => {
             const updated = [...prev]
@@ -398,22 +399,22 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     "Something free to do",
   ]
 
-  // Survey chip options â mirror the MoodSurvey "Go ___" taxonomy
+  // Survey chip options Ã¢ÂÂ mirror the MoodSurvey "Go ___" taxonomy
   const SURVEY_CHIPS = {
     vibe: [
-      { label: 'ð½ï¸  Go eat',     value: 'Go eat'     },
-      { label: 'ðµ  Go listen',  value: 'Go listen'  },
-      { label: 'ð¥  Go out',     value: 'Go out'     },
-      { label: 'â¡  Go move',    value: 'Go move'    },
-      { label: 'ð­  Go see',     value: 'Go see'     },
-      { label: 'ð  Go explore', value: 'Go explore' },
-      { label: 'ð²  Go play',    value: 'Go play'    },
+      { label: 'Ã°ÂÂÂ½Ã¯Â¸Â  Go eat',     value: 'Go eat'     },
+      { label: 'Ã°ÂÂÂµ  Go listen',  value: 'Go listen'  },
+      { label: 'Ã°ÂÂ¥Â  Go out',     value: 'Go out'     },
+      { label: 'Ã¢ÂÂ¡  Go move',    value: 'Go move'    },
+      { label: 'Ã°ÂÂÂ­  Go see',     value: 'Go see'     },
+      { label: 'Ã°ÂÂÂ  Go explore', value: 'Go explore' },
+      { label: 'Ã°ÂÂÂ²  Go play',    value: 'Go play'    },
     ],
     avoid: [
-      { label: 'ð¸  Spending more than planned',   value: 'Spending more than planned'   },
-      { label: "ð  Chaos I can't escape",         value: "Chaos I can't escape"          },
-      { label: 'ð  Needing to plan anything',     value: 'Needing to plan anything'     },
-      { label: 'ðª  Being stuck in a seat',        value: 'Being stuck in a seat'        },
+      { label: 'Ã°ÂÂÂ¸  Spending more than planned',   value: 'Spending more than planned'   },
+      { label: "Ã°ÂÂÂ  Chaos I can't escape",         value: "Chaos I can't escape"          },
+      { label: 'Ã°ÂÂÂ  Needing to plan anything',     value: 'Needing to plan anything'     },
+      { label: 'Ã°ÂÂªÂ  Being stuck in a seat',        value: 'Being stuck in a seat'        },
     ],
   } as const
 
@@ -425,7 +426,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       {showTagline && (
         <div className="fixed bottom-24 right-6 z-50 animate-fade-in">
           <div className="bg-yd-orange text-white font-display text-lg px-4 py-2 rounded-2xl rounded-br-none shadow-lg">
-            Yeah Doodle! ð¤ 
+            Yeah Doodle! Ã°ÂÂ¤Â 
           </div>
         </div>
       )}
@@ -463,7 +464,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
             <div className="flex-1 min-w-0">
               <div className="font-display text-white text-sm font-bold">Wild Bill</div>
               <div className="text-white/50 text-xs truncate">
-                {billSpeaking ? 'ð Speaking...' : streaming ? 'Scouting...' : 'Your adventure guide'}
+                {billSpeaking ? 'Ã°ÂÂÂ Speaking...' : streaming ? 'Scouting...' : 'Your adventure guide'}
               </div>
             </div>
 
@@ -489,7 +490,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
               onClick={() => setOpen(false)}
               className="text-white/40 hover:text-white/80 transition-colors text-lg ml-1"
             >
-              â
+              Ã¢ÂÂ
             </button>
           </div>
 
@@ -501,7 +502,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
                 disabled={gpsLoading}
                 className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold py-2.5 px-4 transition-all disabled:opacity-60 text-sm"
               >
-                {gpsLoading ? 'Locatingâ¦' : 'ð Use My Current Location'}
+                {gpsLoading ? 'LocatingÃ¢ÂÂ¦' : 'Ã°ÂÂÂ Use My Current Location'}
               </button>
               <div className="flex w-full items-center gap-2">
                 <hr className="flex-1 border-stone-200" />
@@ -511,7 +512,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
               <form onSubmit={handleLocSubmit} className="flex w-full gap-2">
                 <input
                   className="flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                  placeholder="City, zip, state, or countryâ¦"
+                  placeholder="City, zip, state, or countryÃ¢ÂÂ¦"
                   value={locInput}
                   onChange={e => setLocInput(e.target.value)}
                   autoFocus
@@ -523,7 +524,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
                   Go
                 </button>
               </form>
-              <p className="text-xs text-stone-400 text-center">Try a zip, city, state, or country â the broader the search, the more Wild Bill explores!</p>
+              <p className="text-xs text-stone-400 text-center">Try a zip, city, state, or country Ã¢ÂÂ the broader the search, the more Wild Bill explores!</p>
             </div>
           )}
           {/* Messages */}
@@ -564,7 +565,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
                         <div className="p-2.5">
                           <p className="text-white text-xs font-semibold leading-tight mb-0.5">{pick.title}</p>
                           {pick.pitch && <p className="text-white/55 text-[11px] leading-snug mb-1">{pick.pitch}</p>}
-                          <p className="text-white/40 text-[11px]">{pick.venue}{pick.date ? ` Â· ${pick.date}` : ''}{pick.price ? ` Â· ${pick.price}` : ''}</p>
+                          <p className="text-white/40 text-[11px]">{pick.venue}{pick.date ? ` ÃÂ· ${pick.date}` : ''}{pick.price ? ` ÃÂ· ${pick.price}` : ''}</p>
                           {pick.ticketUrl && (
                             <a
                               href={pick.ticketUrl}
@@ -572,7 +573,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
                               rel="noopener noreferrer"
                               className="inline-block mt-1.5 text-[11px] font-semibold text-yd-orange hover:underline"
                             >
-                              Let&apos;s go â
+                              Let&apos;s go Ã¢ÂÂ
                             </a>
                           )}
                         </div>
@@ -585,7 +586,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Survey chips â shown when Wild Bill is asking a survey question */}
+          {/* Survey chips Ã¢ÂÂ shown when Wild Bill is asking a survey question */}
           {pendingChips && (
             <div className="px-4 pb-3 flex flex-col gap-1.5">
               {(pendingChips === 'vibe'
@@ -642,7 +643,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
               disabled={!input.trim() || streaming}
               className="bg-yd-orange hover:bg-amber-500 disabled:opacity-40 text-white rounded-xl px-3 py-2 text-sm font-bold transition-colors"
             >
-              â
+              Ã¢ÂÂ
             </button>
           </form>
         </div>
