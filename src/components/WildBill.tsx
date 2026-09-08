@@ -161,11 +161,17 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     catchphraseCooldownRef.current = true
     setTimeout(() => { catchphraseCooldownRef.current = false }, 3000)
 
+    // Cancel any in-progress TTS so voices don't overlap
+    if (currentAudio) { currentAudio.pause(); currentAudio = null }
+    window.speechSynthesis?.cancel()
+
     setShowTagline(true)
     setBillSpeaking(true)
 
     const audio = new Audio(CATCHPHRASE_FILES[currentIntensity])
+    currentAudio = audio  // register so speakText can cancel it too
     const onFinish = () => {
+      if (currentAudio === audio) currentAudio = null
       setBillSpeaking(false)
       setTimeout(() => setShowTagline(false), 1500)
     }
