@@ -116,6 +116,10 @@ function AvatarImage({ size = 44, animate = false }: { size?: number; animate?: 
 // ---------------------------------------------------------------------------
 export default function WildBill({ city, eventContext }: WildBillProps) {
   const [open, setOpen]           = useState(false)
+  const [userLoc,    setUserLoc]    = useState(city || '')
+  const [locDone,    setLocDone]    = useState(!!city)
+  const [locInput,   setLocInput]   = useState('')
+  const [gpsLoading, setGpsLoading] = useState(false)
   const [messages, setMessages]   = useState<Message[]>([])
   const [input, setInput]         = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -197,9 +201,9 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 100)
       setShowBadge(false)
-      if (messages.length === 0) {
-        const greeting = city
-          ? `Well, howdy! Wild Bill here. You're in ${city} — let's find your move for tonight. Tap what sounds right:`
+      if (messages.length === 0 && locDone) {
+        const greeting = userLoc || city
+          ? `Well, howdy! Wild Bill here. You're in ${userLoc || city} — let's find your move for tonight. Tap what sounds right:`
           : `Well, howdy! Wild Bill here — your personal adventure scout. May I use your location to see what's happenin' close by? Or just tell me what city you're in!`
         setMessages([{ role: 'assistant', content: greeting }])
         if (city) { setPendingChips('vibe'); setShowAllVibeChips(false) }
@@ -211,6 +215,13 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       setBillSpeaking(false)
     }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (locDone && open && messages.length === 0) {
+      const loc = userLoc || city
+      setMessages([{ role: 'assistant', content: `Well, howdy! I'm Wild Bill — your personal adventure scout. You're in ${loc} — let's find your next adventure. Tap what sounds right:` }])
+    }
+  }, [locDone]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || streaming) return
@@ -233,7 +244,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       const res = await fetch('/api/wild-bill', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, city, eventContext, intensity }),
+        body: JSON.stringify({ messages: newMessages, city: userLoc || city, eventContext, intensity }),
         signal: abortRef.current.signal,
       })
 
@@ -333,6 +344,33 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       }
     }
   }, [messages, streaming, city, eventContext, intensity])
+
+  const handleGps = () => {
+    if (!navigator.geolocation) return
+    setGpsLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords
+        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
+          .then(r => r.json())
+          .then(d => {
+            const loc = d.address?.city || d.address?.town || d.address?.village || d.address?.county || d.display_name || ''
+            setUserLoc(loc)
+            setLocDone(true)
+            setGpsLoading(false)
+          })
+          .catch(() => setGpsLoading(false))
+      },
+      () => setGpsLoading(false)
+    )
+  }
+
+  const handleLocSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (!locInput.trim()) return
+    setUserLoc(locInput.trim())
+    setLocDone(true)
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -441,6 +479,39 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
             </button>
           </div>
 
+          {!locDone && (
+            <div className="flex flex-col items-center gap-3 p-5 pt-4">
+              <p className="text-sm font-semibold text-stone-800 text-center">Where should I scout for adventures?</p>
+              <button
+                onClick={handleGps}
+                disabled={gpsLoading}
+                className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold py-2.5 px-4 transition-all disabled:opacity-60 text-sm"
+              >
+                {gpsLoading ? 'Locating…' : '📍 Use My Current Location'}
+              </button>
+              <div className="flex w-full items-center gap-2">
+                <hr className="flex-1 border-stone-200" />
+                <span className="text-xs text-stone-400">or type a location</span>
+                <hr className="flex-1 border-stone-200" />
+              </div>
+              <form onSubmit={handleLocSubmit} className="flex w-full gap-2">
+                <input
+                  className="flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                  placeholder="City, zip, state, or country…"
+                  value={locInput}
+                  onChange={e => setLocInput(e.target.value)}
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  className="rounded-xl bg-stone-800 hover:bg-stone-700 active:scale-95 text-white px-4 py-2 text-sm font-semibold transition-all"
+                >
+                  Go
+                </button>
+              </form>
+              <p className="text-xs text-stone-400 text-center">Try a zip, city, state, or country — the broader the search, the more Wild Bill explores!</p>
+            </div>
+          )}
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-80 min-h-48">
             {messages.map((msg, i) => (
