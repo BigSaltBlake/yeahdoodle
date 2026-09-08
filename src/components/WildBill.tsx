@@ -2,9 +2,21 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
+interface RecommendPick {
+  title: string
+  venue: string
+  date: string
+  price: string
+  ticketUrl: string | null
+  imageUrl: string | null
+  pitch: string
+}
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  picks?: RecommendPick[]
+  fetchingPicks?: boolean
 }
 
 interface WildBillProps {
@@ -81,82 +93,20 @@ async function speakText(text: string, intensity: Intensity, onEnd?: () => void)
 }
 
 // ---------------------------------------------------------------------------
-// Wild Bill SVG avatar — cartoon style
+// Wild Bill avatar — ElevenLabs Headshot image
 // ---------------------------------------------------------------------------
-function CowboyAvatar({ size = 44, animate = false }: { size?: number; animate?: boolean }) {
+function AvatarImage({ size = 44, animate = false }: { size?: number; animate?: boolean }) {
   return (
     <div
-      className={`relative shrink-0 ${animate ? 'animate-bounce' : ''}`}
+      className={`relative shrink-0 rounded-full overflow-hidden ${animate ? 'animate-bounce' : ''}`}
       style={{ width: size, height: size }}
     >
-      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" width={size} height={size}>
-        {/* -- Shirt / body -- */}
-        <path d="M30 88 Q50 100 70 88 L72 100 L28 100 Z" fill="#2c6e8a" />
-        {/* -- Bandana -- */}
-        <path d="M37 84 L50 94 L63 84 L61 100 L39 100 Z" fill="#e74c3c" />
-        <path d="M37 84 L50 94 L63 84" stroke="#c0392b" strokeWidth="1.5" fill="none" />
-        {/* -- Neck -- */}
-        <rect x="42" y="82" width="16" height="10" rx="3" fill="#f5c080" />
-
-        {/* -- Hat brim -- */}
-        <ellipse cx="50" cy="42" rx="37" ry="6.5" fill="#3d1f08" />
-
-        {/* -- Hat crown -- */}
-        <path d="M27 42 L28 16 Q29 7 50 6 Q71 7 72 16 L73 42 Z" fill="#7a4820" />
-        <path d="M27 42 L28 16 Q29 7 50 6 Q71 7 72 16 L73 42 Z" fill="none" stroke="#2a1505" strokeWidth="1.5" />
-
-        {/* -- Crown crease / dent (classic Stetson pinch) -- */}
-        <path d="M36 11 Q43 20 50 15 Q57 20 64 11" stroke="#5a3010" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-
-        {/* -- Crown highlight -- */}
-        <path d="M32 28 Q33 18 41 13" stroke="#a06535" strokeWidth="1.5" fill="none" strokeLinecap="round" opacity="0.55" />
-
-        {/* -- Hat band -- */}
-        <rect x="27" y="37" width="46" height="7" rx="2" fill="#c0392b" />
-        {/* -- Sheriff star -- */}
-        <text x="50" y="43.5" textAnchor="middle" fontSize="8" fill="#f1c40f" fontFamily="Arial">&#9733;</text>
-
-        {/* -- Ears -- */}
-        <circle cx="29.5" cy="63" r="5.5" fill="#f5c080" stroke="#d4956b" strokeWidth="1" />
-        <circle cx="29.5" cy="63" r="2.8" fill="#e09060" />
-        <circle cx="70.5" cy="63" r="5.5" fill="#f5c080" stroke="#d4956b" strokeWidth="1" />
-        <circle cx="70.5" cy="63" r="2.8" fill="#e09060" />
-
-        {/* -- Face -- */}
-        <circle cx="50" cy="63" r="21" fill="#f5c080" stroke="#d4956b" strokeWidth="1" />
-        {/* chin shadow */}
-        <ellipse cx="50" cy="75" rx="14" ry="8" fill="#e09050" opacity="0.3" />
-
-        {/* -- Eyebrows - thick cartoon arches -- */}
-        <path d="M35.5 54 Q40.5 49.5 46 52.5" stroke="#4a2c0a" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-        <path d="M54 52.5 Q59.5 49.5 64.5 54" stroke="#4a2c0a" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-
-        {/* -- Eyes - white sclera -- */}
-        <ellipse cx="41" cy="61" rx="5.5" ry="5" fill="white" />
-        <ellipse cx="59" cy="61" rx="5.5" ry="5" fill="white" />
-        {/* Iris */}
-        <circle cx="41" cy="62" r="3.3" fill="#6b3f10" />
-        <circle cx="59" cy="62" r="3.3" fill="#6b3f10" />
-        {/* Pupil */}
-        <circle cx="41" cy="62" r="1.9" fill="#1a0800" />
-        <circle cx="59" cy="62" r="1.9" fill="#1a0800" />
-        {/* Shine */}
-        <circle cx="42.5" cy="60.5" r="1.1" fill="white" />
-        <circle cx="60.5" cy="60.5" r="1.1" fill="white" />
-
-        {/* -- Blush cheeks -- */}
-        <circle cx="34" cy="68.5" r="5.5" fill="#f06040" opacity="0.22" />
-        <circle cx="66" cy="68.5" r="5.5" fill="#f06040" opacity="0.22" />
-
-        {/* -- Nose -- */}
-        <ellipse cx="50" cy="68" rx="3.5" ry="2.5" fill="#d98040" />
-
-        {/* -- Mustache - bold filled shape -- */}
-        <path d="M38.5 71.5 Q44 77.5 50 74 Q56 77.5 61.5 71.5 Q56 72.5 50 71 Q44 72.5 38.5 71.5 Z" fill="#4a2c0a" />
-
-        {/* -- Smile -- */}
-        <path d="M44 78.5 Q50 84 56 78.5" stroke="#8b4020" strokeWidth="2" fill="none" strokeLinecap="round" />
-      </svg>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/wild-bill-avatar.png"
+        alt="Wild Bill"
+        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center' }}
+      />
     </div>
   )
 }
@@ -173,17 +123,19 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
   const [billSpeaking, setBillSpeaking] = useState(false)
   const [showTagline, setShowTagline]   = useState(false)
   const [intensity, setIntensity] = useState<Intensity>(1)
+  const [pendingChips, setPendingChips] = useState<'vibe' | 'avoid' | null>(null)
+  const [showAllVibeChips, setShowAllVibeChips] = useState(false)
 
   const messagesEndRef  = useRef<HTMLDivElement>(null)
   const inputRef        = useRef<HTMLInputElement>(null)
   const abortRef        = useRef<AbortController | null>(null)
-  const introPlayedRef  = useRef(false)
+  const catchphraseCooldownRef = useRef(false)
 
   // Real recorded voice files mapped to intensity level
   const CATCHPHRASE_FILES: Record<Intensity, string> = {
-    0: '/WB-YD3.m4a',  // Mellow
+    0: '/WB-YD3.m4a',  // Mellow — shortest/calmest take
     1: '/WB-YD1.m4a',  // Normal
-    2: '/WB-YD2.m4a',  // Wild
+    2: '/WB-YD2.m4a',  // Wild — biggest take
   }
 
   // Restore saved intensity preference
@@ -194,9 +146,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
         setIntensity(Number(saved) as Intensity)
       }
     } catch { /* ignore */ }
-    if (!sessionStorage.getItem('wb_intro')) {
-      setTimeout(() => setShowBadge(true), 2500)
-    }
+    setTimeout(() => setShowBadge(true), 2500)
   }, [])
 
   const saveIntensity = (level: Intensity) => {
@@ -204,11 +154,13 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     try { localStorage.setItem('wb_intensity', String(level)) } catch { /* ignore */ }
   }
 
-  const playIntro = (currentIntensity: Intensity) => {
-    if (introPlayedRef.current || sessionStorage.getItem('wb_intro')) return
-    introPlayedRef.current = true
-    sessionStorage.setItem('wb_intro', '1')
-    setShowBadge(false)
+  // Play "Yeah Doodle!" catchphrase — triggered by CTA button hover/click
+  // Has a 3-second cooldown to prevent audio spam on rapid hover
+  const playCatchphrase = useCallback((currentIntensity: Intensity) => {
+    if (catchphraseCooldownRef.current) return
+    catchphraseCooldownRef.current = true
+    setTimeout(() => { catchphraseCooldownRef.current = false }, 3000)
+
     setShowTagline(true)
     setBillSpeaking(true)
 
@@ -220,21 +172,31 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     audio.onended = onFinish
     audio.onerror = onFinish
     audio.play().catch(onFinish)
-  }
+  }, [CATCHPHRASE_FILES])
 
+  // Listen for CTA button event from homepage
+  useEffect(() => {
+    const handler = () => playCatchphrase(intensity)
+    window.addEventListener('wb-yeahdoodle', handler)
+    return () => window.removeEventListener('wb-yeahdoodle', handler)
+  }, [intensity, playCatchphrase])
+
+  // Scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Focus input + greeting when panel opens
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 100)
       setShowBadge(false)
       if (messages.length === 0) {
         const greeting = city
-          ? `Well, howdy! Wild Bill here — your personal adventure scout. You're lookin' around ${city}? Good taste, partner. What are we huntin' for now?`
-          : `Well, howdy! Wild Bill here — your personal adventure scout. Tell me what city you're in and what kinda trouble you're lookin' to get into!`
+          ? `Well, howdy! Wild Bill here. You're in ${city} — let's find your move for tonight. Tap what sounds right:`
+          : `Well, howdy! Wild Bill here — your personal adventure scout. May I use your location to see what's happenin' close by? Or just tell me what city you're in!`
         setMessages([{ role: 'assistant', content: greeting }])
+        if (city) { setPendingChips('vibe'); setShowAllVibeChips(false) }
         setBillSpeaking(true)
         speakText(greeting, intensity, () => setBillSpeaking(false))
       }
@@ -246,6 +208,10 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || streaming) return
+
+    // Clear any pending chips immediately when user sends
+    setPendingChips(null)
+    setShowAllVibeChips(false)
 
     const userMsg: Message = { role: 'user', content: text.trim() }
     const newMessages = [...messages, userMsg]
@@ -290,8 +256,72 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       }
     } finally {
       setStreaming(false)
-      if (fullText) {
-        const speakable = fullText.length > 200 ? fullText.substring(0, 200) + '...' : fullText
+
+      // Strip all protocol markers to get clean displayable text
+      const cleanText = fullText
+        .replace(/\[FETCH_PICKS:\{[\s\S]*?\}\]\s*$/, '')
+        .replace(/\[ASK:vibe\]/g, '')
+        .replace(/\[ASK:avoid\]/g, '')
+        .trim()
+
+      const markerMatch = fullText.match(/\[FETCH_PICKS:(\{[\s\S]*?\})\]\s*$/)
+      const askVibe  = fullText.includes('[ASK:vibe]')
+      const askAvoid = fullText.includes('[ASK:avoid]')
+
+      if (markerMatch) {
+        // FETCH_PICKS flow — pull recommendations
+        setMessages(prev => {
+          const updated = [...prev]
+          updated[updated.length - 1] = { role: 'assistant', content: cleanText, fetchingPicks: true }
+          return updated
+        })
+
+        try {
+          const params = JSON.parse(markerMatch[1])
+          const res = await fetch('/api/recommend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+          })
+          const data = await res.json()
+          const picks: RecommendPick[] = (data.picks ?? []).map((p: Record<string, unknown>) => ({
+            title:     p.title ?? '',
+            venue:     p.venue ?? '',
+            date:      p.date ?? '',
+            price:     p.price ?? '',
+            ticketUrl: p.ticketUrl ?? p.ticket_url ?? null,
+            imageUrl:  p.imageUrl ?? p.image_url ?? null,
+            pitch:     p.pitch ?? '',
+          }))
+          setMessages(prev => {
+            const updated = [...prev]
+            updated[updated.length - 1] = { role: 'assistant', content: cleanText, picks, fetchingPicks: false }
+            return updated
+          })
+        } catch {
+          setMessages(prev => {
+            const updated = [...prev]
+            updated[updated.length - 1] = { role: 'assistant', content: cleanText, fetchingPicks: false }
+            return updated
+          })
+        }
+
+        const speakable = cleanText.length > 200 ? cleanText.substring(0, 200) + '...' : cleanText
+        if (speakable) { setBillSpeaking(true); speakText(speakable, intensity, () => setBillSpeaking(false)) }
+
+      } else if (fullText) {
+        // Regular response — strip markers from display
+        if (askVibe || askAvoid) {
+          setMessages(prev => {
+            const updated = [...prev]
+            updated[updated.length - 1] = { role: 'assistant', content: cleanText }
+            return updated
+          })
+          if (askVibe) { setPendingChips('vibe'); setShowAllVibeChips(false) }
+          else if (askAvoid) setPendingChips('avoid')
+        }
+
+        const speakable = cleanText.length > 200 ? cleanText.substring(0, 200) + '...' : cleanText
         setBillSpeaking(true)
         speakText(speakable, intensity, () => setBillSpeaking(false))
       }
@@ -310,10 +340,30 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     "Something free to do",
   ]
 
+  // Survey chip options — mirror the MoodSurvey "Go ___" taxonomy
+  const SURVEY_CHIPS = {
+    vibe: [
+      { label: '🍽️  Go eat',     value: 'Go eat'     },
+      { label: '🎵  Go listen',  value: 'Go listen'  },
+      { label: '🥂  Go out',     value: 'Go out'     },
+      { label: '⚡  Go move',    value: 'Go move'    },
+      { label: '🎭  Go see',     value: 'Go see'     },
+      { label: '🌆  Go explore', value: 'Go explore' },
+      { label: '🎲  Go play',    value: 'Go play'    },
+    ],
+    avoid: [
+      { label: '💸  Spending more than planned',   value: 'Spending more than planned'   },
+      { label: "🙉  Chaos I can't escape",         value: "Chaos I can't escape"          },
+      { label: '📅  Needing to plan anything',     value: 'Needing to plan anything'     },
+      { label: '🪑  Being stuck in a seat',        value: 'Being stuck in a seat'        },
+    ],
+  } as const
+
   const intensityLevel = INTENSITY_LEVELS[intensity]
 
   return (
     <>
+      {/* "Yeah Doodle!" speech bubble */}
       {showTagline && (
         <div className="fixed bottom-24 right-6 z-50 animate-fade-in">
           <div className="bg-yd-orange text-white font-display text-lg px-4 py-2 rounded-2xl rounded-br-none shadow-lg">
@@ -322,8 +372,9 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
         </div>
       )}
 
+      {/* Floating trigger button */}
       <button
-        onClick={() => { playIntro(intensity); setOpen(o => !o) }}
+        onClick={() => setOpen(o => !o)}
         aria-label="Chat with Wild Bill"
         className="fixed bottom-6 right-6 z-50 group"
       >
@@ -331,8 +382,8 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
           {billSpeaking && (
             <span className="absolute inset-0 rounded-full bg-yd-orange/40 animate-ping" />
           )}
-          <div className="relative bg-gradient-to-br from-yd-orange to-amber-600 rounded-full p-1 shadow-xl hover:sscale-105 transition-transform">
-            <CowboyAvatar size={52} />
+          <div className="relative bg-gradient-to-br from-yd-orange to-amber-600 rounded-full p-1 shadow-xl hover:scale-105 transition-transform">
+            <AvatarImage size={52} />
           </div>
           {showBadge && !open && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white animate-bounce">
@@ -345,10 +396,12 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
         </div>
       </button>
 
+      {/* Chat panel */}
       {open && (
         <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-[#1a1a2e]">
+          {/* Header */}
           <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-amber-900/60 to-yd-orange/20 border-b border-white/10">
-            <CowboyAvatar size={38} animate={billSpeaking} />
+            <AvatarImage size={38} animate={billSpeaking} />
             <div className="flex-1 min-w-0">
               <div className="font-display text-white text-sm font-bold">Wild Bill</div>
               <div className="text-white/50 text-xs truncate">
@@ -356,6 +409,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
               </div>
             </div>
 
+            {/* Intensity dial */}
             <div className="flex items-center gap-0.5 bg-black/30 rounded-lg p-0.5" title="Wild Bill's energy level">
               {INTENSITY_LEVELS.map((lvl, i) => (
                 <button
@@ -377,35 +431,98 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
               onClick={() => setOpen(false)}
               className="text-white/40 hover:text-white/80 transition-colors text-lg ml-1"
             >
-              &#x2715;
+              ✕
             </button>
           </div>
 
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-80 min-h-48">
             {messages.map((msg, i) => (
-              <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {msg.role === 'assistant' && <CowboyAvatar size={24} />}
-                <div
-                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-yd-orange text-white rounded-tr-sm'
-                      : 'bg-white/10 text-white/90 ro/unded-tl-sm'
-                  }`}
-                >
-                  {msg.content || (
-                    <span className="flex gap-1 py-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </span>
-                  )}
+              <div key={i} className={`flex flex-col gap-2 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                  {msg.role === 'assistant' && <AvatarImage size={24} />}
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-yd-orange text-white rounded-tr-sm'
+                        : 'bg-white/10 text-white/90 rounded-tl-sm'
+                    }`}
+                  >
+                    {msg.content || (
+                      <span className="flex gap-1 py-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {/* Pick cards */}
+                {msg.fetchingPicks && (
+                  <div className="w-full pl-8 text-xs text-white/40 animate-pulse">Scouting your picks...</div>
+                )}
+                {msg.picks && msg.picks.length > 0 && (
+                  <div className="w-full pl-8 flex flex-col gap-2">
+                    {msg.picks.map((pick, pi) => (
+                      <div key={pi} className="bg-white/8 border border-white/10 rounded-xl overflow-hidden">
+                        {pick.imageUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={pick.imageUrl} alt={pick.title} className="w-full h-20 object-cover" />
+                        )}
+                        <div className="p-2.5">
+                          <p className="text-white text-xs font-semibold leading-tight mb-0.5">{pick.title}</p>
+                          {pick.pitch && <p className="text-white/55 text-[11px] leading-snug mb-1">{pick.pitch}</p>}
+                          <p className="text-white/40 text-[11px]">{pick.venue}{pick.date ? ` · ${pick.date}` : ''}{pick.price ? ` · ${pick.price}` : ''}</p>
+                          {pick.ticketUrl && (
+                            <a
+                              href={pick.ticketUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block mt-1.5 text-[11px] font-semibold text-yd-orange hover:underline"
+                            >
+                              Let&apos;s go →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <div ref={messagesEndRef} />
           </div>
 
-          {messages.filter(m => m.role === 'user').length === 0 && (
+          {/* Survey chips — shown when Wild Bill is asking a survey question */}
+          {pendingChips && (
+            <div className="px-4 pb-3 flex flex-col gap-1.5">
+              {(pendingChips === 'vibe'
+                ? (showAllVibeChips ? SURVEY_CHIPS.vibe : SURVEY_CHIPS.vibe.slice(0, 4))
+                : SURVEY_CHIPS.avoid
+              ).map(chip => (
+                <button
+                  key={chip.label}
+                  onClick={() => sendMessage(chip.value)}
+                  disabled={streaming}
+                  className="text-left text-sm bg-white/8 hover:bg-yd-orange/20 text-white/80 hover:text-white px-3 py-2.5 rounded-xl transition-colors border border-white/10 hover:border-yd-orange/40 disabled:opacity-40"
+                >
+                  {chip.label}
+                </button>
+              ))}
+              {pendingChips === 'vibe' && !showAllVibeChips && (
+                <button
+                  onClick={() => setShowAllVibeChips(true)}
+                  className="text-xs text-white/35 hover:text-white/55 transition-colors py-0.5 text-left pl-1"
+                >
+                  + more options
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Quick prompts (only show before first user message, when no chips pending) */}
+          {!pendingChips && messages.filter(m => m.role === 'user').length === 0 && (
             <div className="px-4 pb-2 flex flex-wrap gap-1.5">
               {QUICK_PROMPTS.map(p => (
                 <button
@@ -419,6 +536,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
             </div>
           )}
 
+          {/* Input */}
           <form onSubmit={handleSubmit} className="flex gap-2 px-3 py-3 border-t border-white/10">
             <input
               ref={inputRef}
@@ -433,7 +551,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
               disabled={!input.trim() || streaming}
               className="bg-yd-orange hover:bg-amber-500 disabled:opacity-40 text-white rounded-xl px-3 py-2 text-sm font-bold transition-colors"
             >
-              &#x2192;
+              →
             </button>
           </form>
         </div>
