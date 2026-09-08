@@ -290,7 +290,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
             body: JSON.stringify(params),
           })
           const data = await res.json()
-          const picks: RecommendPick[] = (data.picks ?? []).map((p: Record<string, unknown>) => ({
+          const picks: RecommendPick[] = (data.picks ?? []).map((p: Record<string, string | null | undefined>) => ({
             title:     p.title ?? '',
             venue:     p.venue ?? '',
             date:      p.date ?? '',
