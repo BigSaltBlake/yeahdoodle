@@ -46,14 +46,14 @@ export default function HomePage() {
           onClick={() => setLocModalOpen(false)}
         >
           <div
-            className="relative bg-white rounded-3xl shadow-2xl p-8 mx-4 w-full max-w-md"
+            className="relative bg-white rounded-3xl shadow-2xl p-8 mx-4 w-full max-w-md text-stone-900"
             onClick={e => e.stopPropagation()}
           >
             <button
               onClick={() => setLocModalOpen(false)}
               className="absolute top-4 right-4 text-stone-400 hover:text-stone-700 text-2xl leading-none"
             >
-              ✕
+              â
             </button>
             <h2 className="text-2xl font-black text-stone-900 mb-1 text-center">Let&apos;s Find Your Next Adventure</h2>
             <p className="text-sm text-stone-500 text-center mb-6">Where should Wild Bill scout for you?</p>
@@ -63,7 +63,7 @@ export default function HomePage() {
                 disabled={gpsLoading}
                 className="w-full rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold py-3 px-6 transition-all disabled:opacity-60 text-base"
               >
-                {gpsLoading ? 'Locating…' : '📍 Use My Current Location'}
+                {gpsLoading ? 'Locatingâ¦' : 'ð Use My Current Location'}
               </button>
               <div className="flex items-center gap-3">
                 <hr className="flex-1 border-stone-200" />
@@ -73,7 +73,7 @@ export default function HomePage() {
               <form onSubmit={handleLocSubmit} className="flex gap-2">
                 <input
                   className="flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                  placeholder="City, zip, state, or country…"
+                  placeholder="City, zip, state, or countryâ¦"
                   value={locInput}
                   onChange={e => setLocInput(e.target.value)}
                   autoFocus
@@ -82,10 +82,10 @@ export default function HomePage() {
                   type="submit"
                   className="rounded-2xl bg-stone-900 hover:bg-stone-700 active:scale-95 text-white px-5 py-3 text-base font-bold transition-all"
                 >
-                  Go →
+                  Go â
                 </button>
               </form>
-              <p className="text-xs text-stone-400 text-center">Try a zip, city, state, or even a whole country — Wild Bill will find something amazing.</p>
+              <p className="text-xs text-stone-400 text-center">Try a zip, city, state, or even a whole country â Wild Bill will find something amazing.</p>
             </div>
           </div>
         </div>
@@ -95,7 +95,7 @@ export default function HomePage() {
         onClose={() => setSurveyOpen(false)}
       />
 
-      {/* ââ Hero ââ */}
+      {/* Ã¢ÂÂÃ¢ÂÂ Hero Ã¢ÂÂÃ¢ÂÂ */}
       <section className="relative min-h-screen flex items-center justify-center bg-yd-bg overflow-hidden">
         {/* Layered background atmosphere */}
         <div className="absolute inset-0 bg-gradient-to-br from-yd-orange/15 via-transparent to-yd-navy/50 pointer-events-none" />
@@ -133,12 +133,12 @@ export default function HomePage() {
             style={{ boxShadow: '0 0 50px rgba(255, 100, 0, 0.28)' }}
           >
             Yeah Doodle!
-            <span className="group-hover:translate-x-1.5 transition-transform duration-200 text-xl">â</span>
+            <span className="group-hover:translate-x-1.5 transition-transform duration-200 text-xl">Ã¢ÂÂ</span>
           </button>
 
           {/* Reassurance */}
           <p className="text-white/20 text-sm mt-6 tracking-wide">
-            ð Auto-detects your location
+            Ã°ÂÂÂ Auto-detects your location
           </p>
         </div>
 
@@ -149,7 +149,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ââ How it works ââ */}
+      {/* Ã¢ÂÂÃ¢ÂÂ How it works Ã¢ÂÂÃ¢ÂÂ */}
       <section className="bg-yd-navy py-16">
         <div className="max-w-4xl mx-auto px-4">
           <h2 className="font-display text-2xl text-white text-center mb-10">How it works</h2>
@@ -158,7 +158,7 @@ export default function HomePage() {
               {
                 step: '01',
                 title: '2 quick questions',
-                body: 'How do you want to feel? What would kill the vibe? Takes 10 seconds â we handle the rest.',
+                body: 'How do you want to feel? What would kill the vibe? Takes 10 seconds Ã¢ÂÂ we handle the rest.',
               },
               {
                 step: '02',
@@ -183,15 +183,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ââ What you\'ll find ââ */}
+      {/* Ã¢ÂÂÃ¢ÂÂ What you\'ll find Ã¢ÂÂÃ¢ÂÂ */}
       <section className="max-w-5xl mx-auto px-4 py-14">
         <h2 className="font-display text-2xl text-white text-center mb-8">What&apos;s waiting for you</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { icon: 'ð¸', label: 'Live music you can feel in your chest' },
-            { icon: 'ð®', label: 'Hidden gems the locals actually go to' },
-            { icon: 'ð¨', label: 'Art, theatre, and things to talk about after' },
-            { icon: 'ð', label: 'Sports, outdoor adventures, and real action' },
+            { icon: 'Ã°ÂÂÂ¸', label: 'Live music you can feel in your chest' },
+            { icon: 'Ã°ÂÂÂ®', label: 'Hidden gems the locals actually go to' },
+            { icon: 'Ã°ÂÂÂ¨', label: 'Art, theatre, and things to talk about after' },
+            { icon: 'Ã°ÂÂÂ', label: 'Sports, outdoor adventures, and real action' },
           ].map(v => (
             <button
               key={v.label}
