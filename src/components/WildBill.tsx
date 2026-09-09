@@ -194,10 +194,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
   useEffect(() => {
     const handler = (e: Event) => {
       const loc = (e as CustomEvent).detail?.city || ''
-      if (loc) {
-        setUserLoc(loc)
-        setLocDone(true)
-      }
+      if (loc) { setUserLoc(loc); setLocDone(true) }
       setMessages([])
       setOpen(true)
     }
@@ -233,7 +230,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
   useEffect(() => {
     if (locDone && open && messages.length === 0) {
       const loc = userLoc || city
-      setMessages([{ role: 'assistant', content: `Well, howdy! I'm Wild Bill — your personal adventure scout. You're in ${loc} — let's find your next adventure. Tap what sounds right:` }])
+      setMessages([{ role: 'assistant', content: `Well, howdy! I'm Wild Bill \u2014 your personal adventure scout. You're in ${loc} \u2014 let's find your next adventure. Tap what sounds right:` }])
     }
   }, [locDone]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -497,7 +494,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
             <div className="flex flex-col items-center gap-3 p-5 pt-4">
               <p className="text-sm font-semibold text-stone-800 text-center">Where should I scout for adventures?</p>
               <button onClick={handleGps} disabled={gpsLoading} className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold py-2.5 px-4 transition-all disabled:opacity-60 text-sm">
-                {gpsLoading ? 'Locating…' : '📍 Use My Current Location'}
+                {gpsLoading ? 'Locating...' : '\u{1F4CD} Use My Current Location'}
               </button>
               <div className="flex w-full items-center gap-2">
                 <hr className="flex-1 border-stone-200" />
@@ -507,14 +504,14 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
               <form onSubmit={handleLocSubmit} className="flex w-full gap-2">
                 <input
                   className="flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                  placeholder="City, zip, state, or country…"
+                  placeholder="City, zip, state, or country..."
                   value={locInput}
                   onChange={e => setLocInput(e.target.value)}
                   autoFocus
                 />
                 <button type="submit" className="rounded-xl bg-stone-800 hover:bg-stone-700 active:scale-95 text-white px-4 py-2 text-sm font-semibold transition-all">Go</button>
               </form>
-              <p className="text-xs text-stone-400 text-center">Try a zip, city, state, or country — the broader the search, the more Wild Bill explores!</p>
+              <p className="text-xs text-stone-400 text-center">Try a zip, city, state, or country \u2014 the broader the search, the wilder the adventure!</p>
             </div>
           )}
           {/* Messages */}
