@@ -134,6 +134,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
   const inputRef        = useRef<HTMLInputElement>(null)
   const abortRef        = useRef<AbortController | null>(null)
   const catchphraseCooldownRef = useRef(false)
+  const preloadedAudioRef = useRef<Record<string, HTMLAudioElement>>({})
 
   // Real recorded voice files mapped to intensity level
   const CATCHPHRASE_FILES: Record<Intensity, string> = {
@@ -151,6 +152,15 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       }
     } catch { /* ignore */ }
     setTimeout(() => setShowBadge(true), 2500)
+
+    // Preload catchphrase audio so it plays instantly
+    const cpSrcs = ['/WB-YD3.m4a', '/WB-YD1.m4a', '/WB-YD2.m4a']
+    cpSrcs.forEach(src => {
+      const a = new Audio(src)
+      a.preload = 'auto'
+      a.load()
+      preloadedAudioRef.current[src] = a
+    })
   }, [])
 
   const saveIntensity = (level: Intensity) => {
@@ -172,7 +182,9 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     setShowTagline(true)
     setBillSpeaking(true)
 
-    const audio = new Audio(CATCHPHRASE_FILES[currentIntensity])
+    const cpKey = CATCHPHRASE_FILES[currentIntensity]
+    const audio = preloadedAudioRef.current[cpKey] ?? new Audio(cpKey)
+    audio.currentTime = 0
     currentAudio = audio  // register so speakText can cancel it too
     const onFinish = () => {
       if (currentAudio === audio) currentAudio = null
