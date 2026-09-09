@@ -202,6 +202,15 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     return () => window.removeEventListener('wb-open-with-city', handler)
   }, [])
 
+  // Preload catchphrase audio to eliminate hover-sound delay
+  useEffect(() => {
+    ;['/WB-YD1.m4a', '/WB-YD2.m4a', '/WB-YD3.m4a'].forEach(src => {
+      const a = new Audio(src)
+      a.preload = 'auto'
+      a.load()
+    })
+  }, [])
+
   // Scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
