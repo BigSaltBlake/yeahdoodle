@@ -5,9 +5,9 @@ import MoodSurvey from '@/components/MoodSurvey'
 
 export default function HomePage() {
   const [surveyOpen, setSurveyOpen] = useState(false)
-  const [locModalOpen, setLocModalOpen] = useState(false)
-  const [locInput,     setLocInput]     = useState('')
-  const [gpsLoading,   setGpsLoading]   = useState(false)
+  const [locModalOpen, setLocModalOpen]  = useState(false)
+  const [locInput,     setLocInput]      = useState('')
+  const [gpsLoading,   setGpsLoading]    = useState(false)
 
   const handleGps = () => {
     if (!navigator.geolocation) return
@@ -19,8 +19,9 @@ export default function HomePage() {
           .then(r => r.json())
           .then(d => {
             const loc = d.address?.city || d.address?.town || d.address?.village || d.address?.county || d.display_name || ''
-            setGpsLoading(false)
             setLocModalOpen(false)
+            setLocInput('')
+            setGpsLoading(false)
             window.dispatchEvent(new CustomEvent('wb-open-with-city', { detail: { city: loc } }))
           })
           .catch(() => setGpsLoading(false))
@@ -31,8 +32,10 @@ export default function HomePage() {
 
   const handleLocSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (!locInput.trim()) return
-    const loc = locInput.trim()
+    const formEl = e.target as HTMLFormElement
+    const inputEl = formEl.querySelector('input') as HTMLInputElement
+    const loc = (inputEl?.value || locInput).trim()
+    if (!loc) return
     setLocModalOpen(false)
     setLocInput('')
     window.dispatchEvent(new CustomEvent('wb-open-with-city', { detail: { city: loc } }))
@@ -41,61 +44,40 @@ export default function HomePage() {
   return (
     <>
       {locModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={() => setLocModalOpen(false)}
-        >
-          <div
-            className="relative bg-white rounded-3xl shadow-2xl p-8 mx-4 w-full max-w-md text-stone-900"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setLocModalOpen(false)}
-              className="absolute top-4 right-4 text-stone-400 hover:text-stone-700 text-2xl leading-none"
-            >
-              â
-            </button>
-            <h2 className="text-2xl font-black text-stone-900 mb-1 text-center">Let&apos;s Find Your Next Adventure</h2>
-            <p className="text-sm text-stone-500 text-center mb-6">Where should Wild Bill scout for you?</p>
-            <div className="flex flex-col gap-4">
-              <button
-                onClick={handleGps}
-                disabled={gpsLoading}
-                className="w-full rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold py-3 px-6 transition-all disabled:opacity-60 text-base"
-              >
-                {gpsLoading ? 'Locatingâ¦' : 'ð Use My Current Location'}
-              </button>
-              <div className="flex items-center gap-3">
-                <hr className="flex-1 border-stone-200" />
-                <span className="text-sm text-stone-400">or type a location</span>
-                <hr className="flex-1 border-stone-200" />
-              </div>
-              <form onSubmit={handleLocSubmit} className="flex gap-2">
-                <input
-                  className="flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                  placeholder="City, zip, state, or countryâ¦"
-                  value={locInput}
-                  onChange={e => setLocInput(e.target.value)}
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  className="rounded-2xl bg-stone-900 hover:bg-stone-700 active:scale-95 text-white px-5 py-3 text-base font-bold transition-all"
-                >
-                  Go â
-                </button>
-              </form>
-              <p className="text-xs text-stone-400 text-center">Try a zip, city, state, or even a whole country â Wild Bill will find something amazing.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => setLocModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 text-stone-900" onClick={e => e.stopPropagation()}>
+            <div className="text-center">
+              <p className="text-lg font-bold text-stone-800">Where should Wild Bill scout?</p>
+              <p className="text-xs text-stone-500 mt-1">Pick your current spot or type any location</p>
             </div>
+            <button onClick={handleGps} disabled={gpsLoading} className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold py-3 px-4 transition-all disabled:opacity-60 text-sm">
+              {gpsLoading ? 'Locating…' : '📍 Use My Current Location'}
+            </button>
+            <div className="flex items-center gap-2">
+              <hr className="flex-1 border-stone-200" />
+              <span className="text-xs text-stone-400">or type a location</span>
+              <hr className="flex-1 border-stone-200" />
+            </div>
+            <form onSubmit={handleLocSubmit} className="flex gap-2">
+              <input
+                className="flex-1 rounded-xl border border-stone-300 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                placeholder="City, zip, state, or country…"
+                value={locInput}
+                onChange={e => setLocInput(e.target.value)}
+                autoFocus
+              />
+              <button type="submit" className="rounded-xl bg-stone-800 hover:bg-stone-700 active:scale-95 text-white px-4 py-2.5 text-sm font-semibold transition-all">Go</button>
+            </form>
+            <p className="text-xs text-stone-400 text-center">Try a zip, city, state, or country</p>
           </div>
         </div>
       )}
-            <MoodSurvey
+      <MoodSurvey
         open={surveyOpen}
         onClose={() => setSurveyOpen(false)}
       />
 
-      {/* Ã¢ÂÂÃ¢ÂÂ Hero Ã¢ÂÂÃ¢ÂÂ */}
+      {/* ── Hero ── */}
       <section className="relative min-h-screen flex items-center justify-center bg-yd-bg overflow-hidden">
         {/* Layered background atmosphere */}
         <div className="absolute inset-0 bg-gradient-to-br from-yd-orange/15 via-transparent to-yd-navy/50 pointer-events-none" />
@@ -133,12 +115,12 @@ export default function HomePage() {
             style={{ boxShadow: '0 0 50px rgba(255, 100, 0, 0.28)' }}
           >
             Yeah Doodle!
-            <span className="group-hover:translate-x-1.5 transition-transform duration-200 text-xl">Ã¢ÂÂ</span>
+            <span className="group-hover:translate-x-1.5 transition-transform duration-200 text-xl">→</span>
           </button>
 
           {/* Reassurance */}
           <p className="text-white/20 text-sm mt-6 tracking-wide">
-            Ã°ÂÂÂ Auto-detects your location
+            📍 Auto-detects your location
           </p>
         </div>
 
@@ -149,7 +131,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Ã¢ÂÂÃ¢ÂÂ How it works Ã¢ÂÂÃ¢ÂÂ */}
+      {/* ── How it works ── */}
       <section className="bg-yd-navy py-16">
         <div className="max-w-4xl mx-auto px-4">
           <h2 className="font-display text-2xl text-white text-center mb-10">How it works</h2>
@@ -158,7 +140,7 @@ export default function HomePage() {
               {
                 step: '01',
                 title: '2 quick questions',
-                body: 'How do you want to feel? What would kill the vibe? Takes 10 seconds Ã¢ÂÂ we handle the rest.',
+                body: 'How do you want to feel? What would kill the vibe? Takes 10 seconds — we handle the rest.',
               },
               {
                 step: '02',
@@ -183,19 +165,19 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Ã¢ÂÂÃ¢ÂÂ What you\'ll find Ã¢ÂÂÃ¢ÂÂ */}
+      {/* ── What you\'ll find ── */}
       <section className="max-w-5xl mx-auto px-4 py-14">
         <h2 className="font-display text-2xl text-white text-center mb-8">What&apos;s waiting for you</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { icon: 'Ã°ÂÂÂ¸', label: 'Live music you can feel in your chest' },
-            { icon: 'Ã°ÂÂÂ®', label: 'Hidden gems the locals actually go to' },
-            { icon: 'Ã°ÂÂÂ¨', label: 'Art, theatre, and things to talk about after' },
-            { icon: 'Ã°ÂÂÂ', label: 'Sports, outdoor adventures, and real action' },
+            { icon: '🎸', label: 'Live music you can feel in your chest' },
+            { icon: '🌮', label: 'Hidden gems the locals actually go to' },
+            { icon: '🎨', label: 'Art, theatre, and things to talk about after' },
+            { icon: '🏆', label: 'Sports, outdoor adventures, and real action' },
           ].map(v => (
             <button
               key={v.label}
-              onClick={() => setSurveyOpen(true)}
+              onClick={() => setLocModalOpen(true)}
               className="bg-yd-card border border-white/5 rounded-xl p-5 text-center hover:border-yd-orange/30 transition-all group cursor-pointer"
             >
               <div className="text-3xl mb-3">{v.icon}</div>
