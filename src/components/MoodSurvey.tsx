@@ -170,7 +170,7 @@ const prefetchAnswersRef = useRef<string[]>([])
     setLastAnswers(savedAnswers)
 
     if (initialCity) {
-      setPhase(returnHist ? 'returning' : 'question')
+      setPhase('confirm-location')
       return
     }
 
@@ -534,7 +534,7 @@ const prefetchAnswersRef = useRef<string[]>([])
               onClick={() => {
                 capture('location_confirmed', { city })
                 startPrefetch(city, lastAnswers || [])
-                setPhase(hasReturnHistory ? 'returning' : 'question')
+                setPhase('confirm-location')
               }}
               className="w-full bg-yd-orange hover:bg-yd-orangeHover text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
             >
