@@ -86,7 +86,7 @@ const LOADING_MESSAGES = [
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
-type Phase = 'locating' | 'city' | 'returning' | 'question' | 'loading' | 'results' | 'empty'
+type Phase = 'locating' | 'city' | 'confirm-location' | 'returning' | 'question' | 'loading' | 'results' | 'empty'
 type EmailState = 'idle' | 'loading' | 'done' | 'error'
 type FeedbackRating = 'up' | 'meh' | 'down'
 type SaveIntent = 'save_for_later' | 'definitely_going'
@@ -97,7 +97,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [city, setCity] = useState(initialCity)
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
-  const [phase, setPhase] = useState<Phase>(initialCity ? 'question' : 'locating')
+  const [phase, setPhase] = useState<Phase>(initialCity ? 'confirm-location' : 'locating')
   const [qIndex, setQIndex] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
   const [loadingMsg, setLoadingMsg] = useState(0)
@@ -119,6 +119,8 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [openFilter, setOpenFilter]     = useState<'when' | 'budget' | 'crew' | null>(null)
   const [refineStep, setRefineStep]     = useState<'when' | 'crew' | 'done' | null>(null)
   const cancelGps = useRef(false)
+const prefetchRef = useRef<Pick[] | null>(null)
+const prefetchAnswersRef = useRef<string[]>([])
 
   // ---------------------------------------------------------------------------
   // Derived state
@@ -138,7 +140,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         setCity(initialCity)
         setLat(null)
         setLng(null)
-        setPhase(initialCity ? 'question' : 'locating')
+        setPhase(initialCity ? 'confirm-location' : 'locating')
         setQIndex(0)
         setAnswers([])
         setPicks([])
@@ -193,7 +195,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           const name = geo.city || geo.locality || geo.principalSubdivision || ''
           if (!cancelGps.current && name) setCity(name)
         } catch { /* use existing city */ }
-        if (!cancelGps.current) setPhase(returnHist ? 'returning' : 'question')
+        if (!cancelGps.current) setPhase('confirm-location')
       },
       () => {
         if (!cancelGps.current) setPhase('city')
@@ -314,6 +316,22 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     setAnswers(submittedAnswers)
     setPhase('loading')
     setLoadingMsg(0)
+
+    // Use prefetch cache if answers match
+    if (prefetchRef.current && JSON.stringify(prefetchAnswersRef.current) === JSON.stringify(submittedAnswers)) {
+      const cachedPicks = prefetchRef.current
+      prefetchRef.current = null
+      setPicks(cachedPicks)
+      setPhase('results')
+      capture('picks_viewed', { city, pick_count: cachedPicks.length, cached: true })
+      try {
+        const consent = localStorage.getItem('yd_hist_consent')
+        if (consent === 'true') saveToHistory(submittedAnswers)
+        else if (!consent) setShowHistConsent(true)
+      } catch { /* */ }
+      return
+    }
+
     try {
       const body: Record<string, unknown> = {
         city,
@@ -352,6 +370,30 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     } catch {
       setPhase('empty')
     }
+  }
+
+
+  // ---------------------------------------------------------------------------
+  // Background prefetch — fires immediately after location is confirmed
+  // ---------------------------------------------------------------------------
+  function startPrefetch(prefetchCity: string, prefetchAnswers: string[]) {
+    prefetchRef.current = null
+    prefetchAnswersRef.current = prefetchAnswers
+    ;(async () => {
+      try {
+        const prefBody: Record<string, unknown> = { city: prefetchCity, answers: prefetchAnswers }
+        if (lat !== null) prefBody.lat = lat
+        if (lng !== null) prefBody.lng = lng
+        const prefRes = await fetch('/api/recommend', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(prefBody),
+        })
+        if (!prefRes.ok) return
+        const prefData = await prefRes.json()
+        if (prefData.picks?.length > 0) prefetchRef.current = prefData.picks
+      } catch { /* fire and forget */ }
+    })()
   }
 
   // ---------------------------------------------------------------------------
@@ -466,12 +508,12 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               autoFocus
               value={city}
               onChange={e => setCity(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && city.trim()) { capture('city_selected', { city }); setPhase(hasReturnHistory ? 'returning' : 'question') } }}
+              onKeyDown={e => { if (e.key === 'Enter' && city.trim()) { capture('city_selected', { city }); setPhase('confirm-location') } }}
               placeholder="What city are you in?"
               className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-white/30 border border-white/20 focus:outline-none focus:border-yd-orange mb-4 text-base"
             />
             <button
-              onClick={() => { if (city.trim()) { capture('city_selected', { city }); setPhase(hasReturnHistory ? 'returning' : 'question') } }}
+              onClick={() => { if (city.trim()) { capture('city_selected', { city }); setPhase('confirm-location') } }}
               disabled={!city.trim()}
               className="w-full bg-yd-orange hover:bg-yd-orangeHover disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
             >
@@ -480,7 +522,35 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* ── Return visit ─────────────────────────────────────────────────── */}
+  
+      {/* ── Confirm location ────────────────────────────────────────── */}
+      {phase === 'confirm-location' && (
+        <div className="p-8 text-center">
+          <div className="text-5xl mb-4">📍</div>
+          <h2 className="font-display text-xl text-white mb-1">You&apos;re in {city || 'your location'}?</h2>
+          <p className="text-white/40 text-sm mb-7">We&apos;ll find the best picks near you</p>
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                capture('location_confirmed', { city })
+                startPrefetch(city, lastAnswers || [])
+                setPhase(hasReturnHistory ? 'returning' : 'question')
+              }}
+              className="w-full bg-yd-orange hover:bg-yd-orangeHover text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
+            >
+              ✓ Yes, {city || 'here'}!
+            </button>
+            <button
+              onClick={() => { setCity(''); setPhase('city') }}
+              className="w-full bg-white/5 hover:bg-white/10 text-white/50 font-medium py-3 rounded-xl transition-colors text-sm border border-white/10 hover:border-white/20"
+            >
+              Change location
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Return visit ─────────────────────────────────────────────────── */}
         {phase === 'returning' && lastAnswers && (
           <div className="p-6">
             <div className="text-center mb-5">
