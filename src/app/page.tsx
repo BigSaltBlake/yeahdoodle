@@ -5,6 +5,7 @@ import MoodSurvey from '@/components/MoodSurvey'
 
 export default function HomePage() {
   const [surveyOpen, setSurveyOpen] = useState(false)
+  const [surveyCity,   setSurveyCity]    = useState('')
   const [locModalOpen, setLocModalOpen]  = useState(false)
   const [locInput,     setLocInput]      = useState('')
   const [gpsLoading,   setGpsLoading]    = useState(false)
@@ -19,10 +20,11 @@ export default function HomePage() {
           .then(r => r.json())
           .then(d => {
             const loc = d.address?.city || d.address?.town || d.address?.village || d.address?.county || d.display_name || ''
+            setSurveyCity(loc)
             setLocModalOpen(false)
             setLocInput('')
             setGpsLoading(false)
-            window.dispatchEvent(new CustomEvent('wb-open-with-city', { detail: { city: loc } }))
+            setSurveyOpen(true)
           })
           .catch(() => setGpsLoading(false))
       },
@@ -36,9 +38,10 @@ export default function HomePage() {
     const inputEl = formEl.querySelector('input') as HTMLInputElement
     const loc = (inputEl?.value || locInput).trim()
     if (!loc) return
+    setSurveyCity(loc)
     setLocModalOpen(false)
     setLocInput('')
-    window.dispatchEvent(new CustomEvent('wb-open-with-city', { detail: { city: loc } }))
+    setSurveyOpen(true)
   }
 
   return (
@@ -47,8 +50,8 @@ export default function HomePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => setLocModalOpen(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 text-stone-900" onClick={e => e.stopPropagation()}>
             <div className="text-center">
-              <p className="text-lg font-bold text-stone-800">Where should Wild Bill scout?</p>
-              <p className="text-xs text-stone-500 mt-1">Pick your current spot or type any location</p>
+              <p className="text-lg font-bold text-stone-800">Where are you looking for fun?</p>
+              <p className="text-xs text-stone-500 mt-1">We'll find 3 perfect picks near you</p>
             </div>
             <button onClick={handleGps} disabled={gpsLoading} className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold py-3 px-4 transition-all disabled:opacity-60 text-sm">
               {gpsLoading ? 'Locating…' : '📍 Use My Current Location'}
@@ -74,7 +77,8 @@ export default function HomePage() {
       )}
       <MoodSurvey
         open={surveyOpen}
-        onClose={() => setSurveyOpen(false)}
+        onClose={() => { setSurveyOpen(false); setSurveyCity('') }}
+        initialCity={surveyCity}
       />
 
       {/* ── Hero ── */}
