@@ -170,6 +170,7 @@ const prefetchAnswersRef = useRef<string[]>([])
     setLastAnswers(savedAnswers)
 
     if (initialCity) {
+      setCity(initialCity)
       setPhase('confirm-location')
       return
     }
