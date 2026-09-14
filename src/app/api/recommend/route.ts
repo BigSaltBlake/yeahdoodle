@@ -149,11 +149,11 @@ async function geocodeCity(query: string): Promise<{ lat: number; lng: number } 
 // Haversine distance in miles
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8
-  const Ï1 = lat1 * Math.PI / 180
-  const Ï2 = lat2 * Math.PI / 180
-  const ÎÏ = (lat2 - lat1) * Math.PI / 180
-  const ÎÎ» = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(ÎÏ / 2) ** 2 + Math.cos(Ï1) * Math.cos(Ï2) * Math.sin(ÎÎ» / 2) ** 2
+  const lat1Rad = lat1 * Math.PI / 180
+  const lat2Rad = lat2 * Math.PI / 180
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(dLng / 2) ** 2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
