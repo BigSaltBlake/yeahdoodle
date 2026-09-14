@@ -86,8 +86,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (!anthropicRes.ok || !anthropicRes.body) {
-    const errBody = await anthropicRes.text().catch(() => '(unreadable)')
-    return new Response('Wild Bill hit a snag [diag:' + anthropicRes.status + ':' + errBody.slice(0,300) + ']', { status: 502 })
+    return new Response('Wild Bill hit a snag — try again in a sec, partner.', { status: 502 })
   }
 
   // Pipe SSE from Anthropic → extract text_delta → stream raw text to client
