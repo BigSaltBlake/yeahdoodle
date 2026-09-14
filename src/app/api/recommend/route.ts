@@ -1172,13 +1172,40 @@ Return ONLY a valid JSON array â no markdown, no explanation:
       }),
     })
 
-    if (!aiRes.ok) throw new Error(`Anthropic API error: ${aiRes.status}`)
+    if (!aiRes.ok) {
+      // Anthropic unavailable — serve raw top-3 rather than returning empty
+      console.warn('[recommend] Anthropic non-ok:', aiRes.status, '— raw fallback')
+      const fb = rows.slice(0, 3).map((r, i) => ({
+        id: r.id, rank: i + 1,
+        pitch: r.ai_description?.slice(0, 120) ?? 'A great local experience.',
+        title: r.title, venue: r.venue_name ?? '',
+        dateFormatted: r.date_start ? formatDate(r.date_start) : 'Anytime',
+        priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
+        ticketUrl: r.ticket_url, imageUrl: r.image_url ?? fallbackImg(r.category),
+        category: r.category, source: r.source, distanceLabel: r.distanceLabel,
+      }))
+      await enrichPickImages(fb)
+      return NextResponse.json({ picks: fb })
+    }
 
     const aiData  = await aiRes.json()
     const rawText: string = aiData.content?.[0]?.text ?? '[]'
 
     const jsonMatch = rawText.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) throw new Error('No JSON array in AI response')
+    if (!jsonMatch) {
+      console.warn('[recommend] No JSON in AI response — raw fallback')
+      const fb = rows.slice(0, 3).map((r, i) => ({
+        id: r.id, rank: i + 1,
+        pitch: r.ai_description?.slice(0, 120) ?? 'A great local experience.',
+        title: r.title, venue: r.venue_name ?? '',
+        dateFormatted: r.date_start ? formatDate(r.date_start) : 'Anytime',
+        priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
+        ticketUrl: r.ticket_url, imageUrl: r.image_url ?? fallbackImg(r.category),
+        category: r.category, source: r.source, distanceLabel: r.distanceLabel,
+      }))
+      await enrichPickImages(fb)
+      return NextResponse.json({ picks: fb })
+    }
 
     const aiPicks   = JSON.parse(jsonMatch[0]) as Array<{ id: string; rank: number; pitch: string }>
     const eventById = Object.fromEntries(rows.map(r => [r.id, r]))
