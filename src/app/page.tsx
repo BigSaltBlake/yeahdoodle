@@ -1,84 +1,16 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState } from 'react'
 import MoodSurvey from '@/components/MoodSurvey'
 
 export default function HomePage() {
   const [surveyOpen, setSurveyOpen] = useState(false)
-  const [surveyCity,   setSurveyCity]    = useState('')
-  const [locModalOpen, setLocModalOpen]  = useState(false)
-  const [locInput,     setLocInput]      = useState('')
-  const [gpsLoading,   setGpsLoading]    = useState(false)
-
-  const handleGps = () => {
-    if (!navigator.geolocation) return
-    setGpsLoading(true)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords
-        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
-          .then(r => r.json())
-          .then(d => {
-            const loc = d.address?.city || d.address?.town || d.address?.village || d.address?.county || d.display_name || ''
-            setSurveyCity(loc)
-            setLocModalOpen(false)
-            setLocInput('')
-            setGpsLoading(false)
-            setSurveyOpen(true)
-          })
-          .catch(() => setGpsLoading(false))
-      },
-      () => setGpsLoading(false)
-    )
-  }
-
-  const handleLocSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    const formEl = e.target as HTMLFormElement
-    const inputEl = formEl.querySelector('input') as HTMLInputElement
-    const loc = (inputEl?.value || locInput).trim()
-    if (!loc) return
-    setSurveyCity(loc)
-    setLocModalOpen(false)
-    setLocInput('')
-    setSurveyOpen(true)
-  }
 
   return (
     <>
-      {locModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => setLocModalOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 text-stone-900" onClick={e => e.stopPropagation()}>
-            <div className="text-center">
-              <p className="text-lg font-bold text-stone-800">Where are you looking for fun?</p>
-              <p className="text-xs text-stone-500 mt-1">We'll find 3 perfect picks near you</p>
-            </div>
-            <button onClick={handleGps} disabled={gpsLoading} className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold py-3 px-4 transition-all disabled:opacity-60 text-sm">
-              {gpsLoading ? 'Locating…' : '📍 Use My Current Location'}
-            </button>
-            <div className="flex items-center gap-2">
-              <hr className="flex-1 border-stone-200" />
-              <span className="text-xs text-stone-400">or type a location</span>
-              <hr className="flex-1 border-stone-200" />
-            </div>
-            <form onSubmit={handleLocSubmit} className="flex gap-2">
-              <input
-                className="flex-1 rounded-xl border border-stone-300 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                placeholder="City, zip, state, or country…"
-                value={locInput}
-                onChange={e => setLocInput(e.target.value)}
-                autoFocus
-              />
-              <button type="submit" className="rounded-xl bg-stone-800 hover:bg-stone-700 active:scale-95 text-white px-4 py-2.5 text-sm font-semibold transition-all">Go</button>
-            </form>
-            <p className="text-xs text-stone-400 text-center">Try a zip, city, state, or country</p>
-          </div>
-        </div>
-      )}
       <MoodSurvey
         open={surveyOpen}
-        onClose={() => { setSurveyOpen(false); setSurveyCity('') }}
-        initialCity={surveyCity}
+        onClose={() => setSurveyOpen(false)}
       />
 
       {/* ── Hero ── */}
@@ -101,19 +33,19 @@ export default function HomePage() {
           </div>
 
           {/* Headline */}
-          <h1 className="font-display text-6xl sm:text-7xl lg:text-8xl text-white leading-[0.92] mb-6 tracking-tight">
+          <h1 className="font-display text-4xl sm:text-6xl lg:text-8xl text-white leading-[0.92] mb-6 tracking-tight">
             Life&apos;s Happening<br />
             <span className="text-yd-orange">Out There.</span> Live It!
           </h1>
 
           {/* Subhead */}
           <p className="text-white/50 text-xl sm:text-2xl mb-10 max-w-sm mx-auto leading-relaxed font-light">
-            Want three perfect picks near you, right now?
+            Want to find 3 options for things to do near you right now?
           </p>
 
           {/* Single CTA */}
           <button
-            onClick={() => setLocModalOpen(true)}
+            onClick={() => setSurveyOpen(true)}
             onMouseEnter={() => window.dispatchEvent(new CustomEvent('wb-yeahdoodle'))}
             className="group inline-flex items-center gap-3 bg-yd-orange hover:bg-yd-orangeHover text-white font-bold px-10 py-5 rounded-2xl text-lg transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
             style={{ boxShadow: '0 0 50px rgba(255, 100, 0, 0.28)' }}
@@ -169,7 +101,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── What you\'ll find ── */}
+      {/* ── What you'll find ── */}
       <section className="max-w-5xl mx-auto px-4 py-14">
         <h2 className="font-display text-2xl text-white text-center mb-8">What&apos;s waiting for you</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -181,7 +113,7 @@ export default function HomePage() {
           ].map(v => (
             <button
               key={v.label}
-              onClick={() => setLocModalOpen(true)}
+              onClick={() => setSurveyOpen(true)}
               className="bg-yd-card border border-white/5 rounded-xl p-5 text-center hover:border-yd-orange/30 transition-all group cursor-pointer"
             >
               <div className="text-3xl mb-3">{v.icon}</div>
