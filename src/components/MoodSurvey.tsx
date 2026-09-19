@@ -231,7 +231,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   }, [phase])
 
   // ---------------------------------------------------------------------------
-  // Session / save / feedback helpers (unchanged from prior version)
+  // Session / save / feedback helpers
   // ---------------------------------------------------------------------------
   function getSessionId(): string {
     try {
@@ -254,13 +254,13 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     } catch { /* fire and forget */ }
   }
 
-  function rejectPich(pick: Pick) {
+  function rejectPick(pick: Pick) {
     setDecisions(prev => ({ ...prev, [pick.id]: 'rejected' }))
     submitFeedback(pick, 'down')
     capture('pick_rejected', { event_id: pick.id, title: pick.title, city })
   }
 
-  function maybePich(pick: Pick) {
+  function maybePick(pick: Pick) {
     setDecisions(prev => ({ ...prev, [pick.id]: 'maybe' }))
     submitFeedback(pick, 'meh')
     capture('pick_maybe', { event_id: pick.id, title: pick.title, city })
@@ -348,7 +348,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   }
 
   // ---------------------------------------------------------------------------
-  // Core submit (used by both normal survey flow and "Same vibe" shortcut)
+  // Core submit
   // ---------------------------------------------------------------------------
   async function doSubmit(submittedAnswers: string[], filterOverrides?: { budget?: string; crew?: string; when?: string }) {
     const activeBudget = filterOverrides !== undefined ? (filterOverrides.budget ?? '') : filterBudget
@@ -382,7 +382,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         setPicks(data.picks)
         setPhase('results')
         capture('picks_viewed', { city, pick_count: data.picks.length })
-        // History: auto-save if already consented; prompt if first time
         try {
           const consent = localStorage.getItem('yd_hist_consent')
           if (consent === 'true') saveToHistory(submittedAnswers)
@@ -483,15 +482,15 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors rounded-full hover:bg-white/10"
           aria-label="Close"
         >
-           ✕
+          ✕
         </button>
 
-        <div className="overflow-y-auto flex-1">
-
-        {/* tilta Locating ────────────────────────────────────────────────────── */}
+        {/* ─── Scrollable content area ──────────────────────── */}
+        <div className="overflow-y-auto flex-1 overscroll-contain pb-[env(safe-area-inset-bottom,0px)]">
+        {/* ── Locating ─────────────────────────────────────────────────────── */}
         {phase === 'locating' && (
           <div className="p-8 text-center py-16">
-            <div className="text-5xl mb-6">��</div>
+            <div className="text-5xl mb-6">📍</div>
             <h2 className="font-display text-xl text-white mb-3">Finding events near you...</h2>
             <p className="text-white/40 text-sm mb-8">Allow location access for the best picks</p>
             <button
@@ -503,10 +502,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* tilta City entry ───────────────────────────────────────────────────── */}
+        {/* ── City entry ───────────────────────────────────────────────────── */}
         {phase === 'city' && (
           <div className="p-8 text-center">
-            <div className="text-5xl mb-4">🎏</div>
+            <div className="text-5xl mb-4">🎯</div>
             <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
             <p className="text-white/50 text-sm mb-7">2 quick questions → your 3 best picks</p>
             <input
@@ -515,7 +514,92 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               onChange={e => setCity(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && city.trim()) { capture('city_selected', { city }); setPhase(hasReturnHistory ? 'returning' : 'question') } }}
               placeholder="What city are you in?"
-              className="w-full px-4 py-3 rounded-xl bg-yݡ�є����ѕ�еݡ�є�����������ȵݡ�є������ɑ�ȁ��ɑ�ȵݡ�є�����������ѱ��������������鉽ɑ�ȵ吵�Ʌ�������Ёѕ�е��͔�(��������������(���������������ѽ�(���������������������젤����쁥��������ɥ�����쁍����ɔ������}͕���ѕ����쁍������͕�A��͔����I���ɹ!��ѽ�����ɕ��ɹ�����耝�Օ�ѥ��������(����������������ͅ�����셍����ɥ����(�������������������9����ܵ�ձ�����吵�Ʌ������ٕ�鉜�吵�Ʌ���!�ٕȁ��ͅ����������������ͅ�������ͽȵ��е����ݕ��ѕ�еݡ�є����е�������̸ԁɽչ����ᰁ�Ʌ�ͥѥ��������́ѕ�еʹ�(�������������(��������������1�Й�����́����H(���������������ѽ��(����������𽑥��(����������((��������켨�ѥ�ф�I��Uɸ�٥ͥЃ�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R�R ����(������������͔����ɕ��ɹ��������������ݕ�̀����(�����������؁�����9������؈�(�������������؁�����9����ѕ�е���ѕȁ���Ԉ�(���������������؁�����9����ѕ�д�ᰁ���̈��~F,𽑥��(���������������ȁ�����9���􉙽�е�������ѕ�еᰁѕ�еݡ�є����Ȉ�]���������������(����������������������9����ѕ�еݡ�є����ѕ�еʹ��M����٥����́���Ёѥ����ȁݽձ���ԁ�����Ѽ���������Ё������������(������������𽑥��(�������������؁�����9�����������ȸԈ�(�����������������ѽ�(�����������������������젤������MՉ��С������ݕ�̥�(���������������������9����ܵ�ձ��������ѕ�̵���ѕȁ����́��̸ԁɽչ����ᰁ��ɑ�ȁ��ɑ�ȵ吵�Ʌ���������ٕ�鉽ɑ�ȵ吵�Ʌ�������吵�Ʌ�������ѕ�е���Ё�Ʌ�ͥѥ��������ɽ���(���������������(���������������������������9����ѕ�д�ᰁ͡ɥ�������~R������(�����������������؁�����9���􉙱��ā����ܴ���(�������������������؁�����9���􉙽�е͕�������ѕ�еݡ�є�ѕ�еʹ������Ԉ�M����٥��𽑥��(��������������������������9����ѕ�еݡ�є����ѕ�е�́�ɽ�����ٕ��ѕ�еݡ�є�����Ʌ�ͥѥ��������̈�U͔��䁅��ݕ�́�ɽ�����Ёѥ�����(����������������𽑥��(���������������������������9����ѕ�е吵�Ʌ��������ɽ�����ٕ��ѕ�е吵�Ʌ�����Ʌ�ͥѥ��������́͡ɥ�������H������(�����������������ѽ��(�����������������ѽ�(�����������������������젤�����͕�E%�������͕���ݕ�̡mt��͕�A��͔���Օ�ѥ�������(���������������������9����ܵ�ձ��������ѕ�̵���ѕȁ����́��̸ԁɽչ����ᰁ��ɑ�ȁ��ɑ�ȵݡ�є������ٕ�鉽ɑ�ȵݡ�є��ԁ��ٕ�鉜��v��FR�RFW�B��VgBG&�6�F������w&�W ���7�6�74��S�'FW�B�'��6�&���#�)ʃ��7���F�b6�74��S�&f�W��֖��r�#��F�b6�74��S�&f��B�6V֖&��BFW�B�v��FRFW�B�6��"��R#�6��vR�BW��F�c��6�74��S�'FW�B�v��FR�CFW�Bׇ2w&�Wֆ�fW#�FW�B�v��FR�cG&�6�F����6���'2#�7F'Bg&W6�v�F��Wr�7vW'3�����F�c��7�6�74��S�'FW�B�v��FR�#w&�Wֆ�fW#�FW�B�v��FR�SG&�6�F����6���'26�&���#�(i#��7����'WGF�����F�c���F�c��Р���F��FVW7F���2)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H��Т��6R���wVW7F���rbb7W'&V�Ebb���F�b6�74��S׶�bG&�6�F�����6�G�GW&F����SG���F��r�v�6�G��G&�6�FRג�r�v�6�G��G&�6�FRג�w��ࠢ��&�w&W72��Т�F�b6�74��S�&f�W�v��R�"�R#��7F�fUVW7F���2�������������F�`��W�׶�Т6�74��S׶��f�W��&�V�FVB�gV��G&�6�F������GW&F����3G������FW��v&rזB��&�vRr�v&r�v��FR�w�Т����Т��F�cࠢ�6�74��S�'FW�B�v��FR�3FW�Bׇ2�"��R#�VW7F������FW����b�7F�fUVW7F���2��V�wF�����ƃ"6�74��S�&f��B�F�7��FW�B׆�FW�B�v��FR�"�#�7W'&V�E�VW7F�������#��7W'&V�E�7V'F�F�P���6�74��S�'FW�B�v��FR�CFW�B�6��"�R#�7W'&V�E�7V'F�F�W������F�b6�74��S�&�"�R"��Р���6�G����B�bb���F�b6�74��S�&f�W��FV�2�6V�FW"v��R�"�B��B�"#��7�6�74��S�'FW�Bׇ2FW�B�v��FR�3#�	�<���7���7�6�74��S�'FW�Bׇ2FW�B�v��FR�3#�6�G���w��W"��6F���w���7����Bbb���'WGF����6Ɩ6�ײ����6WE�6R�v6�G�r�Т6�74��S�'FW�Bׇ2FW�B�v��FR�#��fW#�FW�B�v��FR�SV�FW&Ɩ�RV�FW&Ɩ�R��fg6WB�"G&�6�F����6���'2��� ��6��vP���'WGF����Т��F�c��Р���F��F6�����WB�6��7Bw&�B(	BW6VBf�"v����F����ג�)H)H��Т�7W'&V�E�7V6��bb7W'&V�E����WB���v6��2rbb���F�b6�74��S�&w&�Bw&�B�1d grid-cols-2 gap-2">
+              className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-white/30 border border-white/20 focus:outline-none focus:border-yd-orange mb-4 text-base"
+            />
+            <button
+              onClick={() => { if (city.trim()) { capture('city_selected', { city }); setPhase(hasReturnHistory ? 'returning' : 'question') } }}
+              disabled={!city.trim()}
+              className="w-full bg-yd-orange hover:bg-yd-orangeHover disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
+            >
+              Let&apos;s go →
+            </button>
+          </div>
+        )}
+
+        {/* ── Return visit ─────────────────────────────────────────────────── */}
+        {phase === 'returning' && lastAnswers && (
+          <div className="p-6">
+            <div className="text-center mb-5">
+              <div className="text-4xl mb-3">👋</div>
+              <h2 className="font-display text-xl text-white mb-2">Welcome back!</h2>
+              <p className="text-white/50 text-sm">Same vibe as last time or would you like to change it up a bit?</p>
+            </div>
+            <div className="space-y-2.5">
+              <button
+                onClick={() => doSubmit(lastAnswers)}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-yd-orange/40 hover:border-yd-orange bg-yd-orange/10 text-left transition-all group"
+              >
+                <span className="text-2xl shrink-0">🔄</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-white text-sm mb-0.5">Same vibe</div>
+                  <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors">Use my answers from last time</p>
+                </div>
+                <span className="text-yd-orange/60 group-hover:text-yd-orange transition-colors shrink-0">→</span>
+              </button>
+              <button
+                onClick={() => { setQIndex(0); setAnswers([]); setPhase('question') }}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-white/10 hover:border-white/25 hover:bg-white/5 text-left transition-all group"
+              >
+                <span className="text-2xl shrink-0">✨</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-white text-sm mb-0.5">Change it up</div>
+                  <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors">Start fresh with new answers</p>
+                </div>
+                <span className="text-white/20 group-hover:text-white/50 transition-colors shrink-0">→</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Questions ────────────────────────────────────────────────────── */}
+        {phase === 'question' && currentQ && (
+          <div className={`p-6 transition-opacity duration-150 ${animating ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'}`}>
+
+            {/* Progress */}
+            <div className="flex gap-1.5 mb-5">
+              {activeQuestions.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= qIndex ? 'bg-yd-orange' : 'bg-white/10'}`}
+                />
+              ))}
+            </div>
+
+            <p className="text-white/30 text-xs mb-1.5">Question {qIndex + 1} of {activeQuestions.length}</p>
+            <h2 className="font-display text-xl text-white mb-1">{currentQ.question}</h2>
+            {currentQ.subtitle
+              ? <p className="text-white/40 text-sm mb-5">{currentQ.subtitle}</p>
+              : <div className="mb-5" />
+            }
+
+            {(city || lat) && (
+              <div className="flex items-center gap-1.5 mb-4 -mt-2">
+                <span className="text-xs text-white/30">📍</span>
+                <span className="text-xs text-white/30">{city || 'your location'}</span>
+                {!lat && (
+                  <button
+                    onClick={() => setPhase('city')}
+                    className="text-xs text-white/20 hover:text-white/50 underline underline-offset-2 transition-colors ml-1"
+                  >
+                    change
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* ── Chip layout ── */}
+            {!currentQ.special && currentQ.layout === 'chips' && (
+              <div className="grid grid-cols-2 gap-2">
                 {currentQ.options.map(opt => (
                   <button
                     key={opt.label}
@@ -532,7 +616,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
-            {/* ── Standard option buttons (full cards — used for kill switch) ── */}
+            {/* ── Standard option buttons ── */}
             {!currentQ.special && !currentQ.layout && (
               <div className="space-y-2.5">
                 {currentQ.options.map(opt => (
@@ -586,9 +670,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </p>
             </div>
 
-            {/* ── Conversational refinement → chips after done ─────────── */}
-
-            {/* Step 1: When */}
+            {/* ── Conversational refinement chips ─────────── */}
             {refineStep === 'when' && (
               <div className="mb-3">
                 <p className="text-white/40 text-xs mb-2">📅 When are you thinking?</p>
@@ -613,7 +695,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
-            {/* Step 2: Crew */}
             {refineStep === 'crew' && (
               <div className="mb-3">
                 <p className="text-white/40 text-xs mb-2">👥 Who&apos;s going?</p>
@@ -641,10 +722,8 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
-            {/* Chips — shown after refinement done, or for further tweaking */}
             {refineStep === 'done' && (
               <div className="flex flex-wrap gap-1.5 mb-3" onClick={() => setOpenFilter(null)}>
-                {/* When */}
                 <div className="relative" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => setOpenFilter(openFilter === 'when' ? null : 'when')}
@@ -669,7 +748,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     </div>
                   )}
                 </div>
-                {/* Budget */}
                 <div className="relative" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => setOpenFilter(openFilter === 'budget' ? null : 'budget')}
@@ -694,7 +772,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     </div>
                   )}
                 </div>
-                {/* Crew */}
                 <div className="relative" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => setOpenFilter(openFilter === 'crew' ? null : 'crew')}
@@ -722,7 +799,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
-            {/* Saved count + sign-in nudge */}
             {Object.keys(saved).length > 0 && (
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-xs text-white/50">❤️ {Object.keys(saved).length} saved</span>
@@ -767,7 +843,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                       />
                     )}
                     <span className="absolute top-2 left-2 text-xl leading-none drop-shadow-lg">{MEDALS[i]}</span>
-                    {/* Heart / Save */}
                     <div className="absolute top-2 right-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); setHeartOpen(heartOpen === pick.id ? null : pick.id) }}
@@ -799,7 +874,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                   </div>
                   <div className="p-3">
                     <span className="font-medium font-semibold text-white text-sm leading-snug">{pick.title}</span>
-                    <span className="text-xs text-white/50 block truncate overflow-hidden min-w-0">{pick.venue}</span>
+                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowrap">{pick.venue}</span>
                     <span className="text-xs text-white/40 block">{pick.dateFormatted} &middot; {pick.priceFormatted}</span>
                     {pick.distanceLabel && (
                       <span className="text-xs text-[#4f9b85]/80 block">📍 {pick.distanceLabel}</span>
@@ -850,7 +925,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               })}
             </div>
 
-            {/* Survey history consent banner */}
+            {/* Survey history consent */}
             {showHistConsent && (
               <div className="mt-3 bg-white/5 border border-white/10 rounded-xl p-4">
                 <p className="text-white text-sm font-semibold mb-1">💾 Remember my picks for next time?</p>
@@ -954,7 +1029,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               ← Back to picks
             </button>
 
-            {/* Hero image */}
             <div className="relative w-full h-44 rounded-xl overflow-hidden mb-4">
               <div className="absolute inset-0">
                 <CategoryPlaceholder category={yeadoodlePick.category || ''} />
@@ -975,7 +1049,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             </div>
 
-            {/* Details */}
             <div className="space-y-1.5 mb-4">
               {yeadoodlePick.venue && (
                 <div className="flex items-center gap-2 text-sm text-white/65">
@@ -997,14 +1070,12 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               )}
             </div>
 
-            {/* AI pitch */}
             {yeadoodlePick.pitch && (
               <div className="bg-white/5 rounded-xl p-3.5 mb-5 border border-white/10">
                 <p className="text-white/75 text-sm italic leading-relaxed">&ldquo;{yeadoodlePick.pitch}&rdquo;</p>
               </div>
             )}
 
-            {/* Primary CTA */}
             <button
               onClick={() => { setCommitted(true); capture('commitment_confirmed', { event_id: yeadoodlePick.id, city }) }}
               className={`w-full font-bold py-4 rounded-xl text-base transition-all mb-2.5 flex items-center justify-center gap-2 ${
@@ -1013,10 +1084,9 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                   : 'bg-yd-orange hover:bg-yd-orangeHover text-white'
               }`}
             >
-              {committed ? '✅ You\'re going!' : '🔒 Lock it in'}
+              {committed ? "✅ You're going!" : '🔒 Lock it in'}
             </button>
 
-            {/* Secondary actions */}
             <div className="grid grid-cols-2 gap-2 mb-2.5">
               <a
                 href={`https://www.google.com/maps/search/${encodeURIComponent((yeadoodlePick.venue || '') + (city ? ` ${city}` : ''))}`}
@@ -1046,7 +1116,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               )}
             </div>
 
-            {/* Add to calendar */}
             <button
               onClick={() => {
                 const t = encodeURIComponent(yeadoodlePick.title)
