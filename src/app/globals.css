@@ -56,4 +56,35 @@ body {
   .font-display { font-family: 'Righteous', cursive; }
   .text-yd-muted { color: rgba(255,255,255,0.5); }
   .border-yd { border-color: rgba(255,255,255,0.08); }
+  /* Safe-area utilities — home indicator / notch / fold crease */
+  .pb-safe  { padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.5rem); }
+  .pt-safe  { padding-top:    env(safe-area-inset-top,    0px); }
+  .pl-safe  { padding-left:   env(safe-area-inset-left,   0px); }
+  .pr-safe  { padding-right:  env(safe-area-inset-right,  0px); }
 }
+
+/* ─── iPhone Duo / Foldable device support ─────────────────────────────── *
+ * Outer cover display (~375 px, 5.4 "): standard mobile styles (xs/sm)     *
+ * Inner unfolded display (~768 px, 7.6"): standard tablet styles (sm/md)   *
+ *                                                                            *
+ * When open in landscape with a visible fold crease, the Viewport Segments  *
+ * API lets us split content across the two panels.                           *
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* Dual-panel layout when fold crease is vertical (landscape fold) */
+@media (horizontal-viewport-segments: 2) {
+  .fold-dual-panel {
+    display: grid;
+    /* Span across both segments; browser reports fold width via env() */
+    grid-template-columns:
+      env(viewport-segment-width 0 0, 50%)
+      env(viewport-segment-width 1 0, 50%);
+    gap: env(viewport-segment-left 1 0, 0px); /* crease gap */
+  }
+  .fold-left  { grid-column: 1; overflow-y: auto; }
+  .fold-right { grid-column: 2; overflow-y: auto; }
+}
+
+/* Viewport height that respects the browser chrome on mobile */
+.h-dvh  { height: 100dvh; }
+.max-h-dvh { max-height: 100dvh; }
