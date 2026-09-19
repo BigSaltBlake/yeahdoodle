@@ -52,27 +52,28 @@ const ALL_QUESTIONS: Question[] = [
   {
     id: 'feeling',
     question: "What do you want to do?",
-    subtitle: 'Tap the move that fits â€” go with your gut',
+    subtitle: 'Go with your gut',
     layout: 'chips',
     options: [
-      { label: 'Go eat',     desc: 'Dining, drinks, food experiences',       emoji: 'ğŸ½ï¸', quality: 'Food & drink'  },
-      { label: 'Go listen',  desc: 'Live music, concerts, DJ nights',         emoji: 'ğŸµ', quality: 'Live music'    },
-      { label: 'Go out',     desc: 'Bars, rooftops, social scene',            emoji: 'ğŸ¥‚', quality: 'Nightlife'     },
-      { label: 'Go move',    desc: 'Dancing, outdoor sports, active fun',     emoji: 'âš¡', quality: 'Active'        },
-      { label: 'Go see',     desc: 'Comedy, theatre, film, sports, art',      emoji: 'ğŸ­', quality: 'Shows & arts'  },
-      { label: 'Go explore', desc: 'Markets, neighborhoods, hidden gems',     emoji: 'ğŸŒ†', quality: 'Discovery'     },
-      { label: 'Go play',    desc: 'Trivia, escape rooms, bowling, games',    emoji: 'ğŸ²', quality: 'Games'         },
+      { label: 'Go eat',     desc: '', emoji: 'ğŸ½ï¸', quality: 'Food & drink'  },
+      { label: 'Go listen',  desc: '', emoji: 'ğŸµ', quality: 'Live music'    },
+      { label: 'Go out',     desc: '', emoji: 'ğŸ¥‚', quality: 'Nightlife'     },
+      { label: 'Go move',    desc: '', emoji: 'âš¡', quality: 'Active'        },
+      { label: 'Go see',     desc: '', emoji: 'ğŸ­', quality: 'Shows & arts'  },
+      { label: 'Go explore', desc: '', emoji: 'ğŸŒ†', quality: 'Discovery'     },
+      { label: 'Go play',    desc: '', emoji: 'ğŸ²', quality: 'Games'         },
     ],
   },
   {
     id: 'killswitch',
-    question: "What would kill it?",
-    subtitle: "Your one dealbreaker â€” we'll dodge it",
+    question: "What's off the table?",
+    subtitle: "Pick your one dealbreaker",
+    layout: 'chips',
     options: [
-      { label: "Spending more than planned", desc: "Surprise $80 tickets or a $200 tab",       emoji: 'ğŸ’¸', quality: 'Budget-sensitive'  },
-      { label: "Chaos I can't escape",       desc: "Packed in, can't hear, can't move",        emoji: 'ğŸ™‰', quality: 'Avoid crowds'      },
-      { label: "Needing to plan anything",   desc: "If it needs a reservation, I'm out",       emoji: 'ğŸ“…', quality: 'Spontaneous only'  },
-      { label: "Being stuck in a seat",      desc: "Long sit-downs, no freedom to wander",     emoji: 'ğŸª‘', quality: 'Stay active'        },
+      { label: 'Breaking the bank',    desc: '', emoji: 'ğŸ’¸', quality: 'Budget-sensitive' },
+      { label: 'Massive crowds',        desc: '', emoji: 'ğŸ˜µ', quality: 'Avoid crowds'    },
+      { label: 'Needs a reservation',   desc: '', emoji: 'ğŸ“‹', quality: 'Spontaneous'     },
+      { label: "Can't move around",     desc: '', emoji: 'ğŸª‘', quality: 'Stay active'     },
     ],
   },
 ]
@@ -86,9 +87,10 @@ const LOADING_MESSAGES = [
 
 const MEDALS = ['ğŸ¥‡', 'ğŸ¥ˆ', 'ğŸ¥‰']
 
-type Phase = 'locating' | 'city' | 'confirm-location' | 'returning' | 'question' | 'loading' | 'results' | 'empty'
+type Phase = 'locating' | 'city' | 'returning' | 'question' | 'loading' | 'results' | 'empty' | 'yeahdoodle'
 type EmailState = 'idle' | 'loading' | 'done' | 'error'
 type FeedbackRating = 'up' | 'meh' | 'down'
+type PickDecision = 'rejected' | 'maybe' | 'yeahdoodle'
 type SaveIntent = 'save_for_later' | 'definitely_going'
 type SavedEventLocal = { event_id: string; event_title: string; event_data: Record<string, unknown>; intent: SaveIntent; city: string; saved_at: string }
 type SurveyHistoryEntry = { answers: string[]; city: string; date: string }
@@ -97,7 +99,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [city, setCity] = useState(initialCity)
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
-  const [phase, setPhase] = useState<Phase>(initialCity ? 'confirm-location' : 'locating')
+  const [phase, setPhase] = useState<Phase>(initialCity ? 'question' : 'locating')
   const [qIndex, setQIndex] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
   const [loadingMsg, setLoadingMsg] = useState(0)
@@ -119,13 +121,16 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [openFilter, setOpenFilter]     = useState<'when' | 'budget' | 'crew' | null>(null)
   const [refineStep, setRefineStep]     = useState<'when' | 'crew' | 'done' | null>(null)
   const cancelGps = useRef(false)
-const prefetchRef = useRef<Pick[] | null>(null)
-const prefetchAnswersRef = useRef<string[]>([])
+  const touchStartX = useRef<number | null>(null)
+  const [decisions, setDecisions] = useState<Record<string, PickDecision>>({})
+  const [yeadoodlePick, setYeadoodlePick] = useState<Pick | null>(null)
+  const [committed, setCommitted] = useState(false)
 
   // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
   const activeQuestions = ALL_QUESTIONS
+  const visiblePicks = picks.filter(p => decisions[p.id] !== 'rejected')
 
   const timeframeDisplay = 'the next few days'
 
@@ -140,7 +145,7 @@ const prefetchAnswersRef = useRef<string[]>([])
         setCity(initialCity)
         setLat(null)
         setLng(null)
-        setPhase(initialCity ? 'confirm-location' : 'locating')
+        setPhase(initialCity ? 'question' : 'locating')
         setQIndex(0)
         setAnswers([])
         setPicks([])
@@ -170,8 +175,7 @@ const prefetchAnswersRef = useRef<string[]>([])
     setLastAnswers(savedAnswers)
 
     if (initialCity) {
-      setCity(initialCity)
-      setPhase('confirm-location')
+      setPhase(returnHist ? 'returning' : 'question')
       return
     }
 
@@ -196,7 +200,7 @@ const prefetchAnswersRef = useRef<string[]>([])
           const name = geo.city || geo.locality || geo.principalSubdivision || ''
           if (!cancelGps.current && name) setCity(name)
         } catch { /* use existing city */ }
-        if (!cancelGps.current) setPhase('confirm-location')
+        if (!cancelGps.current) setPhase(returnHist ? 'returning' : 'question')
       },
       () => {
         if (!cancelGps.current) setPhase('city')
@@ -248,6 +252,42 @@ const prefetchAnswersRef = useRef<string[]>([])
         body: JSON.stringify({ event_id: pick.id, event_title: pick.title, rating, session_id: getSessionId(), city }),
       })
     } catch { /* fire and forget */ }
+  }
+
+  function rejectPich(pick: Pick) {
+    setDecisions(prev => ({ ...prev, [pick.id]: 'rejected' }))
+    submitFeedback(pick, 'down')
+    capture('pick_rejected', { event_id: pick.id, title: pick.title, city })
+  }
+
+  function maybePich(pick: Pick) {
+    setDecisions(prev => ({ ...prev, [pick.id]: 'maybe' }))
+    submitFeedback(pick, 'meh')
+    capture('pick_maybe', { event_id: pick.id, title: pick.title, city })
+  }
+
+  function yeahDoodlePick(pick: Pick) {
+    setDecisions(prev => ({ ...prev, [pick.id]: 'yeahdoodle' }))
+    submitFeedback(pick, 'up')
+    saveEvent(pick, 'definitely_going')
+    setYeadoodlePick(pick)
+    setCommitted(false)
+    setPhase('yeahdoodle')
+    capture('yeah_doodle', { event_id: pick.id, title: pick.title, city })
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX
+  }
+
+  function handleTouchEnd(e: React.TouchEvent, pick: Pick) {
+    if (touchStartX.current === null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    touchStartX.current = null
+    if (Math.abs(dx) > 70) {
+      if (dx < 0) rejectPick(pick)
+      else yeahDoodlePick(pick)
+    }
   }
 
   useEffect(() => {
@@ -317,22 +357,6 @@ const prefetchAnswersRef = useRef<string[]>([])
     setAnswers(submittedAnswers)
     setPhase('loading')
     setLoadingMsg(0)
-
-    // Use prefetch cache if answers match
-    if (prefetchRef.current && JSON.stringify(prefetchAnswersRef.current) === JSON.stringify(submittedAnswers)) {
-      const cachedPicks = prefetchRef.current
-      prefetchRef.current = null
-      setPicks(cachedPicks)
-      setPhase('results')
-      capture('picks_viewed', { city, pick_count: cachedPicks.length, cached: true })
-      try {
-        const consent = localStorage.getItem('yd_hist_consent')
-        if (consent === 'true') saveToHistory(submittedAnswers)
-        else if (!consent) setShowHistConsent(true)
-      } catch { /* */ }
-      return
-    }
-
     try {
       const body: Record<string, unknown> = {
         city,
@@ -353,8 +377,7 @@ const prefetchAnswersRef = useRef<string[]>([])
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const data = await res.json().catch(() => ({ picks: [] }))
       if (data.picks?.length > 0) {
         setPicks(data.picks)
         setPhase('results')
@@ -371,30 +394,6 @@ const prefetchAnswersRef = useRef<string[]>([])
     } catch {
       setPhase('empty')
     }
-  }
-
-
-  // ---------------------------------------------------------------------------
-  // Background prefetch â€” fires immediately after location is confirmed
-  // ---------------------------------------------------------------------------
-  function startPrefetch(prefetchCity: string, prefetchAnswers: string[]) {
-    prefetchRef.current = null
-    prefetchAnswersRef.current = prefetchAnswers
-    ;(async () => {
-      try {
-        const prefBody: Record<string, unknown> = { city: prefetchCity, answers: prefetchAnswers }
-        if (lat !== null) prefBody.lat = lat
-        if (lng !== null) prefBody.lng = lng
-        const prefRes = await fetch('/api/recommend', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(prefBody),
-        })
-        if (!prefRes.ok) return
-        const prefData = await prefRes.json()
-        if (prefData.picks?.length > 0) prefetchRef.current = prefData.picks
-      } catch { /* fire and forget */ }
-    })()
   }
 
   // ---------------------------------------------------------------------------
@@ -428,6 +427,9 @@ const prefetchAnswersRef = useRef<string[]>([])
     setFilterWhen('')
     setOpenFilter(null)
     setRefineStep(null)
+    setDecisions({})
+    setYeadoodlePick(null)
+    setCommitted(false)
     setPhase('question')
   }
 
@@ -481,13 +483,13 @@ const prefetchAnswersRef = useRef<string[]>([])
           className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors rounded-full hover:bg-white/10"
           aria-label="Close"
         >
-          âœ•
+           âœ•
         </button>
 
-        {/* â”€â”€ Locating â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* tilta Locating â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {phase === 'locating' && (
           <div className="p-8 text-center py-16">
-            <div className="text-5xl mb-6">ğŸ“</div>
+            <div className="text-5xl mb-6">ğŸ“Í</div>
             <h2 className="font-display text-xl text-white mb-3">Finding events near you...</h2>
             <p className="text-white/40 text-sm mb-8">Allow location access for the best picks</p>
             <button
@@ -499,132 +501,19 @@ const prefetchAnswersRef = useRef<string[]>([])
           </div>
         )}
 
-        {/* â”€â”€ City entry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* tilta City entry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {phase === 'city' && (
           <div className="p-8 text-center">
-            <div className="text-5xl mb-4">ğŸ¯</div>
+            <div className="text-5xl mb-4">ğŸ</div>
             <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
             <p className="text-white/50 text-sm mb-7">2 quick questions â†’ your 3 best picks</p>
             <input
               autoFocus
               value={city}
               onChange={e => setCity(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && city.trim()) { capture('city_selected', { city }); setPhase('confirm-location') } }}
+              onKeyDown={e => { if (e.key === 'Enter' && city.trim()) { capture('city_selected', { city }); setPhase(hasReturnHistory ? 'returning' : 'question') } }}
               placeholder="What city are you in?"
-              className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-white/30 border border-white/20 focus:outline-none focus:border-yd-orange mb-4 text-base"
-            />
-            <button
-              onClick={() => { if (city.trim()) { capture('city_selected', { city }); setPhase('confirm-location') } }}
-              disabled={!city.trim()}
-              className="w-full bg-yd-orange hover:bg-yd-orangeHover disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
-            >
-              Let&apos;s go â†’
-            </button>
-          </div>
-        )}
-
-  
-      {/* â”€â”€ Confirm location â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {phase === 'confirm-location' && (
-        <div className="p-8 text-center">
-          <div className="text-5xl mb-4">ğŸ“</div>
-          <h2 className="font-display text-xl text-white mb-1">You&apos;re in {city || 'your location'}?</h2>
-          <p className="text-white/40 text-sm mb-7">We&apos;ll find the best picks near you</p>
-          <div className="space-y-3">
-            <button
-              onClick={() => {
-                capture('location_confirmed', { city })
-                startPrefetch(city, lastAnswers || [])
-                setPhase(hasReturnHistory ? 'returning' : 'question')
-              }}
-              className="w-full bg-yd-orange hover:bg-yd-orangeHover text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
-            >
-              âœ“ Yes, {city || 'here'}!
-            </button>
-            <button
-              onClick={() => { setCity(''); setPhase('city') }}
-              className="w-full bg-white/5 hover:bg-white/10 text-white/50 font-medium py-3 rounded-xl transition-colors text-sm border border-white/10 hover:border-white/20"
-            >
-              Change location
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* â”€â”€ Return visit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        {phase === 'returning' && lastAnswers && (
-          <div className="p-6">
-            <div className="text-center mb-5">
-              <div className="text-4xl mb-3">ğŸ‘‹</div>
-              <h2 className="font-display text-xl text-white mb-2">Welcome back!</h2>
-              <p className="text-white/50 text-sm">Same vibe as last time or would you like to change it up a bit?</p>
-            </div>
-            <div className="space-y-2.5">
-              <button
-                onClick={() => doSubmit(lastAnswers)}
-                className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-yd-orange/40 hover:border-yd-orange bg-yd-orange/10 text-left transition-all group"
-              >
-                <span className="text-2xl shrink-0">ğŸ”„</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-white text-sm mb-0.5">Same vibe</div>
-                  <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors">Use my answers from last time</p>
-                </div>
-                <span className="text-yd-orange/60 group-hover:text-yd-orange transition-colors shrink-0">â†’</span>
-              </button>
-              <button
-                onClick={() => { setQIndex(0); setAnswers([]); setPhase('question') }}
-                className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-white/10 hover:border-white/25 hover:bg-white/5 text-left transition-all group"
-              >
-                <span className="text-2xl shrink-0">âœ¨</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-white text-sm mb-0.5">Change it up</div>
-                  <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors">Start fresh with new answers</p>
-                </div>
-                <span className="text-white/20 group-hover:text-white/50 transition-colors shrink-0">â†’</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* â”€â”€ Questions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        {phase === 'question' && currentQ && (
-          <div className={`p-6 transition-opacity duration-150 ${animating ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'}`}>
-
-            {/* Progress */}
-            <div className="flex gap-1.5 mb-5">
-              {activeQuestions.map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= qIndex ? 'bg-yd-orange' : 'bg-white/10'}`}
-                />
-              ))}
-            </div>
-
-            <p className="text-white/30 text-xs mb-1.5">Question {qIndex + 1} of {activeQuestions.length}</p>
-            <h2 className="font-display text-xl text-white mb-1">{currentQ.question}</h2>
-            {currentQ.subtitle
-              ? <p className="text-white/40 text-sm mb-5">{currentQ.subtitle}</p>
-              : <div className="mb-5" />
-            }
-
-            {(city || lat) && (
-              <div className="flex items-center gap-1.5 mb-4 -mt-2">
-                <span className="text-xs text-white/30">ğŸ“</span>
-                <span className="text-xs text-white/30">{city || 'your location'}</span>
-                {!lat && (
-                  <button
-                    onClick={() => setPhase('city')}
-                    className="text-xs text-white/20 hover:text-white/50 underline underline-offset-2 transition-colors ml-1"
-                  >
-                    change
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* â”€â”€ Chip layout (compact grid â€” used for Go ___ taxonomy) â”€â”€ */}
-            {!currentQ.special && currentQ.layout === 'chips' && (
-              <div className="grid grid-cols-2 gap-2">
+              className="w-full px-4 py-3 rounded-xl bg-yİ¡¥Ñ”¼ÄÀÑ•áĞµİ¡¥Ñ”Á±…•¡½±‘•Èµİ¡¥Ñ”¼ÌÀ‰½É‘•È‰½É‘•Èµİ¡¥Ñ”¼ÈÀ™½ÕÌé½ÕÑ±¥¹”µ¹½¹”™½ÕÌé‰½É‘•Èµåµ½É…¹”µˆ´ĞÑ•áĞµ‰…Í”ˆ(€€€€€€€€€€€€¼ø(€€€€€€€€€€€€ñ‰ÕÑÑ½¸(€€€€€€€€€€€€€½¹±¥¬õì ¤€ôøì¥˜€¡¥Ñä¹ÑÉ¥´ ¤¤ì…ÁÑÕÉ” ¥Ñå}Í•±•Ñ•œ°ì¥Ñäô¤ìÍ•ÑA¡…Í”¡¡…ÍI•ÑÕÉ¹!¥ÍÑ½Éä€ü€É•ÑÕÉ¹¥¹œœ€è€ÅÕ•ÍÑ¥½¸œ¤ôõô(€€€€€€€€€€€€€‘¥Í…‰±•õì…¥Ñä¹ÑÉ¥´ ¥ô(€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰Üµ™Õ±°‰œµåµ½É…¹”¡½Ù•Èé‰œµåµ½É…¹•!½Ù•È‘¥Í…‰±•é½Á…¥Ñä´ĞÀ‘¥Í…‰±•éÕÉÍ½Èµ¹½Ğµ…±±½İ•Ñ•áĞµİ¡¥Ñ”™½¹Ğµ‰½±Áä´Ì¸ÔÉ½Õ¹‘•µá°ÑÉ…¹Í¥Ñ¥½¸µ½±½ÉÌÑ•áĞµÍ´ˆ(€€€€€€€€€€€€ø(€€€€€€€€€€€€€1•Ğ™…Á½ÌíÌ¼ƒŠH(€€€€€€€€€€€€ğ½‰ÕÑÑ½¸ø(€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€¥ô((€€€€€€€ì¼¨Ñ¥±Ñ„I•ÑUÉ¸Ù¥Í¥ĞƒŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠR €¨½ô(€€€€€€€íÁ¡…Í”€ôôô€É•ÑÕÉ¹¥¹œœ€˜˜±…ÍÑ¹Íİ•ÉÌ€˜˜€ (€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰À´Øˆø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áĞµ•¹Ñ•Èµˆ´Ôˆø(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áĞ´Ñá°µˆ´ÌˆûÂ~F,ğ½‘¥Øø(€€€€€€€€€€€€€€ñ È±…ÍÍ9…µ”ô‰™½¹Ğµ‘¥ÍÁ±…äÑ•áĞµá°Ñ•áĞµİ¡¥Ñ”µˆ´Èˆù]•±½µ”‰…¬„ğ½ Èø(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰Ñ•áĞµİ¡¥Ñ”¼ÔÀÑ•áĞµÍ´ˆùM…µ”Ù¥‰”…Ì±…ÍĞÑ¥µ”½Èİ½Õ±å½Ô±¥­”Ñ¼¡…¹”¥ĞÕÀ„‰¥Ğüğ½Àø(€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰ÍÁ…”µä´È¸Ôˆø(€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸(€€€€€€€€€€€€€€€½¹±¥¬õì ¤€ôø‘½MÕ‰µ¥Ğ¡±…ÍÑ¹Íİ•ÉÌ¥ô(€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰Üµ™Õ±°™±•à¥Ñ•µÌµ•¹Ñ•È…À´ÌÀ´Ì¸ÔÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•Èµåµ½É…¹”¼ĞÀ¡½Ù•Èé‰½É‘•Èµåµ½É…¹”‰œµåµ½É…¹”¼ÄÀÑ•áĞµ±•™ĞÑÉ…¹Í¥Ñ¥½¸µ…±°É½ÕÀˆ(€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰Ñ•áĞ´Éá°Í¡É¥¹¬´ÀˆûÂ~Rğ½ÍÁ…¸ø(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à´Äµ¥¸µÜ´Àˆø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹ĞµÍ•µ¥‰½±Ñ•áĞµİ¡¥Ñ”Ñ•áĞµÍ´µˆ´À¸ÔˆùM…µ”Ù¥‰”ğ½‘¥Øø(€€€€€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰Ñ•áĞµİ¡¥Ñ”¼ĞÀÑ•áĞµáÌÉ½ÕÀµ¡½Ù•ÈéÑ•áĞµİ¡¥Ñ”¼ØÀÑÉ…¹Í¥Ñ¥½¸µ½±½ÉÌˆùUÍ”µä…¹Íİ•ÉÌ™É½´±…ÍĞÑ¥µ”ğ½Àø(€€€€€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰Ñ•áĞµåµ½É…¹”¼ØÀÉ½ÕÀµ¡½Ù•ÈéÑ•áĞµåµ½É…¹”ÑÉ…¹Í¥Ñ¥½¸µ½±½ÉÌÍ¡É¥¹¬´ÀˆûŠHğ½ÍÁ…¸ø(€€€€€€€€€€€€€€ğ½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸(€€€€€€€€€€€€€€€½¹±¥¬õì ¤€ôøìÍ•ÑE%¹‘•à À¤ìÍ•Ñ¹Íİ•ÉÌ¡mt¤ìÍ•ÑA¡…Í” ÅÕ•ÍÑ¥½¸œ¤õô(€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰Üµ™Õ±°™±•à¥Ñ•µÌµ•¹Ñ•È…À´ÌÀ´Ì¸ÔÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•Èµİ¡¥Ñ”¼ÄÀ¡½Ù•Èé‰½É‘•Èµİ¡¥Ñ”¼ÈÔ¡½Ù•Èé‰œµçv†—FRóRFW‡BÖÆVgBG&ç6—F–öâÖÆÂw&÷W ¢à¢Ç7â6Æ74æÖSÒ'FW‡BÓ'†Â6‡&–æ²Ó#î)ÊƒÂ÷7ãà¢ÆF—b6Æ74æÖSÒ&fÆW‚ÓÖ–â×rÓ#à¢ÆF—b6Æ74æÖSÒ&föçB×6VÖ–&öÆBFW‡B×v†—FRFW‡B×6ÒÖ"ÓãR#ä6†ævR—BWÂöF—cà¢Ç6Æ74æÖSÒ'FW‡B×v†—FRóCFW‡B×‡2w&÷WÖ†÷fW#§FW‡B×v†—FRócG&ç6—F–öâÖ6öÆ÷'2#å7F'Bg&W6‚v—F‚æWrç7vW'3Â÷à¢ÂöF—cà¢Ç7â6Æ74æÖSÒ'FW‡B×v†—FRó#w&÷WÖ†÷fW#§FW‡B×v†—FRóSG&ç6—F–öâÖ6öÆ÷'26‡&–æ²Ó#î(i#Â÷7ãà¢Âö'WGFöãà¢ÂöF—cà¢ÂöF—cà¢—Ğ ¢²ò¢F–ÇFVW7F–öç2)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H¢÷Ğ¢·†6RÓÓÒwVW7F–öârbb7W'&VçEbb€¢ÆF—b6Æ74æÖS×¶ÓbG&ç6—F–öâÖ÷6—G’GW&F–öâÓSG¶æ–ÖF–æròv÷6—G’ÓG&ç6ÆFR×’Ór¢v÷6—G’ÓG&ç6ÆFR×’ÓwÖÓà ¢²ò¢&öw&W72¢÷Ğ¢ÆF—b6Æ74æÖSÒ&fÆW‚vÓãRÖ"ÓR#à¢¶7F—fUVW7F–öç2æÖ‚…òÂ’’Óâ€¢ÆF—`¢¶W“×¶—Ğ¢6Æ74æÖS×¶‚ÓfÆW‚Ó&÷VæFVBÖgVÆÂG&ç6—F–öâÖÆÂGW&F–öâÓ3G¶’ÃÒ–æFW‚òv&r×–BÖ÷&ævRr¢v&r×v†—FRówÖĞ¢óà¢’—Ğ¢ÂöF—cà ¢Ç6Æ74æÖSÒ'FW‡B×v†—FRó3FW‡B×‡2Ö"ÓãR#åVW7F–öâ·–æFW‚²Òöb¶7F—fUVW7F–öç2æÆVæwF‡ÓÂ÷à¢Æƒ"6Æ74æÖSÒ&föçBÖF—7Æ’FW‡B×†ÂFW‡B×v†—FRÖ"Ó#ç¶7W'&VçEçVW7F–öçÓÂöƒ#à¢¶7W'&VçEç7V'F—FÆP¢òÇ6Æ74æÖSÒ'FW‡B×v†—FRóCFW‡B×6ÒÖ"ÓR#ç¶7W'&VçEç7V'F—FÆWÓÂ÷à¢¢ÆF—b6Æ74æÖSÒ&Ö"ÓR"óà¢Ğ ¢²†6—G’ÇÂÆB’bb€¢ÆF—b6Æ74æÖSÒ&fÆW‚—FV×2Ö6VçFW"vÓãRÖ"ÓBÖ×BÓ"#à¢Ç7â6Æ74æÖSÒ'FW‡B×‡2FW‡B×v†—FRó3#ï	ù<ÓÂ÷7ãà¢Ç7â6Æ74æÖSÒ'FW‡B×‡2FW‡B×v†—FRó3#ç¶6—G’ÇÂw–÷W"Æö6F–öâwÓÂ÷7ãà¢²ÆBbb€¢Æ'WGFöà¢öä6Æ–6³×²‚’Óâ6WE†6R‚v6—G’r—Ğ¢6Æ74æÖSÒ'FW‡B×‡2FW‡B×v†—FRó#†÷fW#§FW‡B×v†—FRóSVæFW&Æ–æRVæFW&Æ–æRÖöfg6WBÓ"G&ç6—F–öâÖ6öÆ÷'2ÖÂÓ ¢à¢6†ævP¢Âö'WGFöãà¢—Ğ¢ÂöF—cà¢—Ğ ¢²ò¢F–ÇF6†—Æ–÷WB†6ö×7Bw&–B(	BW6VBf÷"vòõõòF†öæö×’’)H)H¢÷Ğ¢²7W'&VçEç7V6–Âbb7W'&VçEæÆ–÷WBÓÓÒv6†—2rbb€¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ1d grid-cols-2 gap-2">
                 {currentQ.options.map(opt => (
                   <button
                     key={opt.label}
@@ -634,7 +523,7 @@ const prefetchAnswersRef = useRef<string[]>([])
                     <span className="text-xl shrink-0">{opt.emoji}</span>
                     <div className="min-w-0">
                       <div className="font-semibold text-white text-sm leading-tight">{opt.label}</div>
-                      <p className="text-white/35 text-[11px] group-hover:text-white/55 transition-colors leading-tight mt-0.5 line-clamp-1">{opt.desc}</p>
+                      {opt.desc && <p className="text-white/35 text-[11px] group-hover:text-white/55 transition-colors leading-tight mt-0.5 line-clamp-1">{opt.desc}</p>}
                     </div>
                   </button>
                 ))}
@@ -784,7 +673,7 @@ const prefetchAnswersRef = useRef<string[]>([])
                     onClick={() => setOpenFilter(openFilter === 'budget' ? null : 'budget')}
                     className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${filterBudget ? 'bg-yd-orange/20 border-yd-orange/60 text-yd-orange font-semibold' : 'border-white/15 text-white/45 hover:border-white/30 hover:text-white/70'}`}
                   >
-                     ğŸ’° {filterBudget || 'Budget'}
+                    ğŸ’° {filterBudget || 'Budget'}
                   </button>
                   {openFilter === 'budget' && (
                     <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl z-30 min-w-[150px] overflow-hidden">
@@ -845,9 +734,23 @@ const prefetchAnswersRef = useRef<string[]>([])
               </div>
             )}
 
+            {visiblePicks.length === 0 && picks.length > 0 && (
+              <div className="text-center py-10">
+                <p className="text-white/40 text-sm mb-3">Nothing grabbed you?</p>
+                <button onClick={handleReset} className="text-yd-orange text-sm hover:underline">â†© Try different answers</button>
+              </div>
+            )}
+
             <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
-              {picks.map((pick, i) => (
-                <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors" onClick={() => setHeartOpen(null)}>
+              {visiblePicks.map((pick) => {
+                const i = picks.indexOf(pick)
+                return (
+                <div key={pick.id}
+                  className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-all"
+                  onClick={() => setHeartOpen(null)}
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={(e) => handleTouchEnd(e, pick)}
+                >
                   <div className="relative w-full h-36">
                     <div className="absolute inset-0">
                       <CategoryPlaceholder category={pick.category || ''} />
@@ -858,7 +761,7 @@ const prefetchAnswersRef = useRef<string[]>([])
                         src={pick.imageUrl}
                         alt={pick.title}
                         className="absolute inset-0 w-full h-full object-cover"
-                        onError={() => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                       />
                     )}
                     <span className="absolute top-2 left-2 text-xl leading-none drop-shadow-lg">{MEDALS[i]}</span>
@@ -894,7 +797,7 @@ const prefetchAnswersRef = useRef<string[]>([])
                   </div>
                   <div className="p-3">
                     <span className="font-medium font-semibold text-white text-sm leading-snug">{pick.title}</span>
-                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowrap max-w-[200px]">{pick.venue}</span>
+                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowraw max-w-[200px]">{pick.venue}</span>
                     <span className="text-xs text-white/40 block">{pick.dateFormatted} &middot; {pick.priceFormatted}</span>
                     {pick.distanceLabel && (
                       <span className="text-xs text-[#4f9b85]/80 block">ğŸ“ {pick.distanceLabel}</span>
@@ -915,23 +818,34 @@ const prefetchAnswersRef = useRef<string[]>([])
                       )}
                     </div>
                   </div>
-                  {/* Feedback */}
-                  <div className="flex items-center justify-center gap-4 pt-2 mt-2 border-t border-white/10">
-                    <span className="text-white/40 text-xs mr-1">Rate this pick</span>
-                    {(['up', 'meh', 'down'] as FeedbackRating[]).map(r => (
-                      <button
-                        key={r}
-                        onClick={() => submitFeedback(pick, r)}
-                        title={r === 'up' ? 'Love it' : r === 'meh' ? 'So-so' : 'Not for me'}
-                        style={{ display: 'inline-block', transform: r === 'meh' ? 'rotate(90deg)' : undefined, fontSize: '1.15rem', opacity: feedback[pick.id] ? (feedback[pick.id] === r ? 1 : 0.2) : 0.45 }}
-                        className="transition-all duration-150 hover:scale-125 active:scale-110 leading-none cursor-pointer"
-                      >
-                        {r === 'down' ? 'ğŸ‘' : 'ğŸ‘'}
-                      </button>
-                    ))}
+                  {/* Decision row */}
+                  <div className="flex border-t border-white/10 mt-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); rejectPick(pick) }}
+                      className="flex-1 py-2.5 text-xs text-white/35 hover:text-red-400/80 hover:bg-red-500/5 transition-colors rounded-bl-xl"
+                    >
+                      âœ• Not feeling it
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); maybePick(pick) }}
+                      className={`flex-1 py-2.5 text-xs border-x border-white/10 transition-colors ${
+                        decisions[pick.id] === 'maybe'
+                          ? 'text-white/60 bg-white/5'
+                          : 'text-white/35 hover:text-white/60 hover:bg-white/5'
+                      }`}
+                    >
+                      {decisions[pick.id] === 'maybe' ? 'ã€œ Maybe' : 'ã€œ Could work'}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); yeahDoodlePick(pick) }}
+                      className="flex-1 py-2.5 text-xs font-bold text-yd-orange hover:bg-yd-orange/10 transition-colors rounded-br-xl"
+                    >
+                      Yeah Doodle! â†’
+                    </button>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Survey history consent banner */}
@@ -1025,6 +939,130 @@ const prefetchAnswersRef = useRef<string[]>([])
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* â”€â”€ Yeah Doodle! commitment screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {phase === 'yeahdoodle' && yeadoodlePick && (
+          <div className="p-5 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setPhase('results')}
+              className="flex items-center gap-1.5 text-white/35 hover:text-white/65 text-xs mb-4 transition-colors"
+            >
+              â† Back to picks
+            </button>
+
+            {/* Hero image */}
+            <div className="relative w-full h-44 rounded-xl overflow-hidden mb-4">
+              <div className="absolute inset-0">
+                <CategoryPlaceholder category={yeadoodlePick.category || ''} />
+              </div>
+              {yeadoodlePick.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={yeadoodlePick.imageUrl}
+                  alt={yeadoodlePick.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-4">
+                <p className="text-yd-orange text-[11px] font-bold uppercase tracking-wider mb-1">ğŸ‰ Yeah Doodle!</p>
+                <h2 className="font-display text-lg text-white leading-tight">{yeadoodlePick.title}</h2>
+              </div>
+            </div>
+
+            {/* Details */}
+            <div className="space-y-1.5 mb-4">
+              {yeadoodlePick.venue && (
+                <div className="flex items-center gap-2 text-sm text-white/65">
+                  <span>ğŸ“</span><span>{yeadoodlePick.venue}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-sm text-white/65">
+                <span>ğŸ“…</span><span>{yeadoodlePick.dateFormatted}</span>
+              </div>
+              {yeadoodlePick.priceFormatted && (
+                <div className="flex items-center gap-2 text-sm text-white/65">
+                  <span>ğŸ’°</span><span>{yeadoodlePick.priceFormatted}</span>
+                </div>
+              )}
+              {yeadoodlePick.distanceLabel && (
+                <div className="flex items-center gap-2 text-sm text-[#4f9b85]">
+                  <span>ğŸ—ºï¸</span><span>{yeadoodlePick.distanceLabel}</span>
+                </div>
+              )}
+            </div>
+
+            {/* AI pitch */}
+            {yeadoodlePick.pitch && (
+              <div className="bg-white/5 rounded-xl p-3.5 mb-5 border border-white/10">
+                <p className="text-white/75 text-sm italic leading-relaxed">&ldquo;{yeadoodlePick.pitch}&rdquo;</p>
+              </div>
+            )}
+
+            {/* Primary CTA */}
+            <button
+              onClick={() => { setCommitted(true); capture('commitment_confirmed', { event_id: yeadoodlePick.id, city }) }}
+              className={`w-full font-bold py-4 rounded-xl text-base transition-all mb-2.5 flex items-center justify-center gap-2 ${
+                committed
+                  ? 'bg-green-600/25 border border-green-500/40 text-green-400 cursor-default'
+                  : 'bg-yd-orange hover:bg-yd-orangeHover text-white'
+              }`}
+            >
+              {committed ? 'âœ… You\'re going!' : 'ğŸ”’ Lock it in'}
+            </button>
+
+            {/* Secondary actions */}
+            <div className="grid grid-cols-2 gap-2 mb-2.5">
+              <a
+                href={`https://www.google.com/maps/search/${encodeURIComponent((yeadoodlePick.venue || '') + (city ? ` ${city}` : ''))}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-white/65 hover:text-white text-sm py-3 rounded-xl transition-colors border border-white/10"
+              >
+                ğŸ—ºï¸ Directions
+              </a>
+              {yeadoodlePick.ticketUrl ? (
+                <a
+                  href={yeadoodlePick.ticketUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-white/65 hover:text-white text-sm py-3 rounded-xl transition-colors border border-white/10"
+                  onClick={() => capture('ticket_clicked', { event_id: yeadoodlePick.id, title: yeadoodlePick.title, city, rank: yeadoodlePick.rank })}
+                >
+                  ğŸŸï¸ Get tickets
+                </a>
+              ) : (
+                <button
+                  onClick={handleShare}
+                  className="flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-white/65 hover:text-white text-sm py-3 rounded-xl transition-colors border border-white/10"
+                >
+                  ğŸ“¤ Share
+                </button>
+              )}
+            </div>
+
+            {/* Add to calendar */}
+            <button
+              onClick={() => {
+                const t = encodeURIComponent(yeadoodlePick.title)
+                const d = encodeURIComponent((yeadoodlePick.pitch || '') + '\n\nFound on YeahDoodle')
+                const l = encodeURIComponent((yeadoodlePick.venue || '') + (city ? `, ${city}` : ''))
+                window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`, '_blank')
+                capture('calendar_added', { event_id: yeadoodlePick.id, city })
+              }}
+              className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white/45 hover:text-white/70 text-sm py-3 rounded-xl transition-colors border border-white/10"
+            >
+              ğŸ“† Add to calendar
+            </button>
+
+            {Object.keys(saved).length > 0 && (
+              <p className="text-center text-white/25 text-xs mt-4">
+                Saved to <a href="/saved" className="text-[#4f9b85] hover:underline transition-colors">your events</a>
+              </p>
+            )}
           </div>
         )}
 
