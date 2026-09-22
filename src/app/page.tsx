@@ -56,7 +56,7 @@ export default function HomePage() {
 
           {/* Reassurance */}
           <p className="text-white/20 text-sm mt-6 tracking-wide">
-            📍 Auto-detects your location · Hand-curated picks
+            📍 Auto-detects your location · Hand-curated picks · Hand-curated picks
           </p>
         </div>
 
