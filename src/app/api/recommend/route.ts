@@ -933,7 +933,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Curated venues float to the front of the activity pool -- they're the highest-quality signals
-    let rows: EventRow[] = [...uniqueLive, ...dbRows, ...curatedUnique, ...googleUnique, ...yelpUnique, ...profileUnique]
+    let rows: EventRow[] = [...curatedUnique, ...googleUnique, ...yelpUnique, ...uniqueLive, ...dbRows, ...profileUnique]
 
     // Sort to boost category matches to the top Ã¢ÂÂ ensures AI sees relevant candidates first
     if (catHints) {
@@ -1163,21 +1163,21 @@ Return ONLY a valid JSON array:
       ? ' Entries tagged [curated] are hand-selected YeahDoodle picks -- they carry extra credibility. Prefer them when they match the vibe.'
       : ''
 
-    const prompt = `You are YeahDoodle's sharpest scout. Your ONLY job is to get this specific person off the couch and out the door tonight. You are NOT writing event descriptions. You are writing the case for why they should go, right now.
+    const prompt = `You are YeahDoodle's date night scout. Your ONLY job is to help this couple plan a date night they'll actually remember. You are NOT writing venue descriptions. You are writing the case for why they should go tonight.
 
-Tonight's profile:
+Tonight's couple:
 ${answerSummary}
 
 What's available ${locationLabel}:
 ${eventList}
 
-Your mission: Pick the 3 options most likely to make this person put down their phone and actually go.
+Your mission: Pick the 3 date night options most likely to make this couple put down their phones and actually go.
 
 Follow every rule:
 1. SCRATCH THE ITCH Ã¢ÂÂ They want to feel "${expType}". Picks must deliver that specific feeling, not a watered-down version.
 2. KILL THE DEALBREAKER Ã¢ÂÂ They want to avoid "${killSwitch}". Any pick that even hints at this is disqualified, no exceptions.
 3. ${timeframeInstruction}
-4. WRITE TO CLOSE Ã¢ÂÂ Each pitch is a reason to go, not a description. Write like a trusted friend: urgent, specific, personal. "This is the room where..." not "This event features..." Make not going feel like a mistake. Max 30 words. No filler.
+4. WRITE TO CLOSE Ã¢ÂÂ Each pitch is a reason to go, not a description. Write like a trusted friend: urgent, specific, romantic. "This is the spot where..." not "This venue features..." Make staying in feel like a mistake. Max 30 words. No filler.
 5. MIX IT UP Ã¢ÂÂ 2 picks that directly match their itch + 1 that surprises them in a way they'll thank you for.${activityNote}${curatedNote}
 
 Return ONLY a valid JSON array Ã¢ÂÂ no markdown, no explanation:
