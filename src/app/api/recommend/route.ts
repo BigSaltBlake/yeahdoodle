@@ -185,8 +185,23 @@ function budgetMax(answers: string[]): number | null {
 }
 
 function categoryHints(answers: string[]): string[] | null {
-  // Feeling target is at index 0 in the 2-question schema
   const feeling = (answers[0] ?? '').toLowerCase()
+  // Date-night taxonomy (current)
+  if (feeling.includes('dinner date'))    return ['Food & Drink', 'Community']
+  if (feeling.includes('drinks & vibes')) return ['Nightlife', 'Food & Drink']
+  if (feeling.includes('live show'))      return ['Music', 'Arts & Culture', 'Comedy']
+  if (feeling.includes('get outside'))    return ['Outdoors', 'Sports & Outdoors', 'Activities']
+  if (feeling.includes('something fun'))  return ['Activities', 'Community', 'Nightlife']
+  if (feeling.includes('surprise us'))    return null
+  // Legacy Go ___ taxonomy (backwards compat)
+  if (feeling.includes('go eat'))     return ['Food & Drink', 'Community']
+  if (feeling.includes('go listen'))  return ['Music', 'Nightlife']
+  if (feeling.includes('go out'))     return ['Nightlife', 'Food & Drink', 'Community']
+  if (feeling.includes('go move'))    return ['Sports & Outdoors', 'Outdoors', 'Nightlife']
+  if (feeling.includes('go see'))     return ['Arts & Culture', 'Comedy', 'Sports & Outdoors']
+  if (feeling.includes('go explore')) return ['Community', 'Arts & Culture', 'Outdoors']
+  if (feeling.includes('go play'))    return ['Community', 'Nightlife']
+  // Legacy feeling-based labels
   if (feeling.includes('pumped') || feeling.includes('electric')) return ['Music', 'Nightlife', 'Sports & Outdoors']
   if (feeling.includes('relaxed') || feeling.includes('happy'))   return ['Food & Drink', 'Community', 'Nightlife']
   if (feeling.includes('curious') || feeling.includes('wow'))     return ['Arts & Culture', 'Community', 'Outdoors']
@@ -279,7 +294,100 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
 
   const exp = expType.toLowerCase()
 
-  // Category-specific queries Ã¢ÂÂ mapped from feeling target (psychology-first survey)
+  // Date-night taxonomy (current)
+  if (exp.includes('dinner date')) {
+    return [
+      `romantic restaurants date night dining ${when} in ${city}`,
+      `best date night restaurants ${city}`,
+      `intimate dining wine bars ${when} near ${city}`,
+    ]
+  }
+  if (exp.includes('drinks & vibes')) {
+    return [
+      `cocktail bars rooftop bars date night ${when} in ${city}`,
+      `best bars for couples drinks ${city}`,
+      `speakeasy wine bar nightlife date night ${when} near ${city}`,
+    ]
+  }
+  if (exp.includes('live show')) {
+    return [
+      `live music concerts date night ${when} in ${city}`,
+      `comedy theatre shows events ${when} in ${city}`,
+      `best live entertainment venues ${city}`,
+    ]
+  }
+  if (exp.includes('get outside')) {
+    return [
+      `outdoor date night activities ${when} near ${city}`,
+      `hiking trails scenic views sunset spots ${city}`,
+      `outdoor experiences nature date night ${when} near ${city}`,
+    ]
+  }
+  if (exp.includes('something fun')) {
+    return [
+      `fun date night ideas activities ${when} in ${city}`,
+      `escape room bowling arcade date night ${when} near ${city}`,
+      `unique things to do couples tonight ${city}`,
+    ]
+  }
+  if (exp.includes('surprise us')) {
+    return [
+      `best date night ideas ${when} in ${city}`,
+      `unique romantic things to do couples ${when} near ${city}`,
+      `hidden gems date night spots ${city}`,
+    ]
+  }
+  // Legacy Go ___ taxonomy (backwards compat)
+  if (exp.includes('go eat')) {
+    return [
+      `restaurants dining ${when} in ${city}`,
+      `food events brunch bars happy hour ${when} near ${city}`,
+      `best restaurants bars open tonight ${city}`,
+    ]
+  }
+  if (exp.includes('go listen')) {
+    return [
+      `live music concerts ${when} in ${city}`,
+      `live music bands performing ${when} near ${city}`,
+      `best live music venues tonight ${city}`,
+    ]
+  }
+  if (exp.includes('go out')) {
+    return [
+      `bars nightlife ${when} in ${city}`,
+      `rooftop bars lounge patio drinks ${when} near ${city}`,
+      `best nightlife bars places to go out ${city}`,
+    ]
+  }
+  if (exp.includes('go move')) {
+    return [
+      `dancing dance clubs ${when} in ${city}`,
+      `outdoor activities sports recreation ${when} near ${city}`,
+      `hiking outdoor active fun things to do ${city}`,
+    ]
+  }
+  if (exp.includes('go see')) {
+    return [
+      `comedy theatre shows events ${when} in ${city}`,
+      `art galleries museums cultural events ${when} near ${city}`,
+      `sports games entertainment ${when} near ${city}`,
+    ]
+  }
+  if (exp.includes('go explore')) {
+    return [
+      `farmers market pop-up events ${when} in ${city}`,
+      `things to do discover explore ${when} near ${city}`,
+      `night market hidden gems neighborhood events ${city}`,
+    ]
+  }
+  if (exp.includes('go play')) {
+    return [
+      `trivia night escape room bowling ${when} in ${city}`,
+      `games fun activities social events ${when} near ${city}`,
+      `best trivia bars arcade entertainment ${city}`,
+    ]
+  }
+  // Legacy feeling-based labels (backwards compat)
   if (exp.includes('pumped') || exp.includes('electric')) {
     return [
       `live music concerts ${when} in ${city}`,
