@@ -55,13 +55,12 @@ const ALL_QUESTIONS: Question[] = [
     subtitle: 'Pick your vibe',
     layout: 'chips',
     options: [
-      { label: 'Go eat',     desc: '', emoji: '🍽️', quality: 'Food & drink'  },
-      { label: 'Go listen',  desc: '', emoji: '🎵', quality: 'Live music'    },
-      { label: 'Go out',     desc: '', emoji: '🥂', quality: 'Nightlife'     },
-      { label: 'Go move',    desc: '', emoji: '⚡', quality: 'Active'        },
-      { label: 'Go see',     desc: '', emoji: '🎭', quality: 'Shows & arts'  },
-      { label: 'Go explore', desc: '', emoji: '🌆', quality: 'Discovery'     },
-      { label: 'Go play',    desc: '', emoji: '🎲', quality: 'Games'         },
+      { label: 'Dinner date',    desc: '', emoji: '🍷', quality: 'Food & Drink'  },
+      { label: 'Drinks & vibes', desc: '', emoji: '🥂', quality: 'Nightlife'     },
+      { label: 'Live show',      desc: '', emoji: '🎭', quality: 'Shows & arts'  },
+      { label: 'Get outside',    desc: '', emoji: '🌙', quality: 'Outdoors'      },
+      { label: 'Something fun',  desc: '', emoji: '🎲', quality: 'Games'         },
+      { label: 'Surprise us',    desc: '', emoji: '✨', quality: 'Discovery'     },
     ],
   },
   {
@@ -73,7 +72,7 @@ const ALL_QUESTIONS: Question[] = [
       { label: 'Too pricey',          desc: '', emoji: '💸', quality: 'Budget-sensitive' },
       { label: 'Massive crowds',        desc: '', emoji: '😵', quality: 'Avoid crowds'    },
       { label: 'Needs a reservation',   desc: '', emoji: '📋', quality: 'Spontaneous'     },
-      { label: "Can't move around",     desc: '', emoji: '🪑', quality: 'Stay active'     },
+      { label: 'Been there before',   desc: '', emoji: '🔄', quality: 'New places'      },
     ],
   },
 ]
