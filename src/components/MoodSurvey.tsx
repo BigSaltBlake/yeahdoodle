@@ -51,8 +51,8 @@ interface Question {
 const ALL_QUESTIONS: Question[] = [
   {
     id: 'feeling',
-    question: "What do you want to do?",
-    subtitle: 'Go with your gut',
+    question: "What kind of date night?",
+    subtitle: 'Pick your vibe',
     layout: 'chips',
     options: [
       { label: 'Go eat',     desc: '', emoji: '🍽️', quality: 'Food & drink'  },
@@ -70,7 +70,7 @@ const ALL_QUESTIONS: Question[] = [
     subtitle: "Pick your one dealbreaker",
     layout: 'chips',
     options: [
-      { label: 'Breaking the bank',    desc: '', emoji: '💸', quality: 'Budget-sensitive' },
+      { label: 'Too pricey',          desc: '', emoji: '💸', quality: 'Budget-sensitive' },
       { label: 'Massive crowds',        desc: '', emoji: '😵', quality: 'Avoid crowds'    },
       { label: 'Needs a reservation',   desc: '', emoji: '📋', quality: 'Spontaneous'     },
       { label: "Can't move around",     desc: '', emoji: '🪑', quality: 'Stay active'     },
@@ -79,10 +79,10 @@ const ALL_QUESTIONS: Question[] = [
 ]
 
 const LOADING_MESSAGES = [
-  'Scanning events near you...',
+  'Scouting date night spots near you...',
   'Matching your vibe...',
   'Finding hidden gems...',
-  'Picking your top 3...',
+  'Picking your top 3 date night picks...',
 ]
 
 const MEDALS = ['🥇', '🥈', '🥉']
@@ -454,7 +454,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     const params = new URLSearchParams({ city: city || 'nearby', ids })
     const url = `${window.location.origin}/picks?${params.toString()}`
     if (navigator.share) {
-      navigator.share({ title: 'Stop scrolling. Go live. 👉', text: `Found something worth doing${city ? ` in ${city}` : ' near me'} through YeahDoodle`, url })
+      navigator.share({ title: 'Our date night picks 🍷', text: `Found 3 date night picks${city ? ` in ${city}` : ' near me'} through YeahDoodle`, url })
         .catch(() => { /* user cancelled */ })
     } else {
       navigator.clipboard.writeText(url).then(() => {
@@ -491,7 +491,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {phase === 'locating' && (
           <div className="p-8 text-center py-16">
             <div className="text-5xl mb-6">📍</div>
-            <h2 className="font-display text-xl text-white mb-3">Finding events near you...</h2>
+            <h2 className="font-display text-xl text-white mb-3">Finding date night spots near you...</h2>
             <p className="text-white/40 text-sm mb-8">Allow location access for the best picks</p>
             <button
               onClick={() => setPhase('city')}
@@ -506,8 +506,8 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {phase === 'city' && (
           <div className="p-8 text-center">
             <div className="text-5xl mb-4">🎯</div>
-            <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
-            <p className="text-white/50 text-sm mb-7">2 quick questions → your 3 best picks</p>
+            <h2 className="font-display text-2xl text-white mb-2">Find your perfect date night</h2>
+            <p className="text-white/50 text-sm mb-7">2 quick questions → your 3 best date night picks</p>
             <input
               autoFocus
               value={city}
