@@ -76,12 +76,12 @@ export default function HomePage() {
               {
                 step: '01',
                 title: '2 quick questions',
-                body: 'What kind of date night? What's off the table? Takes 10 seconds — we handle the rest.',
+                body: 'What kind of date night? What\'s off the table? Takes 10 seconds — we handle the rest.',
               },
               {
                 step: '02',
                 title: 'AI finds your top 3',
-                body: 'We scan local events and surface the 3 that actually match where you\'re at right now.',
+                body: 'We scan hand-curated spots and live events to surface the 3 date night picks that actually fit.',
               },
               {
                 step: '03',
@@ -101,7 +101,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── What you'll find ── */}
+      {/* ── What you\'ll find ── */}
       <section className="max-w-5xl mx-auto px-4 py-14">
         <h2 className="font-display text-2xl text-white text-center mb-8">What&apos;s waiting for you</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -109,7 +109,7 @@ export default function HomePage() {
             { icon: '🍷', label: 'Romantic dinners and hidden local gems' },
             { icon: '🥂', label: 'Cocktail bars and rooftop vibes' },
             { icon: '🎭', label: 'Live shows worth getting dressed up for' },
-            { icon: '✨', label: "Unique experiences you'll actually remember" },
+            { icon: '✨', label: 'Unique experiences you\'ll actually remember' },
           ].map(v => (
             <button
               key={v.label}
