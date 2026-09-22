@@ -29,18 +29,18 @@ export default function HomePage() {
           {/* Pulse badge */}
           <div className="inline-flex items-center gap-2 bg-yd-orange/12 text-yd-orange text-xs font-semibold px-4 py-2 rounded-full mb-8 tracking-widest uppercase border border-yd-orange/25 backdrop-blur-sm">
             <span className="w-1.5 h-1.5 rounded-full bg-yd-orange animate-pulse shrink-0" />
-            Stop scrolling. Go live.
+            Date Night Scout
           </div>
 
           {/* Headline */}
           <h1 className="font-display text-4xl sm:text-6xl lg:text-8xl text-white leading-[0.92] mb-6 tracking-tight">
-            Life&apos;s Happening<br />
-            <span className="text-yd-orange">Out There.</span> Live It!
+            The Perfect<br />
+            <span className="text-yd-orange">Date Night.</span> Tonight.
           </h1>
 
           {/* Subhead */}
           <p className="text-white/50 text-xl sm:text-2xl mb-10 max-w-sm mx-auto leading-relaxed font-light">
-            Want to find 3 options for things to do near you right now?
+            2 questions. 3 hand-picked date night spots near you.
           </p>
 
           {/* Single CTA */}
@@ -56,7 +56,7 @@ export default function HomePage() {
 
           {/* Reassurance */}
           <p className="text-white/20 text-sm mt-6 tracking-wide">
-            📍 Auto-detects your location
+            📍 Auto-detects your location · Hand-curated picks
           </p>
         </div>
 
@@ -76,7 +76,7 @@ export default function HomePage() {
               {
                 step: '01',
                 title: '2 quick questions',
-                body: 'How do you want to feel? What would kill the vibe? Takes 10 seconds — we handle the rest.',
+                body: 'What kind of date night? What's off the table? Takes 10 seconds — we handle the rest.',
               },
               {
                 step: '02',
@@ -106,10 +106,10 @@ export default function HomePage() {
         <h2 className="font-display text-2xl text-white text-center mb-8">What&apos;s waiting for you</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { icon: '🎸', label: 'Live music you can feel in your chest' },
-            { icon: '🌮', label: 'Hidden gems the locals actually go to' },
-            { icon: '🎨', label: 'Art, theatre, and things to talk about after' },
-            { icon: '🏆', label: 'Sports, outdoor adventures, and real action' },
+            { icon: '🍷', label: 'Romantic dinners and hidden local gems' },
+            { icon: '🥂', label: 'Cocktail bars and rooftop vibes' },
+            { icon: '🎭', label: 'Live shows worth getting dressed up for' },
+            { icon: '✨', label: "Unique experiences you'll actually remember" },
           ].map(v => (
             <button
               key={v.label}
