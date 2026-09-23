@@ -167,31 +167,41 @@ export default function HomePage() {
 
       {/* ── Hero ── */}
       <section className="relative min-h-screen flex items-center justify-center bg-yd-bg overflow-hidden">
+        {/* Layered background atmosphere */}
         <div className="absolute inset-0 bg-gradient-to-br from-yd-orange/15 via-transparent to-yd-navy/50 pointer-events-none" />
         <div className="absolute inset-0 dot-pattern opacity-15 pointer-events-none" />
+        {/* Warm radial glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full bg-yd-orange/6 blur-[120px] pointer-events-none" />
+        {/* Accent orbs */}
         <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full bg-white/[0.018] -translate-y-1/2 translate-x-1/3 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-yd-orange/5 translate-y-1/3 -translate-x-1/4 pointer-events-none" />
 
         <div className="relative max-w-2xl mx-auto px-4 text-center">
 
+          {/* Slide content — fades on transition */}
           <div style={{ opacity: fading ? 0 : 1, transition: 'opacity 0.28s ease' }}>
+
+            {/* Badge */}
             <div className="inline-flex items-center gap-2 bg-yd-orange/12 text-yd-orange text-xs font-semibold px-4 py-2 rounded-full mb-8 tracking-widest uppercase border border-yd-orange/25 backdrop-blur-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-yd-orange animate-pulse shrink-0" />
               {slide.badge}
             </div>
 
+            {/* Headline */}
             <h1 className="font-display text-4xl sm:text-6xl lg:text-8xl text-white leading-[0.92] mb-6 tracking-tight">
               {slide.headline}<br />
               <span className="text-yd-orange">{slide.emphasis}</span>
               {slide.post && <span>{slide.post}</span>}
             </h1>
 
+            {/* Subhead */}
             <p className="text-white/50 text-xl sm:text-2xl mb-10 max-w-sm mx-auto leading-relaxed font-light">
               {slide.subhead}
             </p>
+
           </div>
 
+          {/* CTA — always visible, captures active slide mode on click */}
           <button
             onClick={openSurvey}
             onMouseEnter={() => window.dispatchEvent(new CustomEvent('wb-yeahdoodle'))}
@@ -202,6 +212,7 @@ export default function HomePage() {
             <span className="group-hover:translate-x-1.5 transition-transform duration-200 text-xl">&rarr;</span>
           </button>
 
+          {/* Slide navigation dots */}
           <div className="flex items-center justify-center gap-1.5 mt-8">
             {SLIDES.map((s, i) => (
               <button
@@ -217,11 +228,13 @@ export default function HomePage() {
             ))}
           </div>
 
+          {/* Reassurance */}
           <p className="text-white/20 text-sm mt-4 tracking-wide">
-            � Auto-detects your location &middot; Hand-curated picks
+            📍 Auto-detects your location &middot; Hand-curated picks
           </p>
         </div>
 
+        {/* Scroll nudge */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 select-none pointer-events-none">
           <div className="w-px h-8 bg-gradient-to-b from-white/0 to-white/25" />
           <div className="w-1 h-1 rounded-full bg-white/25" />
