@@ -23,6 +23,7 @@ interface Props {
   open: boolean
   onClose: () => void
   initialCity?: string
+  mode?: string
 }
 
 interface QuestionOption {
@@ -45,60 +46,249 @@ interface Question {
 }
 
 // ---------------------------------------------------------------------------
-// Questions — action-first: Go ___ taxonomy → kill switch (2 questions)
-// Q1 uses compact chip layout; Q2 uses full button cards
+// Questions — per-mode question banks
 // ---------------------------------------------------------------------------
-const ALL_QUESTIONS: Question[] = [
+const Q_KILLSWITCH: Question = {
+  id: 'killswitch',
+  question: "What's off the table?",
+  subtitle: 'Pick your one dealbreaker',
+  layout: 'chips',
+  options: [
+    { label: 'Too pricey',          desc: '', emoji: '💸', quality: 'Budget-sensitive' },
+    { label: 'Massive crowds',      desc: '', emoji: '😵', quality: 'Avoid crowds'    },
+    { label: 'Needs a reservation', desc: '', emoji: '📋', quality: 'Spontaneous'     },
+    { label: 'Been there before',   desc: '', emoji: '🔄', quality: 'New places'      },
+  ],
+}
+
+const QUESTIONS_DATE_NIGHT: Question[] = [
   {
     id: 'feeling',
-    question: "What kind of date night?",
+    question: 'What kind of date night?',
     subtitle: 'Pick your vibe',
     layout: 'chips',
     options: [
-      { label: 'Dinner date',    desc: '', emoji: '🍷', quality: 'Food & Drink'  },
-      { label: 'Drinks & vibes', desc: '', emoji: '🥂', quality: 'Nightlife'     },
-      { label: 'Live show',      desc: '', emoji: '🎭', quality: 'Shows & arts'  },
-      { label: 'Get outside',    desc: '', emoji: '🌙', quality: 'Outdoors'      },
-      { label: 'Something fun',  desc: '', emoji: '🎲', quality: 'Games'         },
-      { label: 'Surprise us',    desc: '', emoji: '✨', quality: 'Discovery'     },
+      { label: 'Dinner date',    desc: '', emoji: '🍷', quality: 'Food & Drink' },
+      { label: 'Drinks & vibes', desc: '', emoji: '🥂', quality: 'Nightlife'    },
+      { label: 'Live show',      desc: '', emoji: '🎭', quality: 'Shows & arts' },
+      { label: 'Get outside',    desc: '', emoji: '🌙', quality: 'Outdoors'     },
+      { label: 'Something fun',  desc: '', emoji: '🎲', quality: 'Games'        },
+      { label: 'Surprise us',    desc: '', emoji: '✨', quality: 'Discovery'    },
     ],
   },
   {
-    id: 'killswitch',
-    question: "What's off the table?",
-    subtitle: "Pick your one dealbreaker",
+    id: 'occasion',
+    question: "What's the occasion?",
+    subtitle: 'No judgment',
     layout: 'chips',
     options: [
-      { label: 'Too pricey',          desc: '', emoji: '💸', quality: 'Budget-sensitive' },
-      { label: 'Massive crowds',        desc: '', emoji: '😵', quality: 'Avoid crowds'    },
-      { label: 'Needs a reservation',   desc: '', emoji: '📋', quality: 'Spontaneous'     },
-      { label: 'Been there before',   desc: '', emoji: '🔄', quality: 'New places'      },
+      { label: 'First date',      desc: '', emoji: '✨', quality: 'First date'  },
+      { label: 'New couple',      desc: '', emoji: '🌱', quality: 'New couple'  },
+      { label: 'Long-time thing', desc: '', emoji: '🤝', quality: 'Established' },
+      { label: 'Anniversary',     desc: '', emoji: '🎉', quality: 'Anniversary' },
     ],
   },
+  {
+    id: 'party',
+    question: "Who's joining?",
+    subtitle: '',
+    layout: 'chips',
+    options: [
+      { label: 'Just us',     desc: '', emoji: '👫', quality: 'Couple'      },
+      { label: 'Double date', desc: '', emoji: '🥂', quality: 'Double date' },
+      { label: 'Group night', desc: '', emoji: '🎉', quality: 'Group'       },
+    ],
+  },
+  {
+    id: 'duration',
+    question: 'How long do you have?',
+    subtitle: 'Help us plan',
+    layout: 'chips',
+    options: [
+      { label: 'Quick plans',  desc: '1-2 hrs', emoji: '⚡', quality: 'Quick'       },
+      { label: 'Full evening', desc: '3-4 hrs', emoji: '🌙', quality: 'Full evening' },
+      { label: "Night's open", desc: 'No rush', emoji: '🌟', quality: 'Open ended'  },
+    ],
+  },
+  Q_KILLSWITCH,
 ]
 
+const QUESTIONS_FIRST_DATE: Question[] = [
+  {
+    id: 'feeling',
+    question: 'What kind of first date?',
+    subtitle: 'Set the scene',
+    layout: 'chips',
+    options: [
+      { label: 'Impressive dinner', desc: '', emoji: '🍷', quality: 'Upscale dining' },
+      { label: 'Low-key coffee',    desc: '', emoji: '☕', quality: 'Casual'         },
+      { label: 'Fun activity',      desc: '', emoji: '🎲', quality: 'Activities'     },
+      { label: 'Drinks & vibes',    desc: '', emoji: '🥂', quality: 'Nightlife'      },
+      { label: 'Outdoors & chill',  desc: '', emoji: '🌿', quality: 'Outdoors'       },
+      { label: 'Surprise me',       desc: '', emoji: '✨', quality: 'Discovery'      },
+    ],
+  },
+  {
+    id: 'priority',
+    question: 'What matters most?',
+    subtitle: 'Be honest',
+    layout: 'chips',
+    options: [
+      { label: 'Make an impression', desc: '', emoji: '⭐', quality: 'Impressive'  },
+      { label: 'Feel comfortable',   desc: '', emoji: '😌', quality: 'Comfortable' },
+      { label: 'Find common ground', desc: '', emoji: '🤝', quality: 'Connective'  },
+      { label: 'Just have fun',      desc: '', emoji: '🎉', quality: 'Fun'         },
+    ],
+  },
+  {
+    id: 'duration',
+    question: 'How long do you have?',
+    subtitle: '',
+    layout: 'chips',
+    options: [
+      { label: 'Coffee quick',   desc: '1-2 hrs', emoji: '☕', quality: 'Quick'  },
+      { label: 'Dinner & more',  desc: '2-3 hrs', emoji: '🍷', quality: 'Medium' },
+      { label: 'Full night out', desc: 'Open',    emoji: '🌙', quality: 'Long'   },
+    ],
+  },
+  {
+    id: 'budget',
+    question: "What's the budget vibe?",
+    subtitle: '',
+    layout: 'chips',
+    options: [
+      { label: 'Keep it affordable', desc: '',        emoji: '💚', quality: 'Budget'    },
+      { label: 'Mid-range is fine',  desc: '',        emoji: '💛', quality: 'Mid-range' },
+      { label: 'Impress them',       desc: 'No limit', emoji: '💎', quality: 'Upscale' },
+    ],
+  },
+  Q_KILLSWITCH,
+]
+
+const QUESTIONS_FOMO: Question[] = [
+  {
+    id: 'feeling',
+    question: "What scene are you chasing?",
+    subtitle: "Find what everyone's talking about",
+    layout: 'chips',
+    options: [
+      { label: 'Hottest show',        desc: '', emoji: '🔥', quality: 'Shows & arts'  },
+      { label: 'Trending restaurant', desc: '', emoji: '🍽️', quality: 'Food & Drink'  },
+      { label: 'Party of the season', desc: '', emoji: '🎉', quality: 'Nightlife'      },
+      { label: 'Must-see art',        desc: '', emoji: '🎨', quality: 'Arts & Culture' },
+      { label: 'Outdoor buzz',        desc: '', emoji: '🌿', quality: 'Outdoors'       },
+      { label: "Tell me what's hot",  desc: '', emoji: '✨', quality: 'Discovery'      },
+    ],
+  },
+  Q_KILLSWITCH,
+]
+
+const QUESTIONS_MUSIC: Question[] = [
+  {
+    id: 'feeling',
+    question: "What's the sound?",
+    subtitle: 'Live music, your way',
+    layout: 'chips',
+    options: [
+      { label: 'Rock & indie',   desc: '', emoji: '🎸', quality: 'Rock'       },
+      { label: 'Folk & acoustic', desc:'', emoji: '🎻', quality: 'Folk'       },
+      { label: 'EDM & dance',    desc: '', emoji: '🎧', quality: 'Electronic' },
+      { label: 'Jazz & blues',   desc: '', emoji: '🎷', quality: 'Jazz'       },
+      { label: 'Hip-hop & R&B',  desc: '', emoji: '🎤', quality: 'Hip-hop'    },
+      { label: 'Anything live',  desc: '', emoji: '🎵', quality: 'Live music' },
+    ],
+  },
+  Q_KILLSWITCH,
+]
+
+const QUESTIONS_OUTDOOR: Question[] = [
+  {
+    id: 'feeling',
+    question: 'What kind of adventure?',
+    subtitle: 'Get out there',
+    layout: 'chips',
+    options: [
+      { label: 'Hike or trail', desc: '', emoji: '🥾', quality: 'Hiking'    },
+      { label: 'Bike ride',     desc: '', emoji: '🚴', quality: 'Cycling'   },
+      { label: 'Water stuff',   desc: '', emoji: '🌊', quality: 'Water'     },
+      { label: 'Urban walk',    desc: '', emoji: '🏙️', quality: 'Walking'   },
+      { label: 'Park & chill',  desc: '', emoji: '🌿', quality: 'Relaxed'   },
+      { label: 'Surprise me',   desc: '', emoji: '✨', quality: 'Discovery' },
+    ],
+  },
+  Q_KILLSWITCH,
+]
+
+const QUESTIONS_FOODIE: Question[] = [
+  {
+    id: 'feeling',
+    question: "What's the craving?",
+    subtitle: 'Food, your way',
+    layout: 'chips',
+    options: [
+      { label: 'Bold & new',         desc: '', emoji: '🌶️', quality: 'Adventurous' },
+      { label: 'Comfort done right', desc: '', emoji: '🍜', quality: 'Comfort'     },
+      { label: 'Quick & fresh',      desc: '', emoji: '🥗', quality: 'Light'       },
+      { label: 'Special experience', desc: '', emoji: '🍽️', quality: 'Upscale'     },
+      { label: 'Street & casual',    desc: '', emoji: '🌮', quality: 'Casual'      },
+      { label: 'Surprise me',        desc: '', emoji: '✨', quality: 'Discovery'   },
+    ],
+  },
+  Q_KILLSWITCH,
+]
+
+const QUESTIONS_GENERIC: Question[] = [
+  {
+    id: 'feeling',
+    question: 'What are you feeling tonight?',
+    subtitle: 'Pick your vibe',
+    layout: 'chips',
+    options: [
+      { label: 'Go eat',      desc: 'Dining, drinks, food experiences',   emoji: '🍽️', quality: 'Food & drink'  },
+      { label: 'Go listen',   desc: 'Live music, concerts, DJ nights',     emoji: '🎵', quality: 'Live music'    },
+      { label: 'Go out',      desc: 'Bars, rooftops, social scene',        emoji: '🥂', quality: 'Nightlife'     },
+      { label: 'Go move',     desc: 'Dancing, outdoor sports, active fun', emoji: '⚡', quality: 'Active'        },
+      { label: 'Go see',      desc: 'Comedy, theatre, film, sports, art',  emoji: '🎭', quality: 'Shows & arts'  },
+      { label: 'Surprise me', desc: "Show me what's out there",           emoji: '✨', quality: 'Discovery'     },
+    ],
+  },
+  Q_KILLSWITCH,
+]
+
+function getQuestions(mode: string): Question[] {
+  switch (mode) {
+    case 'date-night':
+    case 'couple':     return QUESTIONS_DATE_NIGHT
+    case 'first-date': return QUESTIONS_FIRST_DATE
+    case 'fomo':       return QUESTIONS_FOMO
+    case 'music':      return QUESTIONS_MUSIC
+    case 'outdoor':    return QUESTIONS_OUTDOOR
+    case 'foodie':     return QUESTIONS_FOODIE
+    default:           return QUESTIONS_GENERIC
+  }
+}
+
 const LOADING_MESSAGES = [
-  'Scouting date night spots near you...',
+  'Scanning events near you...',
   'Matching your vibe...',
   'Finding hidden gems...',
-  'Picking your top 3 date night picks...',
+  'Picking your top 3...',
 ]
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
-type Phase = 'locating' | 'city' | 'returning' | 'question' | 'loading' | 'results' | 'empty' | 'yeahdoodle'
+type Phase = 'locating' | 'city' | 'confirm-location' | 'returning' | 'question' | 'loading' | 'results' | 'empty'
 type EmailState = 'idle' | 'loading' | 'done' | 'error'
 type FeedbackRating = 'up' | 'meh' | 'down'
-type PickDecision = 'rejected' | 'maybe' | 'yeahdoodle'
 type SaveIntent = 'save_for_later' | 'definitely_going'
 type SavedEventLocal = { event_id: string; event_title: string; event_data: Record<string, unknown>; intent: SaveIntent; city: string; saved_at: string }
 type SurveyHistoryEntry = { answers: string[]; city: string; date: string }
 
-export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
+export default function MoodSurvey({ open, onClose, initialCity = '', mode = 'general' }: Props) {
   const [city, setCity] = useState(initialCity)
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
-  const [phase, setPhase] = useState<Phase>(initialCity ? 'question' : 'locating')
+  const [phase, setPhase] = useState<Phase>(initialCity ? 'confirm-location' : 'locating')
   const [qIndex, setQIndex] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
   const [loadingMsg, setLoadingMsg] = useState(0)
@@ -120,16 +310,13 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   const [openFilter, setOpenFilter]     = useState<'when' | 'budget' | 'crew' | null>(null)
   const [refineStep, setRefineStep]     = useState<'when' | 'crew' | 'done' | null>(null)
   const cancelGps = useRef(false)
-  const touchStartX = useRef<number | null>(null)
-  const [decisions, setDecisions] = useState<Record<string, PickDecision>>({})
-  const [yeadoodlePick, setYeadoodlePick] = useState<Pick | null>(null)
-  const [committed, setCommitted] = useState(false)
+const prefetchRef = useRef<Pick[] | null>(null)
+const prefetchAnswersRef = useRef<string[]>([])
 
   // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
-  const activeQuestions = ALL_QUESTIONS
-  const visiblePicks = picks.filter(p => decisions[p.id] !== 'rejected')
+  const activeQuestions = getQuestions(mode)
 
   const timeframeDisplay = 'the next few days'
 
@@ -144,7 +331,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         setCity(initialCity)
         setLat(null)
         setLng(null)
-        setPhase(initialCity ? 'question' : 'locating')
+        setPhase(initialCity ? 'confirm-location' : 'locating')
         setQIndex(0)
         setAnswers([])
         setPicks([])
@@ -199,7 +386,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           const name = geo.city || geo.locality || geo.principalSubdivision || ''
           if (!cancelGps.current && name) setCity(name)
         } catch { /* use existing city */ }
-        if (!cancelGps.current) setPhase(returnHist ? 'returning' : 'question')
+        if (!cancelGps.current) setPhase('confirm-location')
       },
       () => {
         if (!cancelGps.current) setPhase('city')
@@ -230,7 +417,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   }, [phase])
 
   // ---------------------------------------------------------------------------
-  // Session / save / feedback helpers
+  // Session / save / feedback helpers (unchanged from prior version)
   // ---------------------------------------------------------------------------
   function getSessionId(): string {
     try {
@@ -251,42 +438,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         body: JSON.stringify({ event_id: pick.id, event_title: pick.title, rating, session_id: getSessionId(), city }),
       })
     } catch { /* fire and forget */ }
-  }
-
-  function rejectPick(pick: Pick) {
-    setDecisions(prev => ({ ...prev, [pick.id]: 'rejected' }))
-    submitFeedback(pick, 'down')
-    capture('pick_rejected', { event_id: pick.id, title: pick.title, city })
-  }
-
-  function maybePick(pick: Pick) {
-    setDecisions(prev => ({ ...prev, [pick.id]: 'maybe' }))
-    submitFeedback(pick, 'meh')
-    capture('pick_maybe', { event_id: pick.id, title: pick.title, city })
-  }
-
-  function yeahDoodlePick(pick: Pick) {
-    setDecisions(prev => ({ ...prev, [pick.id]: 'yeahdoodle' }))
-    submitFeedback(pick, 'up')
-    saveEvent(pick, 'definitely_going')
-    setYeadoodlePick(pick)
-    setCommitted(false)
-    setPhase('yeahdoodle')
-    capture('yeah_doodle', { event_id: pick.id, title: pick.title, city })
-  }
-
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX
-  }
-
-  function handleTouchEnd(e: React.TouchEvent, pick: Pick) {
-    if (touchStartX.current === null) return
-    const dx = e.changedTouches[0].clientX - touchStartX.current
-    touchStartX.current = null
-    if (Math.abs(dx) > 70) {
-      if (dx < 0) rejectPick(pick)
-      else yeahDoodlePick(pick)
-    }
   }
 
   useEffect(() => {
@@ -347,7 +498,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
   }
 
   // ---------------------------------------------------------------------------
-  // Core submit
+  // Core submit (used by both normal survey flow and "Same vibe" shortcut)
   // ---------------------------------------------------------------------------
   async function doSubmit(submittedAnswers: string[], filterOverrides?: { budget?: string; crew?: string; when?: string }) {
     const activeBudget = filterOverrides !== undefined ? (filterOverrides.budget ?? '') : filterBudget
@@ -356,6 +507,21 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     setAnswers(submittedAnswers)
     setPhase('loading')
     setLoadingMsg(0)
+    // Use prefetch cache if answers match
+    if (prefetchRef.current && JSON.stringify(prefetchAnswersRef.current) === JSON.stringify(submittedAnswers)) {
+      const cached = prefetchRef.current
+      prefetchRef.current = null
+      setPicks(cached)
+      setPhase('results')
+      capture('picks_viewed', { city, pick_count: cached.length, cached: true })
+      try {
+        const consent = localStorage.getItem('yd_hist_consent')
+        if (consent === 'true') saveToHistory(submittedAnswers)
+        else if (!consent) setShowHistConsent(true)
+      } catch { /* */ }
+      return
+    }
+
     try {
       const body: Record<string, unknown> = {
         city,
@@ -376,11 +542,13 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json().catch(() => ({ picks: [] }))
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
       if (data.picks?.length > 0) {
         setPicks(data.picks)
         setPhase('results')
         capture('picks_viewed', { city, pick_count: data.picks.length })
+        // History: auto-save if already consented; prompt if first time
         try {
           const consent = localStorage.getItem('yd_hist_consent')
           if (consent === 'true') saveToHistory(submittedAnswers)
@@ -394,6 +562,30 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     }
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Background prefetch — fires immediately after location is confirmed
+  // ---------------------------------------------------------------------------
+  function startPrefetch(prefetchCity: string, prefetchAnswers: string[]) {
+    prefetchRef.current = null
+    prefetchAnswersRef.current = prefetchAnswers
+    ;(async () => {
+      try {
+        const body: Record<string, unknown> = { city: prefetchCity, answers: prefetchAnswers }
+        if (lat !== null) body.lat = lat
+        if (lng !== null) body.lng = lng
+        const res = await fetch('/api/recommend', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.picks?.length > 0) prefetchRef.current = data.picks
+      } catch { /* fire and forget */ }
+    })()
+  }
+
   // ---------------------------------------------------------------------------
   // Answer handlers
   // ---------------------------------------------------------------------------
@@ -402,7 +594,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     setAnswers(newAnswers)
     capture('question_answered', { question_index: qIndex, answer })
 
-    if (qIndex < ALL_QUESTIONS.length - 1) {
+    if (qIndex < activeQuestions.length - 1) {
       setAnimating(true)
       setTimeout(() => {
         setQIndex(i => i + 1)
@@ -425,9 +617,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     setFilterWhen('')
     setOpenFilter(null)
     setRefineStep(null)
-    setDecisions({})
-    setYeadoodlePick(null)
-    setCommitted(false)
     setPhase('question')
   }
 
@@ -453,7 +642,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
     const params = new URLSearchParams({ city: city || 'nearby', ids })
     const url = `${window.location.origin}/picks?${params.toString()}`
     if (navigator.share) {
-      navigator.share({ title: 'Our date night picks 🍷', text: `Found 3 date night picks${city ? ` in ${city}` : ' near me'} through YeahDoodle`, url })
+      navigator.share({ title: 'Stop scrolling. Go live. 👉', text: `Found something worth doing${city ? ` in ${city}` : ' near me'} through YeahDoodle`, url })
         .catch(() => { /* user cancelled */ })
     } else {
       navigator.clipboard.writeText(url).then(() => {
@@ -473,7 +662,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full sm:max-w-xl bg-yd-card rounded-t-2xl sm:rounded-2xl border border-white/10 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="relative w-full sm:max-w-lg bg-yd-card rounded-t-2xl sm:rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
 
         {/* Close */}
         <button
@@ -484,13 +673,11 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           ✕
         </button>
 
-        {/* ─── Scrollable content area ──────────────────────── */}
-        <div className="overflow-y-auto flex-1 overscroll-contain pb-[env(safe-area-inset-bottom,0px)]">
         {/* ── Locating ─────────────────────────────────────────────────────── */}
         {phase === 'locating' && (
           <div className="p-8 text-center py-16">
             <div className="text-5xl mb-6">📍</div>
-            <h2 className="font-display text-xl text-white mb-3">Finding date night spots near you...</h2>
+            <h2 className="font-display text-xl text-white mb-3">Finding events near you...</h2>
             <p className="text-white/40 text-sm mb-8">Allow location access for the best picks</p>
             <button
               onClick={() => setPhase('city')}
@@ -505,18 +692,18 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
         {phase === 'city' && (
           <div className="p-8 text-center">
             <div className="text-5xl mb-4">🎯</div>
-            <h2 className="font-display text-2xl text-white mb-2">Find your perfect date night</h2>
-            <p className="text-white/50 text-sm mb-7">2 quick questions → your 3 best date night picks</p>
+            <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
+            <p className="text-white/50 text-sm mb-7">2 quick questions → your 3 best picks</p>
             <input
               autoFocus
               value={city}
               onChange={e => setCity(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && city.trim()) { capture('city_selected', { city }); setPhase(hasReturnHistory ? 'returning' : 'question') } }}
+              onKeyDown={e => { if (e.key === 'Enter' && city.trim()) { capture('city_selected', { city }); setPhase('confirm-location') } }}
               placeholder="What city are you in?"
               className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-white/30 border border-white/20 focus:outline-none focus:border-yd-orange mb-4 text-base"
             />
             <button
-              onClick={() => { if (city.trim()) { capture('city_selected', { city }); setPhase(hasReturnHistory ? 'returning' : 'question') } }}
+              onClick={() => { if (city.trim()) { capture('city_selected', { city }); setPhase('confirm-location') } }}
               disabled={!city.trim()}
               className="w-full bg-yd-orange hover:bg-yd-orangeHover disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
             >
@@ -525,7 +712,35 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* ── Return visit ─────────────────────────────────────────────────── */}
+  
+      {/* ── Confirm location ────────────────────────────────────────────────── */}
+      {phase === 'confirm-location' && (
+        <div className="p-8 text-center">
+          <div className="text-5xl mb-4">📍</div>
+          <h2 className="font-display text-xl text-white mb-1">You’re in {city || 'your location'}?</h2>
+          <p className="text-white/40 text-sm mb-7">We’ll find the best picks near you</p>
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                capture('location_confirmed', { city })
+                startPrefetch(city, lastAnswers || [])
+                setPhase(hasReturnHistory ? 'returning' : 'question')
+              }}
+              className="w-full bg-yd-orange hover:bg-yd-orangeHover text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
+            >
+              ✓ Yes, {city || 'here'}!
+            </button>
+            <button
+              onClick={() => { setCity(''); setPhase('city') }}
+              className="w-full bg-white/5 hover:bg-white/10 text-white/50 font-medium py-3 rounded-xl transition-colors text-sm border border-white/10 hover:border-white/20"
+            >
+              Change location
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Return visit ─────────────────────────────────────────────────── */}
         {phase === 'returning' && lastAnswers && (
           <div className="p-6">
             <div className="text-center mb-5">
@@ -596,7 +811,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
-            {/* ── Chip layout ── */}
+            {/* ── Chip layout (compact grid — used for Go ___ taxonomy) ── */}
             {!currentQ.special && currentQ.layout === 'chips' && (
               <div className="grid grid-cols-2 gap-2">
                 {currentQ.options.map(opt => (
@@ -608,14 +823,14 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     <span className="text-xl shrink-0">{opt.emoji}</span>
                     <div className="min-w-0">
                       <div className="font-semibold text-white text-sm leading-tight">{opt.label}</div>
-                      {opt.desc && <p className="text-white/35 text-[11px] group-hover:text-white/55 transition-colors leading-tight mt-0.5 line-clamp-1">{opt.desc}</p>}
+                      <p className="text-white/35 text-[11px] group-hover:text-white/55 transition-colors leading-tight mt-0.5 line-clamp-1">{opt.desc}</p>
                     </div>
                   </button>
                 ))}
               </div>
             )}
 
-            {/* ── Standard option buttons ── */}
+            {/* ── Standard option buttons (full cards — used for kill switch) ── */}
             {!currentQ.special && !currentQ.layout && (
               <div className="space-y-2.5">
                 {currentQ.options.map(opt => (
@@ -642,7 +857,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                 onClick={() => { setQIndex(i => i - 1); setAnswers(a => a.slice(0, -1)) }}
                 className="mt-4 text-white/25 hover:text-white/50 text-xs transition-colors"
               >
-                ← Back
+                ↠ Back
               </button>
             )}
           </div>
@@ -669,7 +884,9 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </p>
             </div>
 
-            {/* ── Conversational refinement chips ─────────── */}
+            {/* ── Conversational refinement → chips after done ─────────── */}
+
+            {/* Step 1: When */}
             {refineStep === 'when' && (
               <div className="mb-3">
                 <p className="text-white/40 text-xs mb-2">📅 When are you thinking?</p>
@@ -694,6 +911,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
+            {/* Step 2: Crew */}
             {refineStep === 'crew' && (
               <div className="mb-3">
                 <p className="text-white/40 text-xs mb-2">👥 Who&apos;s going?</p>
@@ -721,8 +939,10 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
+            {/* Chips — shown after refinement done, or for further tweaking */}
             {refineStep === 'done' && (
               <div className="flex flex-wrap gap-1.5 mb-3" onClick={() => setOpenFilter(null)}>
+                {/* When */}
                 <div className="relative" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => setOpenFilter(openFilter === 'when' ? null : 'when')}
@@ -747,6 +967,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     </div>
                   )}
                 </div>
+                {/* Budget */}
                 <div className="relative" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => setOpenFilter(openFilter === 'budget' ? null : 'budget')}
@@ -771,6 +992,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                     </div>
                   )}
                 </div>
+                {/* Crew */}
                 <div className="relative" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => setOpenFilter(openFilter === 'crew' ? null : 'crew')}
@@ -798,6 +1020,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
+            {/* Saved count + sign-in nudge */}
             {Object.keys(saved).length > 0 && (
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-xs text-white/50">❤️ {Object.keys(saved).length} saved</span>
@@ -811,23 +1034,9 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
               </div>
             )}
 
-            {visiblePicks.length === 0 && picks.length > 0 && (
-              <div className="text-center py-10">
-                <p className="text-white/40 text-sm mb-3">Nothing grabbed you?</p>
-                <button onClick={handleReset} className="text-yd-orange text-sm hover:underline">↩ Try different answers</button>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {visiblePicks.map((pick) => {
-                const i = picks.indexOf(pick)
-                return (
-                <div key={pick.id}
-                  className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-all"
-                  onClick={() => setHeartOpen(null)}
-                  onTouchStart={handleTouchStart}
-                  onTouchEnd={(e) => handleTouchEnd(e, pick)}
-                >
+            <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+              {picks.map((pick, i) => (
+                <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors" onClick={() => setHeartOpen(null)}>
                   <div className="relative w-full h-36">
                     <div className="absolute inset-0">
                       <CategoryPlaceholder category={pick.category || ''} />
@@ -842,6 +1051,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                       />
                     )}
                     <span className="absolute top-2 left-2 text-xl leading-none drop-shadow-lg">{MEDALS[i]}</span>
+                    {/* Heart / Save */}
                     <div className="absolute top-2 right-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); setHeartOpen(heartOpen === pick.id ? null : pick.id) }}
@@ -873,7 +1083,7 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                   </div>
                   <div className="p-3">
                     <span className="font-medium font-semibold text-white text-sm leading-snug">{pick.title}</span>
-                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowrap">{pick.venue}</span>
+                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowrap max-w-[200px]">{pick.venue}</span>
                     <span className="text-xs text-white/40 block">{pick.dateFormatted} &middot; {pick.priceFormatted}</span>
                     {pick.distanceLabel && (
                       <span className="text-xs text-[#4f9b85]/80 block">📍 {pick.distanceLabel}</span>
@@ -894,37 +1104,26 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
                       )}
                     </div>
                   </div>
-                  {/* Decision row */}
-                  <div className="flex border-t border-white/10 mt-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); rejectPick(pick) }}
-                      className="flex-1 py-2.5 text-[10px] sm:text-xs text-white/35 hover:text-red-400/80 hover:bg-red-500/5 transition-colors rounded-bl-xl leading-tight"
-                    >
-                      ✕ Not feeling it
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); maybePick(pick) }}
-                      className={`flex-1 py-2.5 text-[10px] sm:text-xs border-x border-white/10 transition-colors leading-tight ${
-                        decisions[pick.id] === 'maybe'
-                          ? 'text-white/60 bg-white/5'
-                          : 'text-white/35 hover:text-white/60 hover:bg-white/5'
-                      }`}
-                    >
-                      {decisions[pick.id] === 'maybe' ? '〜 Maybe' : '〜 Could work'}
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); yeahDoodlePick(pick) }}
-                      className="flex-1 py-2.5 text-[10px] sm:text-xs font-bold text-yd-orange hover:bg-yd-orange/10 transition-colors rounded-br-xl leading-tight"
-                    >
-                      Yeah Doodle! →
-                    </button>
+                  {/* Feedback */}
+                  <div className="flex items-center justify-center gap-4 pt-2 mt-2 border-t border-white/10">
+                    <span className="text-white/40 text-xs mr-1">Rate this pick</span>
+                    {(['up', 'meh', 'down'] as FeedbackRating[]).map(r => (
+                      <button
+                        key={r}
+                        onClick={() => submitFeedback(pick, r)}
+                        title={r === 'up' ? 'Love it' : r === 'meh' ? 'So-so' : 'Not for me'}
+                        style={{ display: 'inline-block', transform: r === 'meh' ? 'rotate(90deg)' : undefined, fontSize: '1.15rem', opacity: feedback[pick.id] ? (feedback[pick.id] === r ? 1 : 0.2) : 0.45 }}
+                        className="transition-all duration-150 hover:scale-125 active:scale-110 leading-none cursor-pointer"
+                      >
+                        {r === 'down' ? '👎' : '👍'}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                )
-              })}
+              ))}
             </div>
 
-            {/* Survey history consent */}
+            {/* Survey history consent banner */}
             {showHistConsent && (
               <div className="mt-3 bg-white/5 border border-white/10 rounded-xl p-4">
                 <p className="text-white text-sm font-semibold mb-1">💾 Remember my picks for next time?</p>
@@ -1018,124 +1217,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        {/* ── Yeah Doodle! commitment screen ───────────────────────────────── */}
-        {phase === 'yeahdoodle' && yeadoodlePick && (
-          <div className="p-5">
-            <button
-              onClick={() => setPhase('results')}
-              className="flex items-center gap-1.5 text-white/35 hover:text-white/65 text-xs mb-4 transition-colors"
-            >
-              ← Back to picks
-            </button>
-
-            <div className="relative w-full h-44 rounded-xl overflow-hidden mb-4">
-              <div className="absolute inset-0">
-                <CategoryPlaceholder category={yeadoodlePick.category || ''} />
-              </div>
-              {yeadoodlePick.imageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={yeadoodlePick.imageUrl}
-                  alt={yeadoodlePick.title}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-4">
-                <p className="text-yd-orange text-[11px] font-bold uppercase tracking-wider mb-1">🎉 Yeah Doodle!</p>
-                <h2 className="font-display text-lg text-white leading-tight">{yeadoodlePick.title}</h2>
-              </div>
-            </div>
-
-            <div className="space-y-1.5 mb-4">
-              {yeadoodlePick.venue && (
-                <div className="flex items-center gap-2 text-sm text-white/65">
-                  <span>📍</span><span>{yeadoodlePick.venue}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-2 text-sm text-white/65">
-                <span>📅</span><span>{yeadoodlePick.dateFormatted}</span>
-              </div>
-              {yeadoodlePick.priceFormatted && (
-                <div className="flex items-center gap-2 text-sm text-white/65">
-                  <span>💰</span><span>{yeadoodlePick.priceFormatted}</span>
-                </div>
-              )}
-              {yeadoodlePick.distanceLabel && (
-                <div className="flex items-center gap-2 text-sm text-[#4f9b85]">
-                  <span>🗺️</span><span>{yeadoodlePick.distanceLabel}</span>
-                </div>
-              )}
-            </div>
-
-            {yeadoodlePick.pitch && (
-              <div className="bg-white/5 rounded-xl p-3.5 mb-5 border border-white/10">
-                <p className="text-white/75 text-sm italic leading-relaxed">&ldquo;{yeadoodlePick.pitch}&rdquo;</p>
-              </div>
-            )}
-
-            <button
-              onClick={() => { setCommitted(true); capture('commitment_confirmed', { event_id: yeadoodlePick.id, city }) }}
-              className={`w-full font-bold py-4 rounded-xl text-base transition-all mb-2.5 flex items-center justify-center gap-2 ${
-                committed
-                  ? 'bg-green-600/25 border border-green-500/40 text-green-400 cursor-default'
-                  : 'bg-yd-orange hover:bg-yd-orangeHover text-white'
-              }`}
-            >
-              {committed ? "✅ You're going!" : '🔒 Lock it in'}
-            </button>
-
-            <div className="grid grid-cols-2 gap-2 mb-2.5">
-              <a
-                href={`https://www.google.com/maps/search/${encodeURIComponent((yeadoodlePick.venue || '') + (city ? ` ${city}` : ''))}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-white/65 hover:text-white text-sm py-3 rounded-xl transition-colors border border-white/10"
-              >
-                🗺️ Directions
-              </a>
-              {yeadoodlePick.ticketUrl ? (
-                <a
-                  href={yeadoodlePick.ticketUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-white/65 hover:text-white text-sm py-3 rounded-xl transition-colors border border-white/10"
-                  onClick={() => capture('ticket_clicked', { event_id: yeadoodlePick.id, title: yeadoodlePick.title, city, rank: yeadoodlePick.rank })}
-                >
-                  🎟️ Get tickets
-                </a>
-              ) : (
-                <button
-                  onClick={handleShare}
-                  className="flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-white/65 hover:text-white text-sm py-3 rounded-xl transition-colors border border-white/10"
-                >
-                  📤 Share
-                </button>
-              )}
-            </div>
-
-            <button
-              onClick={() => {
-                const t = encodeURIComponent(yeadoodlePick.title)
-                const d = encodeURIComponent((yeadoodlePick.pitch || '') + '\n\nFound on YeahDoodle')
-                const l = encodeURIComponent((yeadoodlePick.venue || '') + (city ? `, ${city}` : ''))
-                window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`, '_blank')
-                capture('calendar_added', { event_id: yeadoodlePick.id, city })
-              }}
-              className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white/45 hover:text-white/70 text-sm py-3 rounded-xl transition-colors border border-white/10"
-            >
-              📆 Add to calendar
-            </button>
-
-            {Object.keys(saved).length > 0 && (
-              <p className="text-center text-white/25 text-xs mt-4">
-                Saved to <a href="/saved" className="text-[#4f9b85] hover:underline transition-colors">your events</a>
-              </p>
-            )}
-          </div>
-        )}
-
         {/* ── Empty ────────────────────────────────────────────────────────── */}
         {phase === 'empty' && (
           <div className="p-8 text-center py-14">
@@ -1161,7 +1242,6 @@ export default function MoodSurvey({ open, onClose, initialCity = '' }: Props) {
           </div>
         )}
 
-        </div>{/* end scrollable content */}
       </div>
     </div>
   )
