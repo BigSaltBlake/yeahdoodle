@@ -49,7 +49,7 @@ function formatDate(isoDate: string | null): string {
 function formatPrice(priceMin: number | null, priceMax: number | null, isFree: boolean): string {
   if (priceMin === 0 || isFree && priceMin !== null) return 'Free'
   if (priceMin === null) return ''
-  if (priceMax && priceMax > priceMin) return `$${Math.round(priceMin)}Ã¢ÂÂ$${Math.round(priceMax)}`
+  if (priceMax && priceMax > priceMin) return `$${Math.round(priceMin)}–$${Math.round(priceMax)}`
   return `$${Math.round(priceMin)}`
 }
 
@@ -219,7 +219,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
   const today = new Date(now)
   today.setHours(0, 0, 0, 0)
 
-  // 'Now' and legacy 'Tonight' Ã¢ÂÂ 18-hour rolling window
+  // 'Now' and legacy 'Tonight' — 18-hour rolling window
   if (timeframe === 'Now' || timeframe === 'Tonight') {
     const end = new Date(now.getTime() + 18 * 60 * 60 * 1000)
     return { start: now, end }
@@ -230,7 +230,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     const end   = new Date(now.getTime() + 42 * 60 * 60 * 1000)
     return { start, end }
   }
-  // 'Soon' and legacy 'This weekend' Ã¢ÂÂ next FridayÃ¢ÂÂSunday
+  // 'Soon' and legacy 'This weekend' — next Friday–Sunday
   if (timeframe === 'Soon' || timeframe === 'This weekend') {
     const dow = now.getDay()
     const daysUntilFri = dow === 0 ? 6 : (5 - dow + 7) % 7 || 7
@@ -243,7 +243,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     const start = (dow === 0 || dow === 6) ? now : friday
     return { start, end: sunday }
   }
-  // 'Next Week' Ã¢ÂÂ 3Ã¢ÂÂ14 days out
+  // 'Next Week' — 3–14 days out
   if (timeframe === 'Next Week') {
     const start = new Date(today)
     start.setDate(start.getDate() + 3)
@@ -251,7 +251,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     end.setDate(end.getDate() + 14)
     return { start, end }
   }
-  // 'Planning Ahead' Ã¢ÂÂ 1Ã¢ÂÂ8 weeks out
+  // 'Planning Ahead' — 1–8 weeks out
   if (timeframe === 'Planning Ahead') {
     const start = new Date(today)
     start.setDate(start.getDate() + 7)
@@ -259,7 +259,7 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     end.setDate(end.getDate() + 60)
     return { start, end }
   }
-  // 'Planning a Trip' Ã¢ÂÂ 2 weeks to 3 months out
+  // 'Planning a Trip' — 2 weeks to 3 months out
   if (timeframe === 'Planning a Trip') {
     const start = new Date(today)
     start.setDate(start.getDate() + 14)
@@ -267,13 +267,13 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
     end.setDate(end.getDate() + 90)
     return { start, end }
   }
-  // 'Default' Ã¢ÂÂ now through next 3 days (no timeframe filter set)
+  // 'Default' — now through next 3 days (no timeframe filter set)
   if (timeframe === 'Default') {
     const end = new Date(today)
     end.setDate(end.getDate() + 3)
     return { start: now, end }
   }
-  // Legacy 'Coming weeks' Ã¢ÂÂ 4-week lookahead
+  // Legacy 'Coming weeks' — 4-week lookahead
   const end = new Date(today)
   end.setDate(end.getDate() + 28)
   return { start: now, end }
@@ -420,7 +420,7 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
   // Default: generic event queries
   return [
     `events ${when} in ${city}`,
-    `date night ideas things to do ${when} near ${city}`,
+    `things to do ${when} near ${city}`,
     `best activities bars restaurants open near ${city}`,
   ]
 }
@@ -456,7 +456,7 @@ function fallbackImg(category: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Free image enrichment Ã¢ÂÂ no paid API credits required
+// Free image enrichment — no paid API credits required
 // ---------------------------------------------------------------------------
 
 /** Pull og:image from a ticket/event page (Ticketmaster, Eventbrite, venue sites, etc.) */
@@ -474,7 +474,7 @@ async function fetchOgImage(url: string): Promise<string | null> {
     })
     clearTimeout(timeout)
     if (!res.ok) return null
-    // og:image is always in <head> Ã¢ÂÂ only parse the first chunk
+    // og:image is always in <head> — only parse the first chunk
     const html = (await res.text()).slice(0, 25000)
     const m =
       html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
@@ -506,8 +506,8 @@ async function fetchUnsplashImage(query: string, accessKey: string): Promise<str
 }
 
 /**
- * Enrich the 3 final picks with better images Ã¢ÂÂ free, no Serper credits.
- * Chain: og:image from ticketUrl Ã¢ÂÂ Unsplash keyword search Ã¢ÂÂ keep existing fallback
+ * Enrich the 3 final picks with better images — free, no Serper credits.
+ * Chain: og:image from ticketUrl → Unsplash keyword search → keep existing fallback
  */
 async function enrichPickImages(
   picks: Array<{ title: string; venue?: string; imageUrl: string; ticketUrl?: string | null }>,
@@ -516,29 +516,29 @@ async function enrichPickImages(
 
   await Promise.all(
     picks.map(async (pick) => {
-      // Already has a real (non-fallback) image Ã¢ÂÂ nothing to do
+      // Already has a real (non-fallback) image — nothing to do
       if (!pick.imageUrl.includes('unsplash.com')) return
 
-      // 1. OG image from the event's ticket/listing page Ã¢ÂÂ event-specific, free
+      // 1. OG image from the event's ticket/listing page — event-specific, free
       if (pick.ticketUrl) {
         const og = await fetchOgImage(pick.ticketUrl)
         if (og) { pick.imageUrl = og; return }
       }
 
-      // 2. Unsplash keyword search Ã¢ÂÂ beautiful stock photo, free tier
+      // 2. Unsplash keyword search — beautiful stock photo, free tier
       if (unsplashKey) {
         const keywords = `${pick.title} ${pick.venue ?? ''}`.replace(/[^\w\s]/g, ' ').trim()
         const img = await fetchUnsplashImage(keywords, unsplashKey)
         if (img) { pick.imageUrl = img; return }
       }
 
-      // 3. Keep existing static category fallback Ã¢ÂÂ nothing to change
+      // 3. Keep existing static category fallback — nothing to change
     }),
   )
 }
 
 // ---------------------------------------------------------------------------
-// Ticketmaster Discovery API Ã¢ÂÂ free live event source (5000 calls/day)
+// Ticketmaster Discovery API — free live event source (5000 calls/day)
 // ---------------------------------------------------------------------------
 function tmBestImage(images: Array<{ url: string; width: number; height: number; ratio?: string }> | undefined): string | null {
   if (!images?.length) return null
@@ -571,7 +571,7 @@ async function fetchTicketmasterLive(
   await Promise.all(
     cities.map(async ({ name: cityName, distanceLabel }) => {
       try {
-        // Geocode city Ã¢ÂÂ latlong so TM can find areas like "Jackson Hole"
+        // Geocode city → latlong so TM can find areas like "Jackson Hole"
         // (TM's city DB uses "Jackson, WY" not "Jackson Hole, WY")
         const geo = await geocodeCity(cityName)
         const paramObj: Record<string, string> = {
@@ -662,7 +662,7 @@ async function fetchTicketmasterLive(
 function parseGoogleEventDate(dateStr: string | undefined): string | null {
   if (!dateStr) return null
   try {
-    const cleaned = dateStr.replace(/\s*[Ã¢ÂÂ-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
+    const cleaned = dateStr.replace(/\s*[–-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
     const d = new Date(cleaned)
     if (!isNaN(d.getTime())) return d.toISOString()
     const withYear = `${cleaned} ${new Date().getFullYear()}`
@@ -708,7 +708,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
           let events: unknown[] = []
 
           if (hasSerp) {
-            // SerpAPI Google Events Ã¢ÂÂ returns structured events_results[]
+            // SerpAPI Google Events — returns structured events_results[]
             const url = `https://serpapi.com/search?engine=google_events&q=${encodeURIComponent(q)}&hl=en&gl=us&api_key=${serpApiKey}`
             const res = await fetch(url, { cache: 'no-store' })
             if (res.ok) {
@@ -718,7 +718,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
           }
 
           if (events.length === 0 && hasSerper) {
-            // Fallback: Serper.dev /search Ã¢ÂÂ returns data.events[] when Google events panel triggers
+            // Fallback: Serper.dev /search — returns data.events[] when Google events panel triggers
             const res = await fetch('https://google.serper.dev/search', {
               method: 'POST',
               headers: { 'X-API-KEY': serperKey!, 'Content-Type': 'application/json' },
@@ -747,7 +747,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
             const isFree = price === 0 || (e.description as string ?? '').toLowerCase().includes('free')
             const dateStart = parseGoogleEventDate(date?.start_date ?? date?.when)
 
-            // Activity queries (qi >= 1) typically have no date Ã¢ÂÂ mark as timeless activity
+            // Activity queries (qi >= 1) typically have no date — mark as timeless activity
             const isActivity = !dateStart && qi >= 1
 
             const thumbnail = (e.thumbnail ?? null) as string | null
@@ -804,13 +804,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'answers required' }, { status: 400 })
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ Zip code Ã¢ÂÂ GPS Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── Zip code → GPS ──────────────────────────────────────────────────────
     if (!hasGps && /^\d{5}$/.test(city.trim())) {
       const zipGeo = await geocodeZipCode(city.trim())
       if (zipGeo) { lat = zipGeo.lat; lng = zipGeo.lng; hasGps = true; city = '' }
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ City string Ã¢ÂÂ GPS (forward geocode) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── City string → GPS (forward geocode) ─────────────────────────────────
     if (!hasGps && city.trim()) {
       const cityGeo = await geocodeCity(city.trim())
       if (cityGeo) { lat = cityGeo.lat; lng = cityGeo.lng; hasGps = true }
@@ -823,7 +823,7 @@ export async function POST(req: NextRequest) {
     const catHints  = categoryHints(answers)
     const expType   = getExpType(answers)
 
-    // Ã¢ÂÂÃ¢ÂÂ 1. Resolve location Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── 1. Resolve location ──────────────────────────────────────────────────
     let resolvedCity = city.trim()
     let geoDisplayName = city.trim()
     let cities: CityQuery[] = []
@@ -862,7 +862,7 @@ export async function POST(req: NextRequest) {
       cities = [{ name: resolvedCity, distanceLabel: '', isLocal: false }]
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ 2. Parallel fetches Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── 2. Parallel fetches ──────────────────────────────────────────────────
     const liveEventsPromise = cities.length > 0
       ? Promise.all([
           fetchLiveSerpEvents(cities, timeframe, expType),
@@ -879,7 +879,7 @@ export async function POST(req: NextRequest) {
         })
       : Promise.resolve([] as EventRow[])
 
-    // Place profile Ã¢ÂÂ fetch in parallel, used to enrich Serper queries below
+    // Place profile — fetch in parallel, used to enrich Serper queries below
     const profilePromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
       ? getPlaceProfile(lat, lng, resolvedCity, '').catch(() => null)
       : Promise.resolve(null)
@@ -909,7 +909,7 @@ export async function POST(req: NextRequest) {
         )
       : Promise.resolve([] as EventRow[])
 
-    // Google Places (New): high-quality venue signals -- requires GOOGLE_PLACES_API_KEY
+    // Google Places (New): high-quality venue signals — requires GOOGLE_PLACES_API_KEY
     const googlePlacesPromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
       ? searchNearbyVenues({ lat, lng, maxResults: 9 })
           .then(rows => rows as EventRow[])
@@ -989,7 +989,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ 3. Merge Ã¢ÂÂ live first (fresher), then DB Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── 3. Merge — live first (fresher), then DB ─────────────────────────────
     const nowMs    = Date.now()
     const dbTitles = new Set(dbRows.map(r => r.title.toLowerCase().slice(0, 40)))
     const seenLive = new Set<string>()
@@ -998,7 +998,7 @@ export async function POST(req: NextRequest) {
       const key = e.title.toLowerCase().slice(0, 40)
       if (dbTitles.has(key) || seenLive.has(key)) return false
       // Only drop events that are clearly in the past (more than 1 hour ago)
-      // Do NOT filter future events Ã¢ÂÂ SerpAPI queries are already scoped by timeframe keyword
+      // Do NOT filter future events — SerpAPI queries are already scoped by timeframe keyword
       // and local-time vs UTC mismatches would kill valid results
       if (e.date_start && e.source !== 'activity') {
         const t = new Date(e.date_start).getTime()
@@ -1014,7 +1014,13 @@ export async function POST(req: NextRequest) {
       return !seenLive.has(key) && !dbTitles.has(key)
     })
 
-    // Google Places -- dedupe by title and place ID
+    // Include profile-specific activity results (de-duped against live events)
+    const profileUnique = profileActivityRows.filter(p => {
+      const key = p.title.toLowerCase().slice(0, 40)
+      return !seenLive.has(key) && !dbTitles.has(key)
+    })
+
+    // Google Places — dedupe by title and place ID
     const seenPlaceIds = new Set<string>()
     const googleUnique = googleRows.filter(g => {
       const key = g.title.toLowerCase().slice(0, 40)
@@ -1024,7 +1030,7 @@ export async function POST(req: NextRequest) {
       return true
     })
 
-    // Curated venues -- dedupe by name
+    // Curated venues — dedupe by name
     const seenCurated = new Set<string>()
     const curatedUnique = curatedRows.filter(c => {
       const key = c.title.toLowerCase().slice(0, 40)
@@ -1034,16 +1040,10 @@ export async function POST(req: NextRequest) {
       return true
     })
 
-    // Include profile-specific activity results (de-duped against live events)
-    const profileUnique = profileActivityRows.filter(p => {
-      const key = p.title.toLowerCase().slice(0, 40)
-      return !seenLive.has(key) && !dbTitles.has(key)
-    })
-
-    // Curated venues float to the front of the activity pool -- they're the highest-quality signals
+    // Curated venues + Google Places float to the front — highest-quality date-night signals
     let rows: EventRow[] = [...curatedUnique, ...googleUnique, ...yelpUnique, ...uniqueLive, ...dbRows, ...profileUnique]
 
-    // Sort to boost category matches to the top Ã¢ÂÂ ensures AI sees relevant candidates first
+    // Sort to boost category matches to the top — ensures AI sees relevant candidates first
     if (catHints) {
       rows.sort((a, b) => {
         const aMatch = catHints.includes(a.category) ? 0 : 1
@@ -1064,7 +1064,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ 4. Radius expansion Ã¢ÂÂ if thin results, also query regional city in DB Ã¢ÂÂ
+    // ── 4. Radius expansion — if thin results, also query regional city in DB ─
     if (rows.length < 5 && hasGps && isSupabaseConfigured()) {
       const regionalCity = cities.find(c => !c.isLocal)?.name
       if (regionalCity && regionalCity !== resolvedCity) {
@@ -1085,7 +1085,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ 5. Standard DB fallback for thin results Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── 5. Standard DB fallback for thin results ─────────────────────────────
     if (rows.length < 3 && isSupabaseConfigured() && resolvedCity) {
       const { data: fallback } = await supabase
         .from('events')
@@ -1100,7 +1100,7 @@ export async function POST(req: NextRequest) {
       if (fallbackRows.length > rows.length) rows = [...uniqueLive, ...fallbackRows]
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ 6. Last-resort: broad SerpAPI sweep Ã¢ÂÂ never return empty Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── 6. Last-resort: broad SerpAPI sweep — never return empty ────────────
     const serperKey = process.env.SERPER_API_KEY
     if (rows.length === 0) {
       const fallbackCity =
@@ -1116,7 +1116,7 @@ export async function POST(req: NextRequest) {
         if (broadEvents.length > 0) {
           rows = broadEvents
         } else if (serperKey) {
-          // 6b. Organic activities Ã¢ÂÂ scenic walks, things to do, etc.
+          // 6b. Organic activities — scenic walks, things to do, etc.
           const actQuery = `best things to do near ${fallbackCity.name}`
           const actRes = await fetch('https://google.serper.dev/search', {
             method:  'POST',
@@ -1153,15 +1153,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ 7a. Knowledge fallback Ã¢ÂÂ no DB results, ask Claude from memory Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── 7a. Knowledge fallback — no DB results, ask Claude from memory ─────────
     if (rows.length === 0) {
       const anthropicKeyKb = process.env.ANTHROPIC_API_KEY
       if (!anthropicKeyKb) return NextResponse.json({ picks: [] })
 
       const locationKb = hasGps ? geoDisplayName : city
+      const kbKillSwitch = answers[answers.length - 1]
       const kbAnswerSummary = [
-        answers[0] ? `- What they want to feel: ${answers[0]}` : '',
-        answers[1] ? `- What to avoid: ${answers[1]}`          : '',
+        answers[0] ? `- What they want: ${answers[0]}` : '',
+        answers.length > 2 && answers[1] ? `- Occasion: ${answers[1]}`  : '',
+        answers.length > 2 && answers[2] ? `- Party: ${answers[2]}`     : '',
+        answers.length > 2 && answers[3] ? `- Duration: ${answers[3]}`  : '',
+        kbKillSwitch && kbKillSwitch !== answers[0] ? `- What to avoid: ${kbKillSwitch}` : '',
         filters.crew   ? `- Who they're with: ${filters.crew}` : '',
         filters.budget ? `- Budget: ${filters.budget}`         : '',
         filters.when   ? `- Timing: ${filters.when}`           : '',
@@ -1178,7 +1182,7 @@ Requirements:
 - Real, specific venues or activity types with enough detail to actually go do them
 - Each pick must scratch the itch: "${answers[0] ?? 'a memorable evening'}"
 - Nothing that triggers: "${answers[1] || 'none stated'}"
-- Pitches make not going feel like a missed opportunity Ã¢ÂÂ write to close, not to describe. First-person energy, present tense. Max 30 words.
+- Pitches make not going feel like a missed opportunity — write to close, not to describe. First-person energy, present tense. Max 30 words.
 
 Return ONLY a valid JSON array:
 [
@@ -1196,7 +1200,7 @@ Return ONLY a valid JSON array:
         if (kbRes.ok) {
           const kbData = await kbRes.json()
           const kbText: string = kbData.content?.[0]?.text ?? '[]'
-          const kbMatch = kbText.match(/\[\s\S]*\]/)
+          const kbMatch = kbText.match(/\[[\s\S]*\]/)
           if (kbMatch) {
             type KbPick = { id: string; rank: number; title: string; venue: string; date: string; price: string; category: string; pitch: string }
             const kbPicks = JSON.parse(kbMatch[0]) as KbPick[]
@@ -1215,7 +1219,7 @@ Return ONLY a valid JSON array:
       return NextResponse.json({ picks: [] })
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ 7. Build AI prompt Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── 7. Build AI prompt ───────────────────────────────────────────────────
     const locationLabel = hasGps
       ? `near your location (${geoDisplayName})`
       : `in ${resolvedCity}`
@@ -1240,55 +1244,70 @@ Return ONLY a valid JSON array:
       })
       .join('\n')
 
-    // Label map for the 2-question psychology-first survey
-    const labelMap = ['Feeling target', 'Vibe killer (avoid)']
+    // Label map — adapts to 2-question (generic) or 5-question (deep) survey
+    const isDeepSurvey = answers.length >= 4
+    const labelMap = isDeepSurvey
+      ? ['Vibe', 'Occasion', 'Party', 'Duration', 'Vibe killer (avoid)']
+      : ['Feeling target', 'Vibe killer (avoid)']
     const answerSummary = [
       ...answers.map((a, i) => `- ${labelMap[i] ?? `Q${i + 1}`}: ${a}`),
       ...(filters.when   ? [`- Timing preference: ${filters.when}`]   : []),
       ...(filters.crew   ? [`- Crew: ${filters.crew}`]                : []),
       ...(filters.budget ? [`- Budget: ${filters.budget}`]            : []),
     ].join('\n')
-    const killSwitch = answers[1] ?? ''
+    const killSwitch = answers[answers.length - 1] ?? ''
 
     const timeframeInstruction =
-      timeframe === 'Now'             ? 'Prefer events happening TODAY or TONIGHT Ã¢ÂÂ prioritise the soonest options.' :
-      timeframe === 'Tonight'         ? 'Prefer events happening TODAY or TONIGHT Ã¢ÂÂ prioritise the soonest options.' :
+      timeframe === 'Now'             ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
+      timeframe === 'Tonight'         ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
       timeframe === 'Tomorrow'        ? 'Prefer events happening TOMORROW.' :
-      timeframe === 'Soon'            ? 'Prefer events happening THIS WEEKEND (FridayÃ¢ÂÂSunday).' :
-      timeframe === 'This weekend'    ? 'Prefer events happening THIS WEEKEND (FridayÃ¢ÂÂSunday).' :
-      timeframe === 'Next Week'       ? 'Prefer events happening NEXT WEEK (3Ã¢ÂÂ14 days from now).' :
-      timeframe === 'Planning Ahead'  ? 'Show events across the next 2Ã¢ÂÂ8 weeks Ã¢ÂÂ the user is calendar-planning, highlight anything worth booking early.' :
-      timeframe === 'Planning a Trip' ? 'Show a variety of events 2 weeks to 3 months out Ã¢ÂÂ user is trip planning, include destination-worthy or unique experiences.' :
-      timeframe === 'Default'         ? 'Show the best options happening in the next 2Ã¢ÂÂ3 days Ã¢ÂÂ no specific time constraint, so prioritise quality and relevance.' :
-      'Show a variety across the coming weeks Ã¢ÂÂ the user is calendar-planning, so spread dates out and highlight anything worth booking early.'
+      timeframe === 'Soon'            ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
+      timeframe === 'This weekend'    ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
+      timeframe === 'Next Week'       ? 'Prefer events happening NEXT WEEK (3–14 days from now).' :
+      timeframe === 'Planning Ahead'  ? 'Show events across the next 2–8 weeks — the user is calendar-planning, highlight anything worth booking early.' :
+      timeframe === 'Planning a Trip' ? 'Show a variety of events 2 weeks to 3 months out — user is trip planning, include destination-worthy or unique experiences.' :
+      timeframe === 'Default'         ? 'Show the best options happening in the next 2–3 days — no specific time constraint, so prioritise quality and relevance.' :
+      'Show a variety across the coming weeks — the user is calendar-planning, so spread dates out and highlight anything worth booking early.'
 
     const hasActivities = rows.some(r => r.source === 'activity')
     const activityNote  = hasActivities
-      ? " Some entries are [activity] Ã¢ÂÂ timeless things to do (restaurants, bars, venues, experiences, etc.) rather than ticketed events. Include these if they match the user's vibe."
+      ? " Some entries are [activity] — timeless things to do (restaurants, bars, venues, experiences) that don't have a fixed event time. Include these — they're often the best picks."
       : ''
     const hasCurated = curatedUnique.length > 0
     const curatedNote = hasCurated
-      ? ' Entries tagged [curated] are hand-selected YeahDoodle picks -- they carry extra credibility. Prefer them when they match the vibe.'
+      ? ' Entries tagged [curated] are hand-picked YeahDoodle date-night gems — they have extra credibility and are verified great for couples. Strongly prefer them when they match the vibe.'
       : ''
 
-    const prompt = `You are YeahDoodle's date night scout. Your ONLY job is to help this couple plan a date night they'll actually remember. You are NOT writing venue descriptions. You are writing the case for why they should go tonight.
+    const personaLine = isDeepSurvey
+      ? `You are YeahDoodle's date night scout. Your ONLY job is to help this couple plan a date night they'll actually remember. You are NOT writing venue descriptions. You are writing the case for why they should go tonight.`
+      : `You are YeahDoodle's local scout. Your ONLY job is to find the 3 best options for this person tonight. You are NOT writing venue descriptions. You are writing the case for why they should go.`
 
-Tonight's couple:
+    const missionLine = isDeepSurvey
+      ? `Your mission: Pick the 3 date night options most likely to make this couple put down their phones and actually go.`
+      : `Your mission: Pick the 3 options most likely to make this person stop scrolling and actually go.`
+
+    const pitchGuidance = isDeepSurvey
+      ? `4. WRITE TO CLOSE — Each pitch is why a couple should go tonight, not a description. Write like a trusted friend: urgent, specific, romantic. "This is the spot where..." not "This venue features..." Make staying in feel like a mistake. Max 30 words. No filler.`
+      : `4. WRITE TO CLOSE — Each pitch is why this person should go tonight. Write like a trusted local friend: urgent, specific, personal. Make doing nothing feel like a miss. Max 30 words. No filler.`
+
+    const prompt = `${personaLine}
+
+Tonight's person:
 ${answerSummary}
 
 What's available ${locationLabel}:
 ${eventList}
 
-Your mission: Pick the 3 date night options most likely to make this couple put down their phones and actually go.
+${missionLine}
 
 Follow every rule:
-1. SCRATCH THE ITCH Ã¢ÂÂ They want to feel "${expType}". Picks must deliver that specific feeling, not a watered-down version.
-2. KILL THE DEALBREAKER Ã¢ÂÂ They want to avoid "${killSwitch}". Any pick that even hints at this is disqualified, no exceptions.
+1. SCRATCH THE ITCH — They said "${expType}". Every pick must deliver exactly that — no substitutes, no watered-down versions.
+2. KILL THE DEALBREAKER — They want to avoid "${killSwitch}". Any pick that even hints at this is disqualified, no exceptions.
 3. ${timeframeInstruction}
-4. WRITE TO CLOSE Ã¢ÂÂ Each pitch is a reason to go, not a description. Write like a trusted friend: urgent, specific, romantic. "This is the spot where..." not "This venue features..." Make staying in feel like a mistake. Max 30 words. No filler.
-5. MIX IT UP Ã¢ÂÂ 2 picks that directly match their itch + 1 that surprises them in a way they'll thank you for.${activityNote}${curatedNote}
+${pitchGuidance}
+5. MIX IT UP — 2 picks that directly match their itch + 1 that surprises them in a way they'll thank you for.${activityNote}${curatedNote}
 
-Return ONLY a valid JSON array Ã¢ÂÂ no markdown, no explanation:
+Return ONLY a valid JSON array — no markdown, no explanation:
 [
   {"id":"<exact ID from list above>","rank":1,"pitch":"<urgent, personal, makes them want to go tonight>"},
   {"id":"<exact ID>","rank":2,"pitch":"<...>"},
@@ -1297,7 +1316,7 @@ Return ONLY a valid JSON array Ã¢ÂÂ no markdown, no explanation:
 
     const anthropicKey = process.env.ANTHROPIC_API_KEY
 
-    // Ã¢ÂÂÃ¢ÂÂ 8. No API key: return top 3 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── 8. No API key: return top 3 ──────────────────────────────────────────
     if (!anthropicKey) {
       const top3 = rows.slice(0, 3).map((r, i) => ({
         id:             r.id,
@@ -1317,7 +1336,7 @@ Return ONLY a valid JSON array Ã¢ÂÂ no markdown, no explanation:
       return NextResponse.json({ picks: top3 })
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ 9. Call Claude Haiku Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    // ── 9. Call Claude Haiku ─────────────────────────────────────────────────
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -1333,8 +1352,8 @@ Return ONLY a valid JSON array Ã¢ÂÂ no markdown, no explanation:
     })
 
     if (!aiRes.ok) {
-      // Anthropic unavailable â serve raw top-3 rather than returning empty
-      console.warn('[recommend] Anthropic non-ok:', aiRes.status, 'â raw fallback')
+      // Anthropic unavailable — serve raw top-3 rather than returning empty
+      console.warn('[recommend] Anthropic non-ok:', aiRes.status, '— raw fallback')
       const fb = rows.slice(0, 3).map((r, i) => ({
         id: r.id, rank: i + 1,
         pitch: r.ai_description?.slice(0, 120) ?? 'A great local experience.',
@@ -1353,7 +1372,8 @@ Return ONLY a valid JSON array Ã¢ÂÂ no markdown, no explanation:
 
     const jsonMatch = rawText.match(/\[[\s\S]*\]/)
     if (!jsonMatch) {
-      console.warn('[recommend] No JSON in AI response â raw fallback')
+      // Bad AI response — serve raw top-3 rather than returning empty
+      console.warn('[recommend] No JSON in AI response — raw fallback')
       const fb = rows.slice(0, 3).map((r, i) => ({
         id: r.id, rank: i + 1,
         pitch: r.ai_description?.slice(0, 120) ?? 'A great local experience.',
@@ -1411,17 +1431,15 @@ Return ONLY a valid JSON array Ã¢ÂÂ no markdown, no explanation:
       return NextResponse.json({ picks: fallback })
     }
 
-    // Enrich images for the 3 AI-selected picks (free: OG tag Ã¢ÂÂ Unsplash Ã¢ÂÂ fallback)
+    // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
     await enrichPickImages(picks)
 
     return NextResponse.json({ picks })
 
   } catch (err) {
-    const _errMsg = (err as Error).message ?? String(err)
-    const _errStack = (err as Error).stack?.slice(0, 400) ?? ''
-    console.error('[recommend] Error:', _errMsg)
+    console.error('[recommend] Error:', (err as Error).message)
     return NextResponse.json(
-      { picks: [], error: _errMsg + ' ||| ' + _errStack },
+      { picks: [], error: 'Failed to generate recommendations' },
       { status: 500 },
     )
   }
