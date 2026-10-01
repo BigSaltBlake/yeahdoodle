@@ -9,3 +9,19 @@ build/
 dist/
 .DS_Store
 *.pem
+.pat
+
+# One-off helper scripts and logs from the Cowork sessions (many contain tokens)
+/*.bat
+/*.ps1
+/*.hta
+/*.js
+/*_log*.txt
+/push_*
+/*.gdoc
+/*.pdf
+/YeahDoodle/
+/YD/
+/gps-updates/
+
+desktop.ini
