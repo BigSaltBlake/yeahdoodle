@@ -108,6 +108,9 @@ export const VENUE_TYPE_GROUPS = [
 // Core API call
 // ---------------------------------------------------------------------------
 
+/** Last Nearby Search failure, surfaced by /api/recommend's opt-in debug output */
+export let lastGooglePlacesError: string | null = null
+
 async function fetchNearby(
   apiKey: string,
   lat: number,
@@ -141,13 +144,16 @@ async function fetchNearby(
     })
 
     if (!res.ok) {
-      console.warn('[google-places] Nearby Search failed', res.status, await res.text())
+      const text = await res.text()
+      lastGooglePlacesError = `${res.status} ${text.slice(0, 300)}`
+      console.warn('[google-places] Nearby Search failed', res.status, text)
       return []
     }
 
     const data = await res.json()
     return (data.places ?? []) as GooglePlace[]
   } catch (err) {
+    lastGooglePlacesError = String(err).slice(0, 300)
     console.warn('[google-places] fetch error', err)
     return []
   }

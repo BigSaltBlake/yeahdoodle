@@ -58,6 +58,9 @@ function mapYelpCategory(cats: YelpBusiness['categories']): string {
 // ---------------------------------------------------------------------------
 // Core search function
 // ---------------------------------------------------------------------------
+/** Last search failure, surfaced by /api/recommend's opt-in debug output */
+export let lastYelpError: string | null = null
+
 export async function searchYelp(params: {
   lat: number
   lng: number
@@ -91,12 +94,15 @@ export async function searchYelp(params: {
       signal: AbortSignal.timeout(5000),
     })
     if (!res.ok) {
-      console.warn('[yelp] search failed', res.status, await res.text())
+      const text = await res.text()
+      lastYelpError = `${res.status} ${text.slice(0, 300)}`
+      console.warn('[yelp] search failed', res.status, text)
       return []
     }
     const data: YelpSearchResponse = await res.json()
     return data.businesses ?? []
   } catch (err) {
+    lastYelpError = String(err).slice(0, 300)
     console.warn('[yelp] fetch error', err)
     return []
   }

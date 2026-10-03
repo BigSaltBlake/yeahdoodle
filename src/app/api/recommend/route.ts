@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { dateNightSearch, yelpToResult } from '@/lib/yelp'
+import { dateNightSearch, yelpToResult, lastYelpError } from '@/lib/yelp'
 import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
-import { searchNearbyVenues, FOOD_TYPE_GROUPS } from '@/lib/google-places'
+import { searchNearbyVenues, FOOD_TYPE_GROUPS, lastGooglePlacesError } from '@/lib/google-places'
 import { getCuratedVenues } from '@/lib/curated-venues'
 
 // ---------------------------------------------------------------------------
@@ -1096,6 +1096,10 @@ export async function POST(req: NextRequest) {
       keys: {
         google: !!process.env.GOOGLE_PLACES_API_KEY, yelp: !!process.env.YELP_API_KEY,
         serper: !!process.env.SERPER_API_KEY, ticketmaster: !!process.env.TICKETMASTER_API_KEY,
+      },
+      errors: {
+        google: googleRows.length === 0 ? lastGooglePlacesError : null,
+        yelp: yelpRows.length === 0 ? lastYelpError : null,
       },
     } : null
     const dbg = () => (debugInfo ? { debug: debugInfo } : {})
