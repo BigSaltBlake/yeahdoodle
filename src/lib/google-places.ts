@@ -62,6 +62,11 @@ export interface PlaceEventRow {
   ai_description: string | null
   distanceLabel: string
   source: 'activity'
+  address?: string
+  lat?: number
+  lng?: number
+  /** Straight-line distance from the searcher, in miles */
+  miles?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -164,8 +169,10 @@ async function fetchNearby(
 // ---------------------------------------------------------------------------
 
 /** Returns a direct photo URL from a GooglePlace photo reference */
-export function getPhotoUrl(photoName: string, apiKey: string, maxDim = 600): string {
-  return `https://places.googleapis.com/v1/${photoName}/media?maxHeightPx=${maxDim}&maxWidthPx=${maxDim}&key=${apiKey}`
+// Photos go through our own /api/place-photo route so the API key never
+// reaches the browser (a key in an <img> URL can be copied and abused).
+export function getPhotoUrl(photoName: string): string {
+  return `/api/place-photo?name=${encodeURIComponent(photoName)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -287,7 +294,7 @@ export function googlePlaceToRow(
   const category   = placeTypeToCategory(place.primaryType, place.types)
   const km         = haversineKm(userLat, userLng, place.location.latitude, place.location.longitude)
   const photoUrl   = place.photos?.[0]?.name
-    ? getPhotoUrl(place.photos[0].name, apiKey)
+    ? getPhotoUrl(place.photos[0].name)
     : null
 
   // Build a rich description from available signals
@@ -321,6 +328,10 @@ export function googlePlaceToRow(
     ai_description: null,
     distanceLabel: driveLabel(km),
     source:       'activity',
+    address:      place.formattedAddress,
+    lat:          place.location.latitude,
+    lng:          place.location.longitude,
+    miles:        km * 0.621371,
   }
 }
 

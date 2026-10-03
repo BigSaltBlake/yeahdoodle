@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { dateNightSearch, yelpToResult, lastYelpError } from '@/lib/yelp'
 import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
 import { searchNearbyVenues, FOOD_TYPE_GROUPS, lastGooglePlacesError } from '@/lib/google-places'
 import { getCuratedVenues } from '@/lib/curated-venues'
@@ -1017,30 +1016,6 @@ export async function POST(req: NextRequest) {
       ? getPlaceProfile(lat, lng, resolvedCity, '').catch(() => null)
       : Promise.resolve(null)
 
-    // Yelp: open-now activities always available when we have GPS
-    const yelpPromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
-      ? dateNightSearch({ lat, lng, maxResults: 6 }).then(bizs =>
-          bizs.map(b => {
-            const r = yelpToResult(b, lat!, lng!)
-            return {
-              id:             r.id,
-              title:          r.title,
-              venue_name:     r.venue,
-              date_start:     null,
-              is_free:        false,
-              price_min:      null,
-              price_max:      null,
-              category:       r.category,
-              ticket_url:     r.ticket_url,
-              image_url:      r.image_url,
-              description:    r.description,
-              ai_description: null,
-              distanceLabel:  r.drive_label,
-              source:         'activity',
-            } satisfies EventRow
-          })
-        )
-      : Promise.resolve([] as EventRow[])
 
     // Google Places (New): high-quality venue signals — requires GOOGLE_PLACES_API_KEY
     const googlePlacesPromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
@@ -1081,8 +1056,8 @@ export async function POST(req: NextRequest) {
       dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
-    const [liveEvents, dbRows, yelpRows, placeProfile, googleRows, curatedRows] = await Promise.all([
-      liveEventsPromise, dbRowsPromise, yelpPromise, profilePromise,
+    const [liveEvents, dbRows, placeProfile, googleRows, curatedRows] = await Promise.all([
+      liveEventsPromise, dbRowsPromise, profilePromise,
       googlePlacesPromise, curatedPromise,
     ])
 
@@ -1090,16 +1065,15 @@ export async function POST(req: NextRequest) {
     const debugInfo: Record<string, unknown> | null = body.debug ? {
       resolvedCity, hasGps, mode, catHints,
       counts: {
-        live: liveEvents.length, db: dbRows.length, yelp: yelpRows.length,
+        live: liveEvents.length, db: dbRows.length,
         google: googleRows.length, curated: curatedRows.length,
       },
       keys: {
-        google: !!process.env.GOOGLE_PLACES_API_KEY, yelp: !!process.env.YELP_API_KEY,
+        google: !!process.env.GOOGLE_PLACES_API_KEY,
         serper: !!process.env.SERPER_API_KEY, ticketmaster: !!process.env.TICKETMASTER_API_KEY,
       },
       errors: {
         google: googleRows.length === 0 ? lastGooglePlacesError : null,
-        yelp: yelpRows.length === 0 ? lastYelpError : null,
       },
     } : null
     const dbg = () => (debugInfo ? { debug: debugInfo } : {})
@@ -1163,12 +1137,6 @@ export async function POST(req: NextRequest) {
       return true
     })
 
-    // Dedupe Yelp rows against live events by title
-    const yelpUnique = yelpRows.filter(y => {
-      const key = y.title.toLowerCase().slice(0, 40)
-      return !seenLive.has(key) && !dbTitles.has(key)
-    })
-
     // Include profile-specific activity results (de-duped against live events)
     const profileUnique = profileActivityRows.filter(p => {
       const key = p.title.toLowerCase().slice(0, 40)
@@ -1196,7 +1164,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Curated venues + Google Places float to the front — highest-quality date-night signals
-    let rows: EventRow[] = [...curatedUnique, ...googleUnique, ...yelpUnique, ...uniqueLive, ...dbRows, ...profileUnique]
+    let rows: EventRow[] = [...curatedUnique, ...googleUnique, ...uniqueLive, ...dbRows, ...profileUnique]
 
     // Category relevance: if they asked for food, show food. When we have enough
     // on-topic candidates, the AI never sees the off-topic ones; otherwise they

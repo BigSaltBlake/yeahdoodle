@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { dateNightSearch, yelpToResult } from '@/lib/yelp'
+import { searchNearbyVenues, FOOD_TYPE_GROUPS, VENUE_TYPE_GROUPS } from '@/lib/google-places'
 import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
 
 // ---------------------------------------------------------------------------
@@ -303,27 +303,28 @@ export async function POST(req: NextRequest) {
     const now = new Date()
     const cutoff = new Date(now.getTime() + time_available * 60 * 1000)
 
-    // Queries -- run Serper + Yelp in parallel
+    // Queries -- run Serper + Google Places (open now) in parallel
     const queries = buildQueries(lat, lng, vibe, location_label)
     const evergreenLoc = location_label || `${lat.toFixed(3)},${lng.toFixed(3)}`
     const evergreenQ   = buildEvergreenQueries(vibe, evergreenLoc)[0]
 
-    const yelpTerms = vibe === 'food'
-      ? ['romantic restaurants', 'cocktail bars', 'wine bars']
+    const placeTypeGroups = vibe === 'food'
+      ? FOOD_TYPE_GROUPS
       : vibe === 'entertainment'
-      ? ['live music venues', 'comedy clubs', 'rooftop bars']
+      ? [['jazz_club', 'comedy_club', 'night_club', 'movie_theater'], ['bar', 'wine_bar']]
       : vibe === 'outdoors'
-      ? ['outdoor activities', 'scenic spots', 'parks']
-      : ['cocktail bars', 'romantic restaurants', 'escape rooms', 'live music venues', 'comedy clubs']
+      ? [['park', 'hiking_area', 'tourist_attraction']]
+      : VENUE_TYPE_GROUPS
 
     // Kick off place profile fetch in parallel
     const profilePromise = getPlaceProfile(lat, lng, location_label, '').catch(() => null)
 
-    const [r1, r2, activityRaw, yelpResults, placeProfile] = await Promise.all([
+    const [r1, r2, activityRaw, openPlaces, placeProfile] = await Promise.all([
       serperSearch(queries[0], serperKey, 'events'),
       serperSearch(queries[2] ?? queries[1], serperKey, 'events'),
       serperSearch(evergreenQ, serperKey, 'search'),
-      dateNightSearch({ lat, lng, terms: yelpTerms, maxResults: 8 }),
+      searchNearbyVenues({ lat, lng, maxResults: 8, openNowOnly: true, typeGroups: placeTypeGroups })
+        .catch(() => []),
       profilePromise,
     ])
 
@@ -419,21 +420,35 @@ export async function POST(req: NextRequest) {
       if (candidates.length >= 8) break
     }
 
-    // -- Yelp open-now results --
-    const yelpFiltered = yelpResults.filter(b => {
-      const R = 3958.8
-      const phi1 = lat * Math.PI / 180, phi2 = b.coordinates.latitude * Math.PI / 180
-      const dphi = (b.coordinates.latitude - lat) * Math.PI / 180
-      const dlambda = (b.coordinates.longitude - lng) * Math.PI / 180
-      const a = Math.sin(dphi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlambda / 2) ** 2
-      const miles = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-      const rawMin = (miles / 28) * 60
-      const driveMin = miles < 0.3 ? 2 : Math.max(2, Math.round(rawMin / 5) * 5)
-      return driveMin <= max_drive_min
-    })
+    // -- Google Places open-now venues --
+    const placesNearby = openPlaces
+      .map(p => {
+        const miles = p.miles ?? 0
+        const driveMin = miles < 0.3 ? 2 : Math.max(2, Math.round(((miles / 28) * 60) / 5) * 5)
+        return { p, driveMin }
+      })
+      .filter(({ driveMin }) => driveMin <= max_drive_min)
 
-    for (const biz of yelpFiltered.slice(0, 4)) {
-      candidates.push(yelpToResult(biz, lat, lng) as NowResult)
+    for (const { p, driveMin } of placesNearby.slice(0, 4)) {
+      const address = p.address ?? ''
+      candidates.push({
+        id:            p.id,
+        title:         p.title,
+        description:   p.description ?? '',
+        venue:         p.venue_name ?? p.title,
+        address,
+        lat:           p.lat ?? null,
+        lng:           p.lng ?? null,
+        drive_minutes: driveMin,
+        drive_label:   p.distanceLabel,
+        start_label:   'Open now',
+        category:      p.category,
+        image_url:     p.image_url,
+        ticket_url:    p.ticket_url,
+        maps_url:      `https://maps.google.com/?daddr=${encodeURIComponent(address || p.title)}&saddr=Current+Location`,
+        source:        'google',
+        is_evergreen:  true,
+      })
     }
 
     // -- Serper organic / evergreen --
@@ -443,7 +458,7 @@ export async function POST(req: NextRequest) {
     ]
     const organicItems = allOrganicRaw
       .filter(r => r.title && (r.snippet || r.imageUrl))
-    const slotsLeft = Math.max(0, 3 - Math.max(0, candidates.length - yelpFiltered.length))
+    const slotsLeft = Math.max(0, 3 - Math.max(0, candidates.length - placesNearby.length))
 
     for (let i = 0; i < Math.min(organicItems.length, slotsLeft); i++) {
       candidates.push(mapOrganicToNowResult(organicItems[i], i))
