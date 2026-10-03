@@ -1516,7 +1516,9 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         category: r.category, source: r.source, distanceLabel: r.distanceLabel,
       }))
       await enrichPickImages(fb)
-      return NextResponse.json({ picks: fb })
+      const errBody = await aiRes.text().catch(() => '')
+      const errType = errBody.match(/"message":"([^"]{0,120})/)?.[1] ?? ''
+      return NextResponse.json({ picks: fb, fallbackReason: `ai_http_${aiRes.status}${errType ? `: ${errType}` : ''}` })
     }
 
     const aiData  = await aiRes.json()
@@ -1536,7 +1538,7 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         category: r.category, source: r.source, distanceLabel: r.distanceLabel,
       }))
       await enrichPickImages(fb)
-      return NextResponse.json({ picks: fb })
+      return NextResponse.json({ picks: fb, fallbackReason: 'ai_no_json' })
     }
 
     const aiPicks   = JSON.parse(jsonMatch[0]) as Array<{ id: string; rank: number; pitch: string }>
@@ -1580,7 +1582,7 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         distanceLabel:  r.distanceLabel,
       }))
       await enrichPickImages(fallback)
-      return NextResponse.json({ picks: fallback })
+      return NextResponse.json({ picks: fallback, fallbackReason: `ai_bad_ids: ${aiPicks.map(p => p.id).slice(0, 3).join(',')}` })
     }
 
     // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
