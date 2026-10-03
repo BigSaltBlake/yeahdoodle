@@ -915,6 +915,8 @@ export async function POST(req: NextRequest) {
       lat?: number
       lng?: number
       filters?: { budget?: string; crew?: string; when?: string }
+      /** Include per-source candidate counts in the response (no content, no keys) */
+      debug?: boolean
     }
 
     const { answers } = body
@@ -1084,6 +1086,20 @@ export async function POST(req: NextRequest) {
       googlePlacesPromise, curatedPromise,
     ])
 
+    // Opt-in diagnostics: counts only, so it is safe to return to any caller
+    const debugInfo: Record<string, unknown> | null = body.debug ? {
+      resolvedCity, hasGps, mode, catHints,
+      counts: {
+        live: liveEvents.length, db: dbRows.length, yelp: yelpRows.length,
+        google: googleRows.length, curated: curatedRows.length,
+      },
+      keys: {
+        google: !!process.env.GOOGLE_PLACES_API_KEY, yelp: !!process.env.YELP_API_KEY,
+        serper: !!process.env.SERPER_API_KEY, ticketmaster: !!process.env.TICKETMASTER_API_KEY,
+      },
+    } : null
+    const dbg = () => (debugInfo ? { debug: debugInfo } : {})
+
     // If we have a profile, fire one additional profile-specific Serper search
     const profileActivityRows: EventRow[] = []
     if (placeProfile && (process.env.SERPER_API_KEY || process.env.SERPAPI_KEY)) {
@@ -1185,6 +1201,7 @@ export async function POST(req: NextRequest) {
       const onTopic  = rows.filter(r => catHints.includes(r.category))
       const offTopic = rows.filter(r => !catHints.includes(r.category))
       rows = onTopic.length >= 3 ? onTopic : [...onTopic, ...offTopic]
+      if (debugInfo) debugInfo.onTopic = onTopic.length
     }
 
     // Safety net: if SerpAPI returned events but the past-event filter killed them all,
@@ -1291,7 +1308,7 @@ export async function POST(req: NextRequest) {
     // ── 7a. Knowledge fallback — no DB results, ask Claude from memory ─────────
     if (rows.length === 0) {
       const anthropicKeyKb = process.env.ANTHROPIC_API_KEY
-      if (!anthropicKeyKb) return NextResponse.json({ picks: [] })
+      if (!anthropicKeyKb) return NextResponse.json({ ...dbg(), picks: [] })
 
       const locationKb = hasGps ? geoDisplayName : city
       const kbKillIdx = questionIds ? questionIds.indexOf('killswitch') : -1
@@ -1347,12 +1364,12 @@ Return ONLY a valid JSON array:
               ticketUrl: null, imageUrl: fallbackImg(p.category),
               category: p.category, source: 'knowledge', distanceLabel: undefined,
             }))
-            return NextResponse.json({ picks })
+            return NextResponse.json({ ...dbg(), picks })
           }
         }
       } catch { /* fall through */ }
 
-      return NextResponse.json({ picks: [] })
+      return NextResponse.json({ ...dbg(), picks: [] })
     }
 
     // ── 7. Build AI prompt ───────────────────────────────────────────────────
@@ -1485,7 +1502,7 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         distanceLabel:  r.distanceLabel,
       }))
       await enrichPickImages(top3)
-      return NextResponse.json({ picks: top3 })
+      return NextResponse.json({ ...dbg(), picks: top3 })
     }
 
     // ── 9. Call Claude Haiku ─────────────────────────────────────────────────
@@ -1518,7 +1535,7 @@ Return ONLY a valid JSON array — no markdown, no explanation:
       await enrichPickImages(fb)
       const errBody = await aiRes.text().catch(() => '')
       const errType = errBody.match(/"message":"([^"]{0,120})/)?.[1] ?? ''
-      return NextResponse.json({ picks: fb, fallbackReason: `ai_http_${aiRes.status}${errType ? `: ${errType}` : ''}` })
+      return NextResponse.json({ ...dbg(), picks: fb, fallbackReason: `ai_http_${aiRes.status}${errType ? `: ${errType}` : ''}` })
     }
 
     const aiData  = await aiRes.json()
@@ -1538,10 +1555,12 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         category: r.category, source: r.source, distanceLabel: r.distanceLabel,
       }))
       await enrichPickImages(fb)
-      return NextResponse.json({ picks: fb, fallbackReason: 'ai_no_json' })
+      return NextResponse.json({ ...dbg(), picks: fb, fallbackReason: 'ai_no_json' })
     }
 
-    const aiPicks   = JSON.parse(jsonMatch[0]) as Array<{ id: string; rank: number; pitch: string }>
+    // The model sometimes echoes the list's "ID:" label — strip it before matching
+    const aiPicks   = (JSON.parse(jsonMatch[0]) as Array<{ id: string; rank: number; pitch: string }>)
+      .map(p => ({ ...p, id: String(p.id ?? '').replace(/^ID:\s*/i, '').trim() }))
     const eventById = Object.fromEntries(rows.map(r => [r.id, r]))
 
     const picks = aiPicks
@@ -1582,13 +1601,13 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         distanceLabel:  r.distanceLabel,
       }))
       await enrichPickImages(fallback)
-      return NextResponse.json({ picks: fallback, fallbackReason: `ai_bad_ids: ${aiPicks.map(p => p.id).slice(0, 3).join(',')}` })
+      return NextResponse.json({ ...dbg(), picks: fallback, fallbackReason: `ai_bad_ids: ${aiPicks.map(p => p.id).slice(0, 3).join(',')}` })
     }
 
     // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
     await enrichPickImages(picks)
 
-    return NextResponse.json({ picks })
+    return NextResponse.json({ ...dbg(), picks })
 
   } catch (err) {
     console.error('[recommend] Error:', (err as Error).message)
