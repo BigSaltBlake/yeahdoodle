@@ -6,6 +6,7 @@
 export type AnalyticsEvent =
   | 'survey_opened'
   | 'city_selected'
+  | 'location_confirmed'
   | 'question_answered'
   | 'picks_viewed'
   | 'ticket_clicked'

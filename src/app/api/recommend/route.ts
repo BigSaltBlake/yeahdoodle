@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { dateNightSearch, yelpToResult } from '@/lib/yelp'
 import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
-import { searchNearbyVenues } from '@/lib/google-places'
+import { searchNearbyVenues, FOOD_TYPE_GROUPS } from '@/lib/google-places'
 import { getCuratedVenues } from '@/lib/curated-venues'
 
 // ---------------------------------------------------------------------------
@@ -23,6 +23,10 @@ interface EventRow {
   ai_description: string | null
   distanceLabel?: string
   source?: string
+  /** IANA time zone of the event's venue, when the source tells us (Ticketmaster does) */
+  tz?: string
+  /** Listing gave a day but no start time */
+  dateOnly?: boolean
 }
 
 interface CityQuery {
@@ -34,16 +38,71 @@ interface CityQuery {
 // ---------------------------------------------------------------------------
 // Formatters
 // ---------------------------------------------------------------------------
-function formatDate(isoDate: string | null): string {
-  if (!isoDate) return 'Anytime'
+// The server runs in UTC on Vercel, so every date must be formatted in the
+// visitor's (or venue's) time zone — otherwise an 8 PM show prints as 2 AM.
+const DEFAULT_TZ = 'America/Denver'
+
+function safeTz(tz: string | undefined | null): string {
+  if (!tz) return DEFAULT_TZ
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+    return tz
+  } catch {
+    return DEFAULT_TZ
+  }
+}
+
+function formatDate(isoDate: string | null, tz: string, dateOnly = false): string {
+  if (!isoDate) return ''
   const d = new Date(isoDate)
-  return d.toLocaleDateString('en-US', {
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleString('en-US', {
+    timeZone: tz,
     weekday: 'short',
     month: 'short',
     day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+    ...(dateOnly ? {} : { hour: 'numeric', minute: '2-digit' }),
   })
+}
+
+/** Calendar day (YYYY-MM-DD) of an instant, as seen in a time zone */
+function dayKey(d: Date, tz: string): string {
+  return d.toLocaleDateString('en-CA', { timeZone: tz })
+}
+
+/** "TODAY" / "TOMORROW" / "in 3 days" relative to now, in the given time zone */
+function relativeDay(isoDate: string, tz: string): string {
+  const d = new Date(isoDate)
+  if (isNaN(d.getTime())) return ''
+  const diff = Math.round(
+    (Date.parse(dayKey(d, tz)) - Date.parse(dayKey(new Date(), tz))) / 86_400_000,
+  )
+  if (diff === 0) return 'TODAY'
+  if (diff === 1) return 'TOMORROW'
+  if (diff < 0)   return 'PAST'
+  return `in ${diff} days`
+}
+
+/**
+ * Interpret a wall-clock time (e.g. "Oct 3, 8 PM" with no zone) as local time
+ * in `tz` and return the real UTC instant. `parsed` is the result of
+ * `new Date(str)` on a zone-less string, whose local fields hold the wall-clock
+ * values whatever time zone the server itself runs in.
+ */
+function wallClockToUtc(parsed: Date, tz: string): Date {
+  const asIfUtc = Date.UTC(
+    parsed.getFullYear(), parsed.getMonth(), parsed.getDate(),
+    parsed.getHours(), parsed.getMinutes(), parsed.getSeconds(),
+  )
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23',
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(new Date(asIfUtc))
+  const get = (t: string) => Number(parts.find(p => p.type === t)?.value ?? 0)
+  const zoned = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'))
+  const offset = zoned - asIfUtc
+  return new Date(asIfUtc - offset)
 }
 
 function formatPrice(priceMin: number | null, priceMax: number | null, isFree: boolean): string {
@@ -184,7 +243,19 @@ function budgetMax(answers: string[]): number | null {
   return null
 }
 
-function categoryHints(answers: string[]): string[] | null {
+// Slides whose whole survey is about one kind of thing — "Surprise me" still
+// has to stay inside that lane.
+const MODE_CATEGORIES: Record<string, string[]> = {
+  foodie:  ['Food & Drink'],
+  music:   ['Music', 'Nightlife'],
+  outdoor: ['Outdoors', 'Sports & Outdoors', 'Activities'],
+}
+
+function categoryHints(answers: string[], mode = ''): string[] | null {
+  return answerCategoryHints(answers) ?? MODE_CATEGORIES[mode] ?? null
+}
+
+function answerCategoryHints(answers: string[]): string[] | null {
   const feeling = (answers[0] ?? '').toLowerCase()
   // Date-night taxonomy (current)
   if (feeling.includes('dinner date'))    return ['Food & Drink', 'Community']
@@ -192,7 +263,25 @@ function categoryHints(answers: string[]): string[] | null {
   if (feeling.includes('live show'))      return ['Music', 'Arts & Culture', 'Comedy']
   if (feeling.includes('get outside'))    return ['Outdoors', 'Sports & Outdoors', 'Activities']
   if (feeling.includes('something fun'))  return ['Activities', 'Community', 'Nightlife']
-  if (feeling.includes('surprise us'))    return null
+  if (feeling.includes('surprise'))       return null
+  // First-date bank
+  if (feeling.includes('impressive dinner')) return ['Food & Drink']
+  if (feeling.includes('low-key coffee'))    return ['Food & Drink']
+  if (feeling.includes('fun activity'))      return ['Activities', 'Community', 'Comedy']
+  if (feeling.includes('outdoors & chill'))  return ['Outdoors', 'Sports & Outdoors']
+  // FOMO bank
+  if (feeling.includes('hottest show'))        return ['Music', 'Arts & Culture', 'Comedy']
+  if (feeling.includes('trending restaurant')) return ['Food & Drink']
+  if (feeling.includes('party of the season')) return ['Nightlife', 'Music']
+  if (feeling.includes('must-see art'))        return ['Arts & Culture']
+  if (feeling.includes('outdoor buzz'))        return ['Outdoors', 'Sports & Outdoors']
+  if (feeling.includes("what's hot"))          return null
+  // Music bank — every option is live music
+  if (/rock|folk|acoustic|edm|dance|jazz|blues|hip-hop|anything live/.test(feeling)) return ['Music', 'Nightlife']
+  // Outdoor bank
+  if (/hike|trail|bike|water stuff|urban walk|park & chill/.test(feeling)) return ['Outdoors', 'Sports & Outdoors', 'Activities']
+  // Foodie bank — every option is food
+  if (/bold & new|comfort done right|quick & fresh|special experience|street & casual/.test(feeling)) return ['Food & Drink']
   // Legacy Go ___ taxonomy (backwards compat)
   if (feeling.includes('go eat'))     return ['Food & Drink', 'Community']
   if (feeling.includes('go listen'))  return ['Music', 'Nightlife']
@@ -214,10 +303,11 @@ function getExpType(answers: string[]): string {
   return answers[0] ?? ''
 }
 
-function getDateRange(timeframe: string): { start: Date; end: Date } {
+function getDateRange(timeframe: string, tz: string): { start: Date; end: Date } {
   const now   = new Date()
-  const today = new Date(now)
-  today.setHours(0, 0, 0, 0)
+  // Midnight today in the visitor's time zone (the server itself runs in UTC)
+  const localDay = dayKey(now, tz)
+  const today = wallClockToUtc(new Date(`${localDay}T00:00:00`), tz)
 
   // 'Now' and legacy 'Tonight' — 18-hour rolling window
   if (timeframe === 'Now' || timeframe === 'Tonight') {
@@ -232,16 +322,15 @@ function getDateRange(timeframe: string): { start: Date; end: Date } {
   }
   // 'Soon' and legacy 'This weekend' — next Friday–Sunday
   if (timeframe === 'Soon' || timeframe === 'This weekend') {
-    const dow = now.getDay()
-    const daysUntilFri = dow === 0 ? 6 : (5 - dow + 7) % 7 || 7
-    const friday = new Date(today)
-    friday.setDate(friday.getDate() + daysUntilFri)
-    const sunday = new Date(friday)
-    sunday.setDate(sunday.getDate() + 2)
-    // End late Sunday in the US (Monday 06:00 UTC covers midnight everywhere)
-    sunday.setHours(30, 0, 0, 0)
-    const start = (dow === 0 || dow === 6) ? now : friday
-    return { start, end: sunday }
+    const DAY = 86_400_000
+    const dow = new Date(`${localDay}T12:00:00Z`).getUTCDay()   // local day of week
+    // Fri/Sat/Sun → this weekend, starting now; Mon–Thu → the coming Friday
+    const inWeekend = dow === 5 || dow === 6 || dow === 0
+    const daysUntilFri = inWeekend ? 0 : 5 - dow
+    const friday = new Date(today.getTime() + daysUntilFri * DAY)
+    const daysFriToMon = dow === 6 ? 2 : dow === 0 ? 1 : 3
+    const mondayMidnight = new Date((inWeekend ? today : friday).getTime() + daysFriToMon * DAY)
+    return { start: inWeekend ? now : friday, end: mondayMidnight }
   }
   // 'Next Week' — 3–14 days out
   if (timeframe === 'Next Week') {
@@ -561,6 +650,7 @@ async function fetchTicketmasterLive(
   cities: CityQuery[],
   dateStart: Date,
   dateEnd: Date,
+  user: { lat: number; lng: number } | null,
 ): Promise<EventRow[]> {
   const apiKey = process.env.TICKETMASTER_API_KEY
   if (!apiKey || cities.length === 0) return []
@@ -615,8 +705,15 @@ async function fetchTicketmasterLive(
 
           const dates = (e.dates as Record<string, unknown> | undefined)
           const startObj = (dates?.start as Record<string, unknown> | undefined)
+          const eventTz = typeof dates?.timezone === 'string' ? safeTz(dates.timezone) : undefined
+          // dateTime is a real UTC instant; localDate/localTime is venue wall-clock time
           const dateIso = (startObj?.dateTime as string | null) ??
-            (startObj?.localDate ? `${startObj.localDate}T${startObj?.localTime ?? '00:00:00'}` : null)
+            (startObj?.localDate
+              ? wallClockToUtc(
+                  new Date(`${startObj.localDate}T${(startObj.localTime as string | undefined) ?? '00:00:00'}`),
+                  eventTz ?? DEFAULT_TZ,
+                ).toISOString()
+              : null)
 
           const priceRanges = e.priceRanges as Array<{ min: number; max: number }> | undefined
           const priceMin = priceRanges?.[0]?.min ?? null
@@ -626,6 +723,11 @@ async function fetchTicketmasterLive(
           const venues   = (e._embedded as Record<string, unknown> | undefined)?.venues as Array<Record<string, unknown>> | undefined
           const venue    = venues?.[0]
           const venueName = (venue?.name as string | undefined) ?? null
+          const venueLoc  = venue?.location as { latitude?: string; longitude?: string } | undefined
+          const vLat = Number(venueLoc?.latitude), vLng = Number(venueLoc?.longitude)
+          const eventDistance = user && Number.isFinite(vLat) && Number.isFinite(vLng) && (vLat || vLng)
+            ? driveTimeLabel(haversine(user.lat, user.lng, vLat, vLng))
+            : distanceLabel
 
           const images   = e.images as Array<{ url: string; width: number; height: number; ratio?: string }> | undefined
           const imgUrl   = tmBestImage(images) ?? fallbackImg(category)
@@ -643,8 +745,9 @@ async function fetchTicketmasterLive(
             image_url:    imgUrl,
             description:  (e.info as string | null) ?? (e.description as string | null) ?? null,
             ai_description: null,
-            distanceLabel,
+            distanceLabel: eventDistance,
             source:       'live',
+            tz:           eventTz,
           })
         }
       } catch (err) {
@@ -659,15 +762,25 @@ async function fetchTicketmasterLive(
 // ---------------------------------------------------------------------------
 // SerpAPI date parsing helpers
 // ---------------------------------------------------------------------------
-function parseGoogleEventDate(dateStr: string | undefined): string | null {
+// Google's event dates are local wall-clock text ("Sat, Oct 3, 8 PM") with no zone
+function parseGoogleEventDate(dateStr: string | undefined, tz: string): string | null {
   if (!dateStr) return null
   try {
-    const cleaned = dateStr.replace(/\s*[–-]\s*\d+:\d+\s*(AM|PM).*/i, '').trim()
-    const d = new Date(cleaned)
-    if (!isNaN(d.getTime())) return d.toISOString()
-    const withYear = `${cleaned} ${new Date().getFullYear()}`
-    const d2 = new Date(withYear)
-    if (!isNaN(d2.getTime())) return d2.toISOString()
+    // "7 – 10 PM" / "7:30 PM – 10 PM" → keep the start time, borrowing AM/PM from the end if needed
+    const cleaned = dateStr
+      .replace(
+        /(\d{1,2}(?::\d{2})?)\s*(AM|PM)?\s*[–-]\s*\d{1,2}(?::\d{2})?\s*(AM|PM).*/i,
+        (_m, start: string, ap1?: string, ap2?: string) => `${start} ${ap1 ?? ap2}`,
+      )
+      .trim()
+    // V8 can't parse "8 PM" — normalise to "8:00 PM"
+    const normalised = cleaned.replace(/\b(\d{1,2})\s*(AM|PM)\b/i, '$1:00 $2')
+    const thisYear = new Date().getFullYear()
+    let d = new Date(normalised)
+    // Year-less strings parse to 2001 in V8 — retry with the current year
+    if (isNaN(d.getTime()) || d.getFullYear() < thisYear - 1) d = new Date(`${normalised} ${thisYear}`)
+    if (isNaN(d.getTime())) return null
+    return wallClockToUtc(d, tz).toISOString()
   } catch { /* */ }
   return null
 }
@@ -688,7 +801,7 @@ function parseSerpPrice(
 // ---------------------------------------------------------------------------
 // Live SerpAPI crawl
 // ---------------------------------------------------------------------------
-async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', expType = ''): Promise<EventRow[]> {
+async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', expType = '', tz = DEFAULT_TZ): Promise<EventRow[]> {
   // Prefer SerpAPI Google Events engine (structured data); fall back to Serper.dev /search
   const serpApiKey  = process.env.SERPAPI_KEY
   const serperKey   = process.env.SERPER_API_KEY
@@ -745,7 +858,9 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
 
             const price = parseSerpPrice(ticketInfo)
             const isFree = price === 0 || (e.description as string ?? '').toLowerCase().includes('free')
-            const dateStart = parseGoogleEventDate(date?.start_date ?? date?.when)
+            const dateStart = parseGoogleEventDate(date?.start_date ?? date?.when, tz)
+            const rawWhen = date?.start_date ?? date?.when ?? ''
+            const dateOnly = !!dateStart && !/\d:\d\d|\b(AM|PM)\b/i.test(rawWhen)
 
             // Activity queries (qi >= 1) typically have no date — mark as timeless activity
             const isActivity = !dateStart && qi >= 1
@@ -758,6 +873,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
               title,
               venue_name: venue?.name ?? address?.[0] ?? null,
               date_start: dateStart,
+              dateOnly,
               is_free: isFree,
               price_min: isFree ? 0 : price,
               price_max: null,
@@ -766,7 +882,8 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
               image_url: imgUrl,
               description: (e.description ?? null) as string | null,
               ai_description: null,
-              distanceLabel,
+              // Only claim the town when the listed address is actually in it
+              distanceLabel: address?.length && !address.join(' ').toLowerCase().includes(cityName.split(',')[0].toLowerCase()) ? '' : distanceLabel,
               source: isActivity ? 'activity' : 'live',
             })
           }
@@ -782,19 +899,30 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
 
 // ---------------------------------------------------------------------------
 // POST /api/recommend
-// Body: { city: string, answers: string[], lat?: number, lng?: number }
+// Body: { city, answers, questionIds?, mode?, tz?, lat?, lng?, filters? }
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
       city?: string
       answers: string[]
+      /** Question id for each answer (feeling, occasion, party, duration, priority, budget, killswitch) */
+      questionIds?: string[]
+      /** Homepage slide that launched the survey (foodie, date-night, music, ...) */
+      mode?: string
+      /** Visitor's IANA time zone, e.g. America/Denver */
+      tz?: string
       lat?: number
       lng?: number
       filters?: { budget?: string; crew?: string; when?: string }
     }
 
     const { answers } = body
+    const mode       = body.mode ?? ''
+    const userTz     = safeTz(body.tz)
+    const questionIds = Array.isArray(body.questionIds) && body.questionIds.length === answers?.length
+      ? body.questionIds
+      : null
     let city     = body.city ?? ''
     let lat      = body.lat
     let lng      = body.lng
@@ -818,9 +946,10 @@ export async function POST(req: NextRequest) {
 
     const filters   = body.filters ?? {}
     const timeframe = filters.when || 'Default'
-    const { start: dateStart, end: dateEnd } = getDateRange(timeframe)
+    const { start: dateStart, end: dateEnd } = getDateRange(timeframe, userTz)
     const maxBudget = budgetMax(filters.budget ? [filters.budget] : [])
-    const catHints  = categoryHints(answers)
+    const catHints  = categoryHints(answers, mode)
+    const wantsFoodOnly = !!catHints && catHints.every(c => c === 'Food & Drink')
     const expType   = getExpType(answers)
 
     // ── 1. Resolve location ──────────────────────────────────────────────────
@@ -845,7 +974,8 @@ export async function POST(req: NextRequest) {
       resolvedCity = resolvedCity || regionalCity || localCity
 
       if (localCity) {
-        cities.push({ name: localCity, distanceLabel: 'Right here', isLocal: true })
+        // City-level label only — per-venue distances replace it when we have coordinates
+        cities.push({ name: localCity, distanceLabel: `In ${localCity}`, isLocal: true })
       }
       if (regionalCity && regionalCity !== localCity) {
         cities.push({
@@ -865,8 +995,9 @@ export async function POST(req: NextRequest) {
     // ── 2. Parallel fetches ──────────────────────────────────────────────────
     const liveEventsPromise = cities.length > 0
       ? Promise.all([
-          fetchLiveSerpEvents(cities, timeframe, expType),
-          fetchTicketmasterLive(cities, dateStart, dateEnd),
+          fetchLiveSerpEvents(cities, timeframe, expType, userTz),
+          fetchTicketmasterLive(cities, dateStart, dateEnd,
+            typeof lat === 'number' && typeof lng === 'number' ? { lat, lng } : null),
         ]).then(([serp, tm]) => {
           // Merge: dedupe by title, Ticketmaster results first (richer data)
           const combined: EventRow[] = []
@@ -911,7 +1042,9 @@ export async function POST(req: NextRequest) {
 
     // Google Places (New): high-quality venue signals — requires GOOGLE_PLACES_API_KEY
     const googlePlacesPromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
-      ? searchNearbyVenues({ lat, lng, maxResults: 9 })
+      ? searchNearbyVenues(wantsFoodOnly
+          ? { lat, lng, maxResults: 9, radiusMeters: 25000, typeGroups: FOOD_TYPE_GROUPS }
+          : { lat, lng, maxResults: 9 })
           .then(rows => rows as EventRow[])
           .catch(() => [] as EventRow[])
       : Promise.resolve([] as EventRow[])
@@ -1002,7 +1135,9 @@ export async function POST(req: NextRequest) {
       // and local-time vs UTC mismatches would kill valid results
       if (e.date_start && e.source !== 'activity') {
         const t = new Date(e.date_start).getTime()
-        if (!isNaN(t) && t < nowMs - 3_600_000) return false
+        // Date-only listings sit at midnight — keep them for the whole day
+        const grace = e.dateOnly ? 86_400_000 : 3_600_000
+        if (!isNaN(t) && t < nowMs - grace) return false
       }
       seenLive.add(key)
       return true
@@ -1043,13 +1178,13 @@ export async function POST(req: NextRequest) {
     // Curated venues + Google Places float to the front — highest-quality date-night signals
     let rows: EventRow[] = [...curatedUnique, ...googleUnique, ...yelpUnique, ...uniqueLive, ...dbRows, ...profileUnique]
 
-    // Sort to boost category matches to the top — ensures AI sees relevant candidates first
+    // Category relevance: if they asked for food, show food. When we have enough
+    // on-topic candidates, the AI never sees the off-topic ones; otherwise they
+    // are kept as backup but sorted last.
     if (catHints) {
-      rows.sort((a, b) => {
-        const aMatch = catHints.includes(a.category) ? 0 : 1
-        const bMatch = catHints.includes(b.category) ? 0 : 1
-        return aMatch - bMatch
-      })
+      const onTopic  = rows.filter(r => catHints.includes(r.category))
+      const offTopic = rows.filter(r => !catHints.includes(r.category))
+      rows = onTopic.length >= 3 ? onTopic : [...onTopic, ...offTopic]
     }
 
     // Safety net: if SerpAPI returned events but the past-event filter killed them all,
@@ -1112,7 +1247,7 @@ export async function POST(req: NextRequest) {
 
       if (fallbackCity) {
         // 6a. Broad events search
-        const broadEvents = await fetchLiveSerpEvents([fallbackCity], 'Planning Ahead')
+        const broadEvents = await fetchLiveSerpEvents([fallbackCity], 'Planning Ahead', '', userTz)
         if (broadEvents.length > 0) {
           rows = broadEvents
         } else if (serperKey) {
@@ -1159,7 +1294,8 @@ export async function POST(req: NextRequest) {
       if (!anthropicKeyKb) return NextResponse.json({ picks: [] })
 
       const locationKb = hasGps ? geoDisplayName : city
-      const kbKillSwitch = answers[answers.length - 1]
+      const kbKillIdx = questionIds ? questionIds.indexOf('killswitch') : -1
+      const kbKillSwitch = kbKillIdx >= 0 ? answers[kbKillIdx] : answers[answers.length - 1]
       const kbAnswerSummary = [
         answers[0] ? `- What they want: ${answers[0]}` : '',
         answers.length > 2 && answers[1] ? `- Occasion: ${answers[1]}`  : '',
@@ -1181,7 +1317,7 @@ No live event data is available right now. Draw on your deep knowledge of ${loca
 Requirements:
 - Real, specific venues or activity types with enough detail to actually go do them
 - Each pick must scratch the itch: "${answers[0] ?? 'a memorable evening'}"
-- Nothing that triggers: "${answers[1] || 'none stated'}"
+- Nothing that triggers: "${kbKillSwitch || 'none stated'}"
 - Pitches make not going feel like a missed opportunity — write to close, not to describe. First-person energy, present tense. Max 30 words.
 
 Return ONLY a valid JSON array:
@@ -1207,7 +1343,7 @@ Return ONLY a valid JSON array:
             const picks = kbPicks.slice(0, 3).map(p => ({
               id: p.id, rank: p.rank, pitch: p.pitch,
               title: p.title, venue: p.venue,
-              dateFormatted: p.date, priceFormatted: p.price,
+              dateFormatted: '', priceFormatted: p.price,
               ticketUrl: null, imageUrl: fallbackImg(p.category),
               category: p.category, source: 'knowledge', distanceLabel: undefined,
             }))
@@ -1228,10 +1364,8 @@ Return ONLY a valid JSON array:
       .map((r, i) => {
         const price = r.price_min === 0 ? 'Free' : r.price_min ? `$${r.price_min}` : 'price unknown'
         const date  = r.date_start
-          ? new Date(r.date_start).toLocaleDateString('en-US', {
-              weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric',
-            })
-          : 'Anytime'
+          ? `${formatDate(r.date_start, r.tz ?? userTz, r.dateOnly)} (${relativeDay(r.date_start, r.tz ?? userTz)})`
+          : 'No fixed time (venue/activity)'
         const desc  = r.ai_description ?? r.description?.slice(0, 150) ?? ''
         const src   = r.id.startsWith('curated-') ? '[curated]'
                     : r.id.startsWith('gplace-')  ? '[google]'
@@ -1244,18 +1378,28 @@ Return ONLY a valid JSON array:
       })
       .join('\n')
 
-    // Label map — adapts to 2-question (generic) or 5-question (deep) survey
+    // Label each answer by its question id when the client sends them (each
+    // slide asks different questions in a different order); otherwise fall
+    // back to the old positional guess.
     const isDeepSurvey = answers.length >= 4
-    const labelMap = isDeepSurvey
-      ? ['Vibe', 'Occasion', 'Party', 'Duration', 'Vibe killer (avoid)']
-      : ['Feeling target', 'Vibe killer (avoid)']
+    const QUESTION_LABELS: Record<string, string> = {
+      feeling: 'What they want', occasion: 'Occasion', party: 'Who is coming',
+      duration: 'Time available', priority: 'What matters most', budget: 'Budget',
+      killswitch: 'Dealbreaker (avoid)',
+    }
+    const labelMap = questionIds
+      ? questionIds.map(id => QUESTION_LABELS[id] ?? id)
+      : isDeepSurvey
+        ? ['Vibe', 'Occasion', 'Party', 'Duration', 'Vibe killer (avoid)']
+        : ['Feeling target', 'Vibe killer (avoid)']
     const answerSummary = [
       ...answers.map((a, i) => `- ${labelMap[i] ?? `Q${i + 1}`}: ${a}`),
       ...(filters.when   ? [`- Timing preference: ${filters.when}`]   : []),
       ...(filters.crew   ? [`- Crew: ${filters.crew}`]                : []),
       ...(filters.budget ? [`- Budget: ${filters.budget}`]            : []),
     ].join('\n')
-    const killSwitch = answers[answers.length - 1] ?? ''
+    const killIdx = questionIds ? questionIds.indexOf('killswitch') : -1
+    const killSwitch = (killIdx >= 0 ? answers[killIdx] : answers[answers.length - 1]) ?? ''
 
     const timeframeInstruction =
       timeframe === 'Now'             ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
@@ -1278,21 +1422,28 @@ Return ONLY a valid JSON array:
       ? ' Entries tagged [curated] are hand-picked YeahDoodle date-night gems — they have extra credibility and are verified great for couples. Strongly prefer them when they match the vibe.'
       : ''
 
-    const personaLine = isDeepSurvey
-      ? `You are YeahDoodle's date night scout. Your ONLY job is to help this couple plan a date night they'll actually remember. You are NOT writing venue descriptions. You are writing the case for why they should go tonight.`
-      : `You are YeahDoodle's local scout. Your ONLY job is to find the 3 best options for this person tonight. You are NOT writing venue descriptions. You are writing the case for why they should go.`
+    const isDateMode = ['date-night', 'couple', 'first-date'].includes(mode) || (!mode && isDeepSurvey)
+    const nowLocal = new Date().toLocaleString('en-US', {
+      timeZone: userTz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    })
 
-    const missionLine = isDeepSurvey
+    const personaLine = isDateMode
+      ? `You are YeahDoodle's date night scout. Your ONLY job is to help this couple plan a date night they'll actually remember. You are NOT writing venue descriptions. You are writing the case for why they should go.`
+      : `You are YeahDoodle's local scout. Your ONLY job is to find the 3 best options for this person. You are NOT writing venue descriptions. You are writing the case for why they should go.`
+
+    const missionLine = isDateMode
       ? `Your mission: Pick the 3 date night options most likely to make this couple put down their phones and actually go.`
       : `Your mission: Pick the 3 options most likely to make this person stop scrolling and actually go.`
 
-    const pitchGuidance = isDeepSurvey
-      ? `4. WRITE TO CLOSE — Each pitch is why a couple should go tonight, not a description. Write like a trusted friend: urgent, specific, romantic. "This is the spot where..." not "This venue features..." Make staying in feel like a mistake. Max 30 words. No filler.`
-      : `4. WRITE TO CLOSE — Each pitch is why this person should go tonight. Write like a trusted local friend: urgent, specific, personal. Make doing nothing feel like a miss. Max 30 words. No filler.`
+    const pitchGuidance = isDateMode
+      ? `4. WRITE TO CLOSE — Each pitch is why a couple should go, not a description. Write like a trusted friend: urgent, specific, romantic. "This is the spot where..." not "This venue features..." Make staying in feel like a mistake. Max 30 words. No filler.`
+      : `4. WRITE TO CLOSE — Each pitch is why this person should go. Write like a trusted local friend: urgent, specific, personal. Make doing nothing feel like a miss. Max 30 words. No filler.`
 
     const prompt = `${personaLine}
 
-Tonight's person:
+Right now it is ${nowLocal} where they are.
+
+The person:
 ${answerSummary}
 
 What's available ${locationLabel}:
@@ -1301,15 +1452,16 @@ ${eventList}
 ${missionLine}
 
 Follow every rule:
-1. SCRATCH THE ITCH — They said "${expType}". Every pick must deliver exactly that — no substitutes, no watered-down versions.
+1. SCRATCH THE ITCH — They said "${expType}". Every pick must deliver exactly that — no substitutes, no watered-down versions.${catHints ? ` Only pick entries whose category is ${catHints.join(' or ')} unless fewer than 3 such entries exist.` : ''}
 2. KILL THE DEALBREAKER — They want to avoid "${killSwitch}". Any pick that even hints at this is disqualified, no exceptions.
 3. ${timeframeInstruction}
 ${pitchGuidance}
-5. MIX IT UP — 2 picks that directly match their itch + 1 that surprises them in a way they'll thank you for.${activityNote}${curatedNote}
+5. MIX IT UP — 2 picks that directly match their itch + 1 that surprises them while still matching it.${activityNote}${curatedNote}
+6. BE ACCURATE — Never invent facts. Only say "tonight" or "today" for entries marked (TODAY); say "tomorrow" only for (TOMORROW); otherwise name the day. Never claim something is close, walkable or "right here" unless its distance says so. Entries with no fixed time are venues: don't call them events.
 
 Return ONLY a valid JSON array — no markdown, no explanation:
 [
-  {"id":"<exact ID from list above>","rank":1,"pitch":"<urgent, personal, makes them want to go tonight>"},
+  {"id":"<exact ID from list above>","rank":1,"pitch":"<urgent, personal, accurate>"},
   {"id":"<exact ID>","rank":2,"pitch":"<...>"},
   {"id":"<exact ID>","rank":3,"pitch":"<...>"}
 ]`
@@ -1324,7 +1476,7 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         pitch:          r.ai_description?.slice(0, 120) ?? r.description?.slice(0, 120) ?? 'A local favorite worth checking out tonight.',
         title:          r.title,
         venue:          r.venue_name ?? '',
-        dateFormatted:  r.date_start ? formatDate(r.date_start) : 'Anytime',
+        dateFormatted:  formatDate(r.date_start, r.tz ?? userTz, r.dateOnly),
         priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl:      r.ticket_url,
         imageUrl:       r.image_url ?? fallbackImg(r.category),
@@ -1358,7 +1510,7 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         id: r.id, rank: i + 1,
         pitch: r.ai_description?.slice(0, 120) ?? 'A great local experience.',
         title: r.title, venue: r.venue_name ?? '',
-        dateFormatted: r.date_start ? formatDate(r.date_start) : 'Anytime',
+        dateFormatted: formatDate(r.date_start, r.tz ?? userTz, r.dateOnly),
         priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl: r.ticket_url, imageUrl: r.image_url ?? fallbackImg(r.category),
         category: r.category, source: r.source, distanceLabel: r.distanceLabel,
@@ -1378,7 +1530,7 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         id: r.id, rank: i + 1,
         pitch: r.ai_description?.slice(0, 120) ?? 'A great local experience.',
         title: r.title, venue: r.venue_name ?? '',
-        dateFormatted: r.date_start ? formatDate(r.date_start) : 'Anytime',
+        dateFormatted: formatDate(r.date_start, r.tz ?? userTz, r.dateOnly),
         priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl: r.ticket_url, imageUrl: r.image_url ?? fallbackImg(r.category),
         category: r.category, source: r.source, distanceLabel: r.distanceLabel,
@@ -1401,7 +1553,7 @@ Return ONLY a valid JSON array — no markdown, no explanation:
           pitch:          p.pitch,
           title:          r.title,
           venue:          r.venue_name ?? '',
-          dateFormatted:  r.date_start ? formatDate(r.date_start) : 'Anytime',
+          dateFormatted:  formatDate(r.date_start, r.tz ?? userTz, r.dateOnly),
           priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
           ticketUrl:      r.ticket_url,
           imageUrl:       r.image_url ?? fallbackImg(r.category),
@@ -1419,7 +1571,7 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         pitch:          r.ai_description?.slice(0, 120) ?? 'A great local experience.',
         title:          r.title,
         venue:          r.venue_name ?? '',
-        dateFormatted:  r.date_start ? formatDate(r.date_start) : 'Anytime',
+        dateFormatted:  formatDate(r.date_start, r.tz ?? userTz, r.dateOnly),
         priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl:      r.ticket_url,
         imageUrl:       r.image_url ?? fallbackImg(r.category),

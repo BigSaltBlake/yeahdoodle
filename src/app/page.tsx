@@ -188,14 +188,14 @@ export default function HomePage() {
             </div>
 
             {/* Headline */}
-            <h1 className="font-display text-4xl sm:text-6xl lg:text-8xl text-white leading-[0.92] mb-6 tracking-tight">
+            <h1 className="font-display text-4xl sm:text-6xl lg:text-8xl text-white leading-[0.92] mb-6 tracking-tight min-h-[1.84em]">
               {slide.headline}<br />
               <span className="text-yd-orange">{slide.emphasis}</span>
               {slide.post && <span>{slide.post}</span>}
             </h1>
 
             {/* Subhead */}
-            <p className="text-white/50 text-xl sm:text-2xl mb-10 max-w-sm mx-auto leading-relaxed font-light">
+            <p className="text-white/50 text-xl sm:text-2xl mb-10 max-w-sm mx-auto leading-relaxed font-light min-h-[3.25em]">
               {slide.subhead}
             </p>
 

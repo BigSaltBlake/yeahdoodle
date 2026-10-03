@@ -95,7 +95,7 @@ const BASE_URL = 'https://places.googleapis.com/v1/places:searchNearby'
 
 // Date-night venue type groups — run as separate parallel searches so each
 // group competes fairly; Google caps Nearby Search at 20 results per call.
-const VENUE_TYPE_GROUPS = [
+export const VENUE_TYPE_GROUPS = [
   // Romantic dining
   ['restaurant', 'fine_dining_restaurant'],
   // Bars & cocktails
@@ -333,15 +333,16 @@ export async function searchNearbyVenues(params: {
   radiusMeters?: number   // default 16000 (~10 mi)
   maxResults?: number     // default 9
   openNowOnly?: boolean   // default false — let AI decide; openNow is a bonus in scoring
+  typeGroups?: string[][] // default VENUE_TYPE_GROUPS (date-night mix)
 }): Promise<PlaceEventRow[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY
   if (!apiKey) return []
 
-  const { lat, lng, radiusMeters = 16000, maxResults = 9, openNowOnly = false } = params
+  const { lat, lng, radiusMeters = 16000, maxResults = 9, openNowOnly = false, typeGroups = VENUE_TYPE_GROUPS } = params
 
   // Fire all type groups in parallel
   const groupResults = await Promise.all(
-    VENUE_TYPE_GROUPS.map(types => fetchNearby(apiKey, lat, lng, types, radiusMeters, 10))
+    typeGroups.map(types => fetchNearby(apiKey, lat, lng, types, radiusMeters, 10))
   )
 
   // Merge, dedupe by place ID, score, sort
@@ -370,3 +371,10 @@ export async function searchNearbyVenues(params: {
     .slice(0, maxResults)
     .map(p => googlePlaceToRow(p, lat, lng, apiKey))
 }
+
+/** Type groups for food-focused searches (Foodie slide, "Trending restaurant", etc.) */
+export const FOOD_TYPE_GROUPS = [
+  ['restaurant', 'fine_dining_restaurant'],
+  ['cafe', 'coffee_shop', 'bakery', 'dessert_shop'],
+  ['bar', 'wine_bar', 'pub'],
+]

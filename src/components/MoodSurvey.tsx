@@ -268,6 +268,26 @@ function getQuestions(mode: string): Question[] {
   }
 }
 
+function visitorTimeZone(): string | undefined {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return undefined }
+}
+
+/** "84082" → "Wallsburg, Utah" so people can tell we understood the zip */
+async function lookupZip(zip: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(zip)}&countrycodes=us&limit=1&addressdetails=1`,
+    )
+    if (!res.ok) return null
+    const [hit] = await res.json() as Array<{ address?: Record<string, string> }>
+    const a = hit?.address ?? {}
+    const place = a.city || a.town || a.village || a.hamlet || a.county
+    return place ? [place, a.state].filter(Boolean).join(', ') : null
+  } catch {
+    return null
+  }
+}
+
 const LOADING_MESSAGES = [
   'Scanning events near you...',
   'Matching your vibe...',
@@ -286,6 +306,8 @@ type SurveyHistoryEntry = { answers: string[]; city: string; date: string }
 
 export default function MoodSurvey({ open, onClose, initialCity = '', mode = 'general' }: Props) {
   const [city, setCity] = useState(initialCity)
+  // Friendly name for display when the visitor typed a zip code
+  const [cityName, setCityName] = useState('')
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
   const [phase, setPhase] = useState<Phase>(initialCity ? 'confirm-location' : 'locating')
@@ -526,6 +548,10 @@ const prefetchAnswersRef = useRef<string[]>([])
       const body: Record<string, unknown> = {
         city,
         answers: submittedAnswers,
+        // Lets the server label each answer correctly and format times in the visitor's zone
+        questionIds: activeQuestions.slice(0, submittedAnswers.length).map(q => q.id),
+        mode,
+        tz: visitorTimeZone(),
         ...(activeBudget || activeCrew || activeWhen ? {
           filters: {
             ...(activeBudget ? { budget: activeBudget } : {}),
@@ -571,7 +597,8 @@ const prefetchAnswersRef = useRef<string[]>([])
     prefetchAnswersRef.current = prefetchAnswers
     ;(async () => {
       try {
-        const body: Record<string, unknown> = { city: prefetchCity, answers: prefetchAnswers }
+        // No questionIds here: remembered answers may come from a different slide's survey
+        const body: Record<string, unknown> = { city: prefetchCity, answers: prefetchAnswers, mode, tz: visitorTimeZone() }
         if (lat !== null) body.lat = lat
         if (lng !== null) body.lng = lng
         const res = await fetch('/api/recommend', {
@@ -637,6 +664,14 @@ const prefetchAnswersRef = useRef<string[]>([])
     }
   }
 
+  function submitCity() {
+    capture('city_selected', { city })
+    setCityName('')
+    const zip = city.trim()
+    if (/^\d{5}$/.test(zip)) lookupZip(zip).then(name => { if (name) setCityName(name) })
+    setPhase('confirm-location')
+  }
+
   function handleShare() {
     const ids = picks.map(p => p.id).join(',')
     const params = new URLSearchParams({ city: city || 'nearby', ids })
@@ -692,18 +727,18 @@ const prefetchAnswersRef = useRef<string[]>([])
         {phase === 'city' && (
           <div className="p-8 text-center">
             <div className="text-5xl mb-4">🎯</div>
-            <h2 className="font-display text-2xl text-white mb-2">Find my perfect event</h2>
-            <p className="text-white/50 text-sm mb-7">2 quick questions → your 3 best picks</p>
+            <h2 className="font-display text-2xl text-white mb-2">Find my perfect pick</h2>
+            <p className="text-white/50 text-sm mb-7">{activeQuestions.length} quick questions → your 3 best picks</p>
             <input
               autoFocus
               value={city}
-              onChange={e => setCity(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && city.trim()) { capture('city_selected', { city }); setPhase('confirm-location') } }}
+              onChange={e => { setCity(e.target.value); setCityName('') }}
+              onKeyDown={e => { if (e.key === 'Enter' && city.trim()) submitCity() }}
               placeholder="What city are you in?"
               className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-white/30 border border-white/20 focus:outline-none focus:border-yd-orange mb-4 text-base"
             />
             <button
-              onClick={() => { if (city.trim()) { capture('city_selected', { city }); setPhase('confirm-location') } }}
+              onClick={() => { if (city.trim()) submitCity() }}
               disabled={!city.trim()}
               className="w-full bg-yd-orange hover:bg-yd-orangeHover disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
             >
@@ -717,7 +752,7 @@ const prefetchAnswersRef = useRef<string[]>([])
       {phase === 'confirm-location' && (
         <div className="p-8 text-center">
           <div className="text-5xl mb-4">📍</div>
-          <h2 className="font-display text-xl text-white mb-1">You’re in {city || 'your location'}?</h2>
+          <h2 className="font-display text-xl text-white mb-1">You’re in {cityName || city || 'your location'}?</h2>
           <p className="text-white/40 text-sm mb-7">We’ll find the best picks near you</p>
           <div className="space-y-3">
             <button
@@ -731,7 +766,7 @@ const prefetchAnswersRef = useRef<string[]>([])
               ✓ Yes, {city || 'here'}!
             </button>
             <button
-              onClick={() => { setCity(''); setPhase('city') }}
+              onClick={() => { setCity(''); setCityName(''); setPhase('city') }}
               className="w-full bg-white/5 hover:bg-white/10 text-white/50 font-medium py-3 rounded-xl transition-colors text-sm border border-white/10 hover:border-white/20"
             >
               Change location
@@ -799,7 +834,7 @@ const prefetchAnswersRef = useRef<string[]>([])
             {(city || lat) && (
               <div className="flex items-center gap-1.5 mb-4 -mt-2">
                 <span className="text-xs text-white/30">📍</span>
-                <span className="text-xs text-white/30">{city || 'your location'}</span>
+                <span className="text-xs text-white/30">{cityName || city || 'your location'}</span>
                 {!lat && (
                   <button
                     onClick={() => setPhase('city')}
@@ -857,7 +892,7 @@ const prefetchAnswersRef = useRef<string[]>([])
                 onClick={() => { setQIndex(i => i - 1); setAnswers(a => a.slice(0, -1)) }}
                 className="mt-4 text-white/25 hover:text-white/50 text-xs transition-colors"
               >
-                ↠ Back
+                ← Back
               </button>
             )}
           </div>
@@ -880,7 +915,7 @@ const prefetchAnswersRef = useRef<string[]>([])
             <div className="text-center mb-3">
               <h2 className="font-display text-xl text-white">Your picks</h2>
               <p className="text-white/30 text-xs mt-0.5">
-                {lat ? `📍 near you` : `in ${city}`}
+                {lat ? `📍 near you` : `in ${cityName || city}`}
               </p>
             </div>
 
@@ -1083,14 +1118,22 @@ const prefetchAnswersRef = useRef<string[]>([])
                   </div>
                   <div className="p-3">
                     <span className="font-medium font-semibold text-white text-sm leading-snug">{pick.title}</span>
-                    <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowrap max-w-[200px]">{pick.venue}</span>
-                    <span className="text-xs text-white/40 block">{pick.dateFormatted} &middot; {pick.priceFormatted}</span>
+                    {pick.venue && pick.venue.trim().toLowerCase() !== pick.title.trim().toLowerCase() && (
+                      <span className="text-xs text-white/50 block truncate overflow-hidden whitespace-nowrap max-w-[200px]">{pick.venue}</span>
+                    )}
+                    {(pick.dateFormatted || pick.priceFormatted) && (
+                      <span className="text-xs text-white/40 block">
+                        {[pick.dateFormatted, pick.priceFormatted].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
                     {pick.distanceLabel && (
                       <span className="text-xs text-[#4f9b85]/80 block">📍 {pick.distanceLabel}</span>
                     )}
                     <span className="text-xs text-white/40 block italic">{pick.pitch}</span>
                     <div className="flex gap-2 mt-1">
-                      {pick.source === 'activity' && <span className="bg-emerald-500/20 text-emerald-400/90 rounded px-1.5 py-0.5 text-[10px] font-medium">🏃 Activity</span>}
+                      {pick.source === 'activity' && pick.category && (
+                        <span className="bg-emerald-500/20 text-emerald-400/90 rounded px-1.5 py-0.5 text-[10px] font-medium">{pick.category}</span>
+                      )}
                       {pick.source === 'facebook' && <span className="bg-blue-600/20 text-blue-400/90 rounded px-1.5 py-0.5 text-[10px] font-medium">📘 Facebook</span>}
                       {pick.ticketUrl && (
                         <a href={pick.ticketUrl}
