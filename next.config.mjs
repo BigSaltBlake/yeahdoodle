@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: { ignoreBuildErrors: true },
+  // Type errors fail the build so broken code never reaches production
   eslint: { ignoreDuringBuilds: true },
   images: {
     remotePatterns: [
