@@ -49,7 +49,7 @@ export async function generateMetadata(
 // ---------------------------------------------------------------------------
 async function fetchCityEvents(city: string, limit = 24): Promise<{ events: YDEvent[]; total: number }> {
   const url  = process.env.NEXT_PUBLIC_SUPABASE_URL  ?? ''
-  const anon = (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ?? ''
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? ''
   if (!url || !anon) return { events: [], total: 0 }
 
   const sb = createClient(url, anon)
