@@ -897,6 +897,95 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
 }
 
 // ---------------------------------------------------------------------------
+// Matching the AI's picks back to candidate rows
+// ---------------------------------------------------------------------------
+function normName(s: string): string {
+  return s.toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+/**
+ * Short, distinctive form of a place/event name for spotting it inside a
+ * pitch: "Red Rock Brewing - Downtown Salt Lake City" → "red rock".
+ * Returns null when the name is too generic to be a reliable signal.
+ */
+function nameKey(title: string, cityWords: Set<string>): string | null {
+  const core = normName(title.split(/\s[-–|:(]\s?|\s\(/)[0]).replace(/^the /, '')
+  const words = core.split(' ').filter(Boolean)
+  const key = words.slice(0, 2).join(' ')
+  if (key.length < 5) return null
+  if (words.slice(0, 2).every(w => cityWords.has(w) || GENERIC_NAME_WORDS.has(w))) return null
+  return key
+}
+
+// Words that start many event titles and appear in ordinary pitches
+const GENERIC_NAME_WORDS = new Set([
+  'live', 'music', 'night', 'nights', 'show', 'shows', 'comedy', 'dinner', 'date', 'open', 'mic',
+  'party', 'festival', 'fest', 'tour', 'concert', 'event', 'events', 'trivia', 'karaoke', 'happy',
+  'hour', 'free', 'family', 'weekend', 'friday', 'saturday', 'sunday', 'annual', 'summer', 'fall',
+  'winter', 'spring', 'holiday', 'tasting', 'wine', 'beer', 'food', 'market', 'farmers', 'art',
+  'arts', 'jazz', 'and', 'of', 'at', 'in', 'on', 'with', 'a', 'an',
+])
+
+/**
+ * Resolve each AI pick to the row it is really about. The model refers to rows
+ * by number and must echo the title; if the number and title disagree, the
+ * title wins. A pitch that talks about a different candidate is moved to that
+ * candidate (if it isn't already picked) or dropped, so a write-up can never
+ * appear under the wrong venue.
+ */
+function matchPicksToRows<P extends { n?: number | string; id?: string; title?: string; pitch: string }>(
+  aiPicks: P[],
+  rows: EventRow[],
+  city: string,
+): Array<{ p: P; r: EventRow }> {
+  const cityWords = new Set(normName(city).split(' ').filter(w => w.length > 2))
+  const keys = rows.map(r => nameKey(r.title, cityWords))
+  const byTitle = (t: string) => {
+    const nt = normName(t)
+    return rows.findIndex(r => normName(r.title) === nt)
+  }
+  const titleAgrees = (row: EventRow, t: string) => {
+    const a = normName(row.title), b = normName(t)
+    return a === b || a.includes(b) || b.includes(a)
+  }
+
+  const used = new Set<number>()
+  const out: Array<{ p: P; r: EventRow }> = []
+
+  for (const p of aiPicks) {
+    // 1. Candidate from the number (or a legacy id)
+    let idx = -1
+    const n = Number(String(p.n ?? '').replace(/^#/, ''))
+    if (Number.isInteger(n) && n >= 1 && n <= rows.length) idx = n - 1
+    else if (p.id) idx = rows.findIndex(r => r.id === String(p.id).replace(/^ID:\s*/i, '').trim())
+
+    // 2. The echoed title overrides a mismatched number
+    if (p.title && (idx < 0 || !titleAgrees(rows[idx], p.title))) {
+      const t = byTitle(p.title)
+      if (t >= 0) idx = t
+    }
+    if (idx < 0) continue
+
+    // 3. The pitch must be about this row, not another candidate
+    const pitch = normName(p.pitch ?? '')
+    const ownKey = keys[idx]
+    const mentionsOwn = !!ownKey && pitch.includes(ownKey)
+    if (!mentionsOwn) {
+      const other = keys.findIndex((k, i) => i !== idx && !!k && pitch.includes(k))
+      if (other >= 0) {
+        if (used.has(other)) continue // describes a venue already shown — drop it
+        idx = other
+      }
+    }
+
+    if (used.has(idx)) continue
+    used.add(idx)
+    out.push({ p, r: rows[idx] })
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/recommend
 // Body: { city, answers, questionIds?, mode?, tz?, lat?, lng?, filters? }
 // ---------------------------------------------------------------------------
@@ -1363,7 +1452,7 @@ Return ONLY a valid JSON array:
                     : r.id.startsWith('live_')     ? '[live]'
                     : '[db]'
         const dist  = r.distanceLabel ? ` | ${r.distanceLabel}` : ''
-        return `${i + 1}. ID:${r.id} ${src} | ${r.title} | ${r.venue_name ?? 'Local venue'} | ${date} | ${price} | ${r.category}${dist}${desc ? ` | ${desc}` : ''}`
+        return `#${i + 1} ${src} | ${r.title} | ${r.venue_name ?? 'Local venue'} | ${date} | ${price} | ${r.category}${dist}${desc ? ` | ${desc}` : ''}`
       })
       .join('\n')
 
@@ -1448,11 +1537,13 @@ ${pitchGuidance}
 5. MIX IT UP — 2 picks that directly match their itch + 1 that surprises them while still matching it.${activityNote}${curatedNote}
 6. BE ACCURATE — Never invent facts. Only say "tonight" or "today" for entries marked (TODAY); say "tomorrow" only for (TOMORROW); otherwise name the day. Never claim something is close, walkable or "right here" unless its distance says so. Entries with no fixed time are venues: don't call them events.
 
-Return ONLY a valid JSON array — no markdown, no explanation:
+7. ONE PLACE PER PITCH — Each pitch describes only the entry you picked. Never mention or borrow details from any other entry.
+
+Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry's number from the list and "title" is that entry's title copied exactly:
 [
-  {"id":"<exact ID from list above>","rank":1,"pitch":"<urgent, personal, accurate>"},
-  {"id":"<exact ID>","rank":2,"pitch":"<...>"},
-  {"id":"<exact ID>","rank":3,"pitch":"<...>"}
+  {"n":<number>,"title":"<exact title of entry n>","rank":1,"pitch":"<urgent, personal, accurate>"},
+  {"n":<number>,"title":"<...>","rank":2,"pitch":"<...>"},
+  {"n":<number>,"title":"<...>","rank":3,"pitch":"<...>"}
 ]`
 
     const anthropicKey = process.env.ANTHROPIC_API_KEY
@@ -1530,18 +1621,15 @@ Return ONLY a valid JSON array — no markdown, no explanation:
       return NextResponse.json({ ...dbg(), picks: fb, fallbackReason: 'ai_no_json' })
     }
 
-    // The model sometimes echoes the list's "ID:" label — strip it before matching
-    const aiPicks   = (JSON.parse(jsonMatch[0]) as Array<{ id: string; rank: number; pitch: string }>)
-      .map(p => ({ ...p, id: String(p.id ?? '').replace(/^ID:\s*/i, '').trim() }))
-    const eventById = Object.fromEntries(rows.map(r => [r.id, r]))
+    type AiPick = { n?: number | string; id?: string; title?: string; rank: number; pitch: string }
+    const aiPicks = JSON.parse(jsonMatch[0]) as AiPick[]
+    const matched = matchPicksToRows(aiPicks, rows, resolvedCity)
 
-    const picks = aiPicks
-      .filter(p => eventById[p.id])
+    const picks = matched
       .slice(0, 3)
-      .map(p => {
-        const r = eventById[p.id]
+      .map(({ p, r }) => {
         return {
-          id:             p.id,
+          id:             r.id,
           rank:           p.rank,
           pitch:          p.pitch,
           title:          r.title,
@@ -1573,7 +1661,7 @@ Return ONLY a valid JSON array — no markdown, no explanation:
         distanceLabel:  r.distanceLabel,
       }))
       await enrichPickImages(fallback)
-      return NextResponse.json({ ...dbg(), picks: fallback, fallbackReason: `ai_bad_ids: ${aiPicks.map(p => p.id).slice(0, 3).join(',')}` })
+      return NextResponse.json({ ...dbg(), picks: fallback, fallbackReason: `ai_unmatched: ${aiPicks.map(p => p.n ?? p.id).slice(0, 3).join(',')}` })
     }
 
     // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
