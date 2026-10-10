@@ -161,6 +161,19 @@ async function reverseGeocode(lat: number, lng: number, zoom: number): Promise<G
 }
 
 async function geocodeZipCode(zip: string): Promise<{ lat: number; lng: number } | null> {
+  // The zip directory gives the town's own point; a zip area's centre can fall
+  // outside town (84082's does), which makes everything resolve to the county.
+  try {
+    const z = await fetch(`https://api.zippopotam.us/us/${encodeURIComponent(zip)}`, {
+      cache: 'no-store', signal: AbortSignal.timeout(4000),
+    })
+    if (z.ok) {
+      const place = ((await z.json()) as { places?: Array<{ latitude?: string; longitude?: string }> }).places?.[0]
+      const lat = Number(place?.latitude), lng = Number(place?.longitude)
+      if (Number.isFinite(lat) && Number.isFinite(lng) && (lat || lng)) return { lat, lng }
+    }
+  } catch { /* fall back to Nominatim */ }
+
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 5000)
   try {

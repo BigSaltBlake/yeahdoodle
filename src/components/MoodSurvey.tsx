@@ -274,6 +274,14 @@ function visitorTimeZone(): string | undefined {
 
 /** "84082" → "Wallsburg, Utah" so people can tell we understood the zip */
 async function lookupZip(zip: string): Promise<string | null> {
+  // Zip directory knows the town a zip belongs to (map lookups often only find the county)
+  try {
+    const z = await fetch(`https://api.zippopotam.us/us/${encodeURIComponent(zip)}`)
+    if (z.ok) {
+      const place = ((await z.json()) as { places?: Array<{ 'place name'?: string; state?: string }> }).places?.[0]
+      if (place?.['place name']) return [place['place name'], place.state].filter(Boolean).join(', ')
+    }
+  } catch { /* fall back to the map lookup */ }
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(zip)}&countrycodes=us&limit=1&addressdetails=1`,
