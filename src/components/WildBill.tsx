@@ -143,6 +143,14 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     2: '/WB-YD2.m4a',  // Wild — biggest take
   }
 
+  // The recordings open with up to 2s of dead air — start each one just before
+  // Wild Bill's voice comes in (measured: voice at 0.94s / 1.99s / 1.14s)
+  const CATCHPHRASE_START: Record<string, number> = {
+    '/WB-YD1.m4a': 0.88,
+    '/WB-YD2.m4a': 1.93,
+    '/WB-YD3.m4a': 1.08,
+  }
+
   // Restore saved intensity preference
   useEffect(() => {
     try {
@@ -184,7 +192,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
 
     const cpKey = CATCHPHRASE_FILES[currentIntensity]
     const audio = preloadedAudioRef.current[cpKey] ?? new Audio(cpKey)
-    audio.currentTime = 0
+    audio.currentTime = CATCHPHRASE_START[cpKey] ?? 0
     currentAudio = audio  // register so speakText can cancel it too
     const onFinish = () => {
       if (currentAudio === audio) currentAudio = null
@@ -212,15 +220,6 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     }
     window.addEventListener('wb-open-with-city', handler)
     return () => window.removeEventListener('wb-open-with-city', handler)
-  }, [])
-
-  // Preload catchphrase audio to eliminate hover-sound delay
-  useEffect(() => {
-    ;['/WB-YD1.m4a', '/WB-YD2.m4a', '/WB-YD3.m4a'].forEach(src => {
-      const a = new Audio(src)
-      a.preload = 'auto'
-      a.load()
-    })
   }, [])
 
   // Scroll to bottom when messages update
