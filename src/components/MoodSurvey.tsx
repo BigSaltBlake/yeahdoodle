@@ -279,8 +279,15 @@ async function lookupZip(zip: string): Promise<string | null> {
       `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(zip)}&countrycodes=us&limit=1&addressdetails=1`,
     )
     if (!res.ok) return null
-    const [hit] = await res.json() as Array<{ address?: Record<string, string> }>
-    const a = hit?.address ?? {}
+    const [hit] = await res.json() as Array<{ lat?: string; lon?: string; address?: Record<string, string> }>
+    let a = hit?.address ?? {}
+    // A zip lookup often names only the county — ask what town sits at that point
+    if (!(a.city || a.town || a.village || a.hamlet) && hit?.lat && hit?.lon) {
+      const rev = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&zoom=14&addressdetails=1&lat=${hit.lat}&lon=${hit.lon}`,
+      )
+      if (rev.ok) a = { ...a, ...((await rev.json()) as { address?: Record<string, string> }).address }
+    }
     const place = a.city || a.town || a.village || a.hamlet || a.county
     return place ? [place, a.state].filter(Boolean).join(', ') : null
   } catch {
@@ -339,6 +346,13 @@ const prefetchAnswersRef = useRef<string[]>([])
   // Derived state
   // ---------------------------------------------------------------------------
   const activeQuestions = getQuestions(mode)
+
+  // Hide Wild Bill's floating button while this popup is up (see globals.css)
+  useEffect(() => {
+    if (!open) return
+    document.documentElement.dataset.surveyOpen = '1'
+    return () => { delete document.documentElement.dataset.surveyOpen }
+  }, [open])
 
   const timeframeDisplay = 'the next few days'
 
@@ -697,7 +711,7 @@ const prefetchAnswersRef = useRef<string[]>([])
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full sm:max-w-lg bg-yd-card rounded-t-2xl sm:rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+      <div className="relative w-full sm:max-w-lg max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto overscroll-contain bg-yd-card rounded-t-2xl sm:rounded-2xl border border-white/10 shadow-2xl">
 
         {/* Close */}
         <button
@@ -763,7 +777,7 @@ const prefetchAnswersRef = useRef<string[]>([])
               }}
               className="w-full bg-yd-orange hover:bg-yd-orangeHover text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
             >
-              ✓ Yes, {city || 'here'}!
+              ✓ Yes, {(cityName || city).split(',')[0] || 'here'}!
             </button>
             <button
               onClick={() => { setCity(''); setCityName(''); setPhase('city') }}
@@ -815,7 +829,7 @@ const prefetchAnswersRef = useRef<string[]>([])
           <div className={`p-6 transition-opacity duration-150 ${animating ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'}`}>
 
             {/* Progress */}
-            <div className="flex gap-1.5 mb-5">
+            <div className="flex gap-1.5 mb-5 pr-10">
               {activeQuestions.map((_, i) => (
                 <div
                   key={i}
@@ -1069,7 +1083,7 @@ const prefetchAnswersRef = useRef<string[]>([])
               </div>
             )}
 
-            <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+            <div className="space-y-3">
               {picks.map((pick, i) => (
                 <div key={pick.id} className="bg-yd-bg/60 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors" onClick={() => setHeartOpen(null)}>
                   <div className="relative w-full h-36">
@@ -1206,7 +1220,7 @@ const prefetchAnswersRef = useRef<string[]>([])
               ) : (
                 <>
                   <p className="text-white text-sm font-semibold mb-0.5">
-                    Get weekly picks{city ? ` for ${city}` : ''}
+                    Get weekly picks{(cityName || city) ? ` for ${(cityName || city).split(',')[0]}` : ''}
                   </p>
                   <p className="text-white/40 text-xs mb-3">
                     We&apos;ll send your best local events every week. No spam.

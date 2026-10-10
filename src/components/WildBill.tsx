@@ -441,7 +441,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     <>
       {/* "Yeah Doodle!" speech bubble */}
       {showTagline && (
-        <div className="fixed bottom-24 right-6 z-50 animate-fade-in">
+        <div className="wb-floating fixed bottom-24 right-6 z-50 animate-fade-in">
           <div className="bg-yd-orange text-white font-display text-lg px-4 py-2 rounded-2xl rounded-br-none shadow-lg">
             Yeah Doodle! 🤠
           </div>
@@ -452,7 +452,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Chat with Wild Bill"
-        className="fixed bottom-6 right-6 z-50 group"
+        className="wb-floating fixed bottom-6 right-6 z-50 group"
       >
         <div className="relative">
           {billSpeaking && (
@@ -474,7 +474,7 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-[#1a1a2e]">
+        <div className="wb-floating fixed bottom-24 right-6 z-50 w-80 sm:w-96 flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-[#1a1a2e]">
           {/* Header */}
           <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-amber-900/60 to-yd-orange/20 border-b border-white/10">
             <AvatarImage size={38} animate={billSpeaking} />

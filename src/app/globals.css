@@ -88,3 +88,8 @@ body {
 /* Viewport height that respects the browser chrome on mobile */
 .h-dvh  { height: 100dvh; }
 .max-h-dvh { max-height: 100dvh; }
+
+/* Wild Bill steps aside while the survey popup is open (it covered answers on phones) */
+html[data-survey-open] .wb-floating {
+  display: none;
+}
