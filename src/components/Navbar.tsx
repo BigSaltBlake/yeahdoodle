@@ -107,7 +107,7 @@ export default function Navbar() {
             ) : (
               <button
                 onClick={() => setShowAuthModal(true)}
-                className="text-sm font-semibold bg-yd-orange hover:bg-yd-orangeHover text-white px-4 py-1.5 rounded-lg transition-colors"
+                className="text-sm font-semibold bg-yd-orange hover:bg-yd-orangeHover text-white px-3 sm:px-4 py-1.5 rounded-lg transition-colors whitespace-nowrap"
               >
                 Sign in
               </button>
