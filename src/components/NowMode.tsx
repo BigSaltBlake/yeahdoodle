@@ -31,13 +31,11 @@ const VIBE_OPTIONS: { value: VibeOption; label: string; emoji: string }[] = [
 ]
 
 // ---------------------------------------------------------------------------
-// Wild Bill catchphrase files (same as WildBill.tsx)
+// Wild Bill catchphrase (same clip as WildBill.tsx)
 // ---------------------------------------------------------------------------
-const CATCHPHRASE_FILES = ['/WB-YD3.m4a', '/WB-YD1.m4a', '/WB-YD2.m4a']
-
 function playYeahDoodle() {
-  const file = CATCHPHRASE_FILES[Math.floor(Math.random() * CATCHPHRASE_FILES.length)]
-  const audio = new Audio(file)
+  const audio = new Audio('/wild-bill-yeah-doodle.mp3')
+  audio.currentTime = 0.1
   audio.play().catch(() => {})
 }
 

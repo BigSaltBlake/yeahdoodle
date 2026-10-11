@@ -126,7 +126,8 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
   const [showBadge, setShowBadge] = useState(false)
   const [billSpeaking, setBillSpeaking] = useState(false)
   const [showTagline, setShowTagline]   = useState(false)
-  const [intensity, setIntensity] = useState<Intensity>(1)
+  // One demeanor for Wild Bill: the levels sounded nearly the same, so the dial is gone
+  const intensity: Intensity = 1
   const [pendingChips, setPendingChips] = useState<'vibe' | 'avoid' | null>(null)
   const [showAllVibeChips, setShowAllVibeChips] = useState(false)
 
@@ -136,49 +137,24 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
   const catchphraseCooldownRef = useRef(false)
   const preloadedAudioRef = useRef<Record<string, HTMLAudioElement>>({})
 
-  // Real recorded voice files mapped to intensity level
-  const CATCHPHRASE_FILES: Record<Intensity, string> = {
-    0: '/WB-YD3.m4a',  // Mellow — shortest/calmest take
-    1: '/WB-YD1.m4a',  // Normal
-    2: '/WB-YD2.m4a',  // Wild — biggest take
-  }
+  // "Yeah Doodle!" in Wild Bill's voice (ElevenLabs Voice Changer over Blake's
+  // original take), trimmed to just the catchphrase — voice starts at ~0.16s
+  const CATCHPHRASE_FILE = '/wild-bill-yeah-doodle.mp3'
+  const CATCHPHRASE_START = 0.1
 
-  // The recordings open with up to 2s of dead air — start each one just before
-  // Wild Bill's voice comes in (measured: voice at 0.94s / 1.99s / 1.14s)
-  const CATCHPHRASE_START: Record<string, number> = {
-    '/WB-YD1.m4a': 0.88,
-    '/WB-YD2.m4a': 1.93,
-    '/WB-YD3.m4a': 1.08,
-  }
-
-  // Restore saved intensity preference
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('wb_intensity')
-      if (saved === '0' || saved === '1' || saved === '2') {
-        setIntensity(Number(saved) as Intensity)
-      }
-    } catch { /* ignore */ }
     setTimeout(() => setShowBadge(true), 2500)
 
-    // Preload catchphrase audio so it plays instantly
-    const cpSrcs = ['/WB-YD3.m4a', '/WB-YD1.m4a', '/WB-YD2.m4a']
-    cpSrcs.forEach(src => {
-      const a = new Audio(src)
-      a.preload = 'auto'
-      a.load()
-      preloadedAudioRef.current[src] = a
-    })
+    // Preload the catchphrase so it plays instantly
+    const a = new Audio(CATCHPHRASE_FILE)
+    a.preload = 'auto'
+    a.load()
+    preloadedAudioRef.current[CATCHPHRASE_FILE] = a
   }, [])
-
-  const saveIntensity = (level: Intensity) => {
-    setIntensity(level)
-    try { localStorage.setItem('wb_intensity', String(level)) } catch { /* ignore */ }
-  }
 
   // Play "Yeah Doodle!" catchphrase — triggered by CTA button hover/click
   // Has a 3-second cooldown to prevent audio spam on rapid hover
-  const playCatchphrase = useCallback((currentIntensity: Intensity) => {
+  const playCatchphrase = useCallback(() => {
     if (catchphraseCooldownRef.current) return
     catchphraseCooldownRef.current = true
     setTimeout(() => { catchphraseCooldownRef.current = false }, 3000)
@@ -190,9 +166,8 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     setShowTagline(true)
     setBillSpeaking(true)
 
-    const cpKey = CATCHPHRASE_FILES[currentIntensity]
-    const audio = preloadedAudioRef.current[cpKey] ?? new Audio(cpKey)
-    audio.currentTime = CATCHPHRASE_START[cpKey] ?? 0
+    const audio = preloadedAudioRef.current[CATCHPHRASE_FILE] ?? new Audio(CATCHPHRASE_FILE)
+    audio.currentTime = CATCHPHRASE_START
     currentAudio = audio  // register so speakText can cancel it too
     const onFinish = () => {
       if (currentAudio === audio) currentAudio = null
@@ -202,14 +177,14 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     audio.onended = onFinish
     audio.onerror = onFinish
     audio.play().catch(onFinish)
-  }, [CATCHPHRASE_FILES])
+  }, [])
 
   // Listen for CTA button event from homepage
   useEffect(() => {
-    const handler = () => playCatchphrase(intensity)
+    const handler = () => playCatchphrase()
     window.addEventListener('wb-yeahdoodle', handler)
     return () => window.removeEventListener('wb-yeahdoodle', handler)
-  }, [intensity, playCatchphrase])
+  }, [playCatchphrase])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -434,7 +409,6 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
     ],
   } as const
 
-  const intensityLevel = INTENSITY_LEVELS[intensity]
 
   return (
     <>
@@ -482,24 +456,6 @@ export default function WildBill({ city, eventContext }: WildBillProps) {
               <div className="text-white/50 text-xs truncate">
                 {billSpeaking ? '🔊 Speaking...' : streaming ? 'Scouting...' : 'Your adventure guide'}
               </div>
-            </div>
-
-            {/* Intensity dial */}
-            <div className="flex items-center gap-0.5 bg-black/30 rounded-lg p-0.5" title="Wild Bill's energy level">
-              {INTENSITY_LEVELS.map((lvl, i) => (
-                <button
-                  key={lvl.label}
-                  onClick={() => saveIntensity(i as Intensity)}
-                  title={lvl.label}
-                  className={`text-xs px-1.5 py-0.5 rounded-md transition-all font-medium ${
-                    intensity === i
-                      ? 'bg-yd-orange text-white shadow-sm'
-                      : 'text-white/40 hover:text-white/70'
-                  }`}
-                >
-                  {lvl.label}
-                </button>
-              ))}
             </div>
 
             <button
