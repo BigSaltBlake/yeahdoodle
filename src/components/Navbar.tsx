@@ -43,11 +43,11 @@ export default function Navbar() {
       <nav className="sticky top-0 z-40 bg-yd-bg/95 backdrop-blur border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           {/* Logo */}
-          <Link href="/" className="flex flex-col leading-tight shrink-0">
-            <span className="font-display text-xl text-yd-orange tracking-wide">YeahDoodle</span>
-            <span className="text-[11px] text-white/55 tracking-wide font-light">
-              = Go Live. <em>Go Live.</em>
-            </span>
+          {/* Logo: "YeahDoodle Go Live. Go Live." on one line, same size; the
+              second "Go Live." is italic (go out and live / go to the live thing) */}
+          <Link href="/" className="font-display text-base sm:text-xl tracking-wide whitespace-nowrap shrink-0">
+            <span className="text-yd-orange">YeahDoodle</span>{' '}
+            <span className="text-white">Go Live. <em>Go Live.</em></span>
           </Link>
 
           {/* Nav links */}
@@ -84,9 +84,10 @@ export default function Navbar() {
               <button
                 onClick={handleFreshSlate}
                 title="Wipe your history and start fresh"
-                className="text-xs text-white/40 hover:text-white/70 transition-colors px-2 py-1.5 rounded-lg hover:bg-white/5"
+                aria-label="Fresh Slate: wipe your history and start fresh"
+                className="text-xs text-white/40 hover:text-white/70 transition-colors px-2 py-1.5 rounded-lg hover:bg-white/5 whitespace-nowrap"
               >
-                🧹 Fresh Slate
+                🧹<span className="hidden sm:inline"> Fresh Slate</span>
               </button>
             )}
 

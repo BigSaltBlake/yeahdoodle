@@ -244,12 +244,12 @@ const QUESTIONS_GENERIC: Question[] = [
     subtitle: 'Pick your vibe',
     layout: 'chips',
     options: [
-      { label: 'Go eat',      desc: 'Dining, drinks, food experiences',   emoji: '🍽️', quality: 'Food & drink'  },
-      { label: 'Go listen',   desc: 'Live music, concerts, DJ nights',     emoji: '🎵', quality: 'Live music'    },
-      { label: 'Go out',      desc: 'Bars, rooftops, social scene',        emoji: '🥂', quality: 'Nightlife'     },
-      { label: 'Go move',     desc: 'Dancing, outdoor sports, active fun', emoji: '⚡', quality: 'Active'        },
-      { label: 'Go see',      desc: 'Comedy, theatre, film, sports, art',  emoji: '🎭', quality: 'Shows & arts'  },
-      { label: 'Surprise me', desc: "Show me what's out there",           emoji: '✨', quality: 'Discovery'     },
+      { label: 'Go eat',      desc: '', emoji: '🍽️', quality: 'Food & drink'  },
+      { label: 'Go listen',   desc: '', emoji: '🎵', quality: 'Live music'    },
+      { label: 'Go out',      desc: '', emoji: '🥂', quality: 'Nightlife'     },
+      { label: 'Go move',     desc: '', emoji: '⚡', quality: 'Active'        },
+      { label: 'Go see',      desc: '', emoji: '🎭', quality: 'Shows & arts'  },
+      { label: 'Surprise me', desc: '', emoji: '✨', quality: 'Discovery'     },
     ],
   },
   Q_KILLSWITCH,
@@ -880,7 +880,7 @@ const prefetchAnswersRef = useRef<string[]>([])
                     <span className="text-xl shrink-0">{opt.emoji}</span>
                     <div className="min-w-0">
                       <div className="font-semibold text-white text-sm leading-tight">{opt.label}</div>
-                      <p className="text-white/35 text-[11px] group-hover:text-white/55 transition-colors leading-tight mt-0.5 line-clamp-1">{opt.desc}</p>
+                      {opt.desc && <p className="text-white/35 text-[11px] group-hover:text-white/55 transition-colors leading-tight mt-0.5 line-clamp-1">{opt.desc}</p>}
                     </div>
                   </button>
                 ))}
@@ -901,7 +901,7 @@ const prefetchAnswersRef = useRef<string[]>([])
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="font-semibold text-white text-sm">{opt.label}</span>
                       </div>
-                      <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors">{opt.desc}</p>
+                      {opt.desc && <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors">{opt.desc}</p>}
                     </div>
                     <span className="text-white/20 group-hover:text-yd-orange transition-colors shrink-0">→</span>
                   </button>

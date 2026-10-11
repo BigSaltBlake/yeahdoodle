@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchNearbyVenues, FOOD_TYPE_GROUPS, VENUE_TYPE_GROUPS } from '@/lib/google-places'
+import { isChain } from '@/lib/chains'
 import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
 
 // ---------------------------------------------------------------------------
@@ -422,6 +423,7 @@ export async function POST(req: NextRequest) {
 
     // -- Google Places open-now venues --
     const placesNearby = openPlaces
+      .filter(p => !isChain(p.title))
       .map(p => {
         const miles = p.miles ?? 0
         const driveMin = miles < 0.3 ? 2 : Math.max(2, Math.round(((miles / 28) * 60) / 5) * 5)

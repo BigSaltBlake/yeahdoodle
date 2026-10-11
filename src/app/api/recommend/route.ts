@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
 import { searchNearbyVenues, FOOD_TYPE_GROUPS, lastGooglePlacesError } from '@/lib/google-places'
 import { getCuratedVenues } from '@/lib/curated-venues'
+import { isChain } from '@/lib/chains'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -909,6 +910,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
   return results
 }
 
+
 // ---------------------------------------------------------------------------
 // Matching the AI's picks back to candidate rows
 // ---------------------------------------------------------------------------
@@ -1268,6 +1270,11 @@ export async function POST(req: NextRequest) {
     // Curated venues + Google Places float to the front — highest-quality date-night signals
     let rows: EventRow[] = [...curatedUnique, ...googleUnique, ...uniqueLive, ...dbRows, ...profileUnique]
 
+    // Never offer a chain restaurant/venue — fewer picks beats a generic one
+    const beforeChains = rows.length
+    rows = rows.filter(r => !isChain(r.title) && !(r.source === 'activity' && isChain(r.venue_name)))
+    if (debugInfo) debugInfo.chainsRemoved = beforeChains - rows.length
+
     // Category relevance: if they asked for food, show food. When we have enough
     // on-topic candidates, the AI never sees the off-topic ones; otherwise they
     // are kept as backup but sorted last.
@@ -1551,6 +1558,7 @@ ${pitchGuidance}
 6. BE ACCURATE — Never invent facts. Only say "tonight" or "today" for entries marked (TODAY); say "tomorrow" only for (TOMORROW); otherwise name the day. Never claim something is close, walkable or "right here" unless its distance says so. Entries with no fixed time are venues: don't call them events.
 
 7. ONE PLACE PER PITCH — Each pitch describes only the entry you picked. Never mention or borrow details from any other entry.
+8. LOCAL GEMS ONLY — YeahDoodle exists to find the local, independent, one-of-a-kind spot a friend who lives here would take them to. Never pick a national or regional chain or anything generic. If fewer than 3 entries are genuinely worth it, return fewer — an empty slot beats a forgettable pick.
 
 Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry's number from the list and "title" is that entry's title copied exactly:
 [
