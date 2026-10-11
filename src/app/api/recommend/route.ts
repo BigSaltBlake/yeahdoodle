@@ -1124,7 +1124,7 @@ export async function POST(req: NextRequest) {
     // Google Places (New): high-quality venue signals — requires GOOGLE_PLACES_API_KEY
     const googlePlacesPromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
       ? searchNearbyVenues(wantsFoodOnly
-          ? { lat, lng, maxResults: 9, radiusMeters: 25000, typeGroups: FOOD_TYPE_GROUPS }
+          ? { lat, lng, maxResults: 15, radiusMeters: 25000, typeGroups: FOOD_TYPE_GROUPS }
           : { lat, lng, maxResults: 9 })
           .then(rows => rows as EventRow[])
           .catch(() => [] as EventRow[])
@@ -1275,13 +1275,12 @@ export async function POST(req: NextRequest) {
     rows = rows.filter(r => !isChain(r.title) && !(r.source === 'activity' && isChain(r.venue_name)))
     if (debugInfo) debugInfo.chainsRemoved = beforeChains - rows.length
 
-    // Category relevance: if they asked for food, show food. When we have enough
-    // on-topic candidates, the AI never sees the off-topic ones; otherwise they
-    // are kept as backup but sorted last.
+    // Category relevance: if they asked for food, show food. Off-topic entries
+    // are never used to pad the list — two great picks beat three with filler.
+    // (Only when nothing on-topic exists do the fallbacks below take over.)
     if (catHints) {
-      const onTopic  = rows.filter(r => catHints.includes(r.category))
-      const offTopic = rows.filter(r => !catHints.includes(r.category))
-      rows = onTopic.length >= 3 ? onTopic : [...onTopic, ...offTopic]
+      const onTopic = rows.filter(r => catHints.includes(r.category))
+      if (onTopic.length > 0) rows = onTopic
       if (debugInfo) debugInfo.onTopic = onTopic.length
     }
 
@@ -1550,7 +1549,7 @@ ${eventList}
 ${missionLine}
 
 Follow every rule:
-1. SCRATCH THE ITCH — They said "${expType}". Every pick must deliver exactly that — no substitutes, no watered-down versions.${catHints ? ` Only pick entries whose category is ${catHints.join(' or ')} unless fewer than 3 such entries exist.` : ''}
+1. SCRATCH THE ITCH — They said "${expType}". Every pick must deliver exactly that — no substitutes, no watered-down versions.${catHints ? ` Only pick entries whose category is ${catHints.join(' or ')} — if fewer than 3 qualify, return fewer.` : ''}
 2. KILL THE DEALBREAKER — They want to avoid "${killSwitch}". Any pick that even hints at this is disqualified, no exceptions.
 3. ${timeframeInstruction}
 ${pitchGuidance}
@@ -1558,7 +1557,7 @@ ${pitchGuidance}
 6. BE ACCURATE — Never invent facts. Only say "tonight" or "today" for entries marked (TODAY); say "tomorrow" only for (TOMORROW); otherwise name the day. Never claim something is close, walkable or "right here" unless its distance says so. Entries with no fixed time are venues: don't call them events.
 
 7. ONE PLACE PER PITCH — Each pitch describes only the entry you picked. Never mention or borrow details from any other entry.
-8. LOCAL GEMS ONLY — YeahDoodle exists to find the local, independent, one-of-a-kind spot a friend who lives here would take them to. Never pick a national or regional chain or anything generic. If fewer than 3 entries are genuinely worth it, return fewer — an empty slot beats a forgettable pick.
+8. LOCAL GEMS ONLY — YeahDoodle exists to find the local, independent, one-of-a-kind spot a friend who lives here would take them to. Never pick a national or regional chain or anything generic. If fewer than 3 entries are genuinely worth it, return fewer — an empty slot beats a forgettable pick. Never mention chains or compare a pick to them.
 
 Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry's number from the list and "title" is that entry's title copied exactly:
 [
