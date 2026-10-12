@@ -65,6 +65,10 @@ export interface PlaceEventRow {
   address?: string
   lat?: number
   lng?: number
+  /** Google price level 1 ($) – 4 ($$$$), when Google knows it */
+  priceTier?: number
+  /** Takes reservations */
+  reservable?: boolean
   /** Straight-line distance from the searcher, in miles */
   miles?: number
 }
@@ -332,6 +336,8 @@ export function googlePlaceToRow(
     lat:          place.location.latitude,
     lng:          place.location.longitude,
     miles:        km * 0.621371,
+    priceTier:    place.priceLevel ? numericPriceLevel(place.priceLevel) : undefined,
+    reservable:   place.reservable,
   }
 }
 

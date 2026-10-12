@@ -27,6 +27,44 @@ interface EventRow {
   tz?: string
   /** Listing gave a day but no start time */
   dateOnly?: boolean
+  /** 1 ($) – 4 ($$$$): Google's price level, or derived from ticket price */
+  priceTier?: number
+  /** Venue takes reservations (Google) */
+  reservable?: boolean
+  /** Set when this entry breaks the visitor's dealbreaker and is only here to fill a slot */
+  bendsDealbreaker?: boolean
+}
+
+/** Ticket price → rough $–$$$$ tier, so events and venues compare the same way */
+function tierFromPrice(price: number | null | undefined): number | undefined {
+  if (price == null) return undefined
+  return price <= 25 ? 1 : price <= 60 ? 2 : price <= 120 ? 3 : 4
+}
+
+// ---------------------------------------------------------------------------
+// Dealbreakers are enforced with data where we have it. If at least 3 options
+// clear the dealbreaker, the rest are dropped; if fewer do, the gap may be
+// filled with options that bend it — always with a note saying so.
+// ---------------------------------------------------------------------------
+const BIG_VENUE = /\b(arena|stadium|amphitheat(er|re)|coliseum|speedway|fairgrounds|ballpark|field house|event center|events center)\b/i
+
+const DEALBREAKERS: Record<string, { breaks: (r: EventRow) => boolean; note: string }> = {
+  'too pricey': {
+    breaks: r => (r.priceTier ?? tierFromPrice(r.price_min) ?? 0) >= 3,
+    note: "I know “too pricey” is a dealbreaker, but here's another option, just in case.",
+  },
+  'needs a reservation': {
+    breaks: r => r.reservable === true,
+    note: "I know needing a reservation is a dealbreaker, but here's another option, just in case — it may have walk-in space.",
+  },
+  'massive crowds': {
+    breaks: r => r.source === 'live' && BIG_VENUE.test(`${r.venue_name ?? ''} ${r.title}`),
+    note: "I know big crowds are a dealbreaker, but here's another option, just in case.",
+  },
+}
+
+function dealbreakerFor(answer: string | undefined) {
+  return answer ? DEALBREAKERS[answer.trim().toLowerCase()] : undefined
 }
 
 interface CityQuery {
@@ -752,6 +790,7 @@ async function fetchTicketmasterLive(
             date_start:   dateIso,
             is_free:      isFree,
             price_min:    isFree ? 0 : priceMin,
+            priceTier:    isFree ? 1 : tierFromPrice(priceMin),
             price_max:    priceMax,
             category,
             ticket_url:   (e.url as string | null) ?? null,
@@ -889,6 +928,7 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
               dateOnly,
               is_free: isFree,
               price_min: isFree ? 0 : price,
+              priceTier: isFree ? 1 : tierFromPrice(price),
               price_max: null,
               category: inferCategory(title + ' ' + ((e.description as string) ?? '')),
               ticket_url: (ticketInfo?.[0]?.link ?? e.link ?? null) as string | null,
@@ -1284,6 +1324,19 @@ export async function POST(req: NextRequest) {
       if (debugInfo) debugInfo.onTopic = onTopic.length
     }
 
+    // Dealbreaker: drop what breaks it — unless that would leave fewer than 3,
+    // in which case just enough of them stay to fill, flagged for a disclaimer
+    const dealIdx = questionIds ? questionIds.indexOf('killswitch') : answers.length - 1
+    const dealbreaker = dealbreakerFor(answers[dealIdx])
+    if (dealbreaker) {
+      const clear = rows.filter(r => !dealbreaker.breaks(r))
+      const breaking = rows.filter(r => dealbreaker.breaks(r))
+      const fillers = clear.length >= 3 ? [] : breaking.slice(0, 3 - clear.length)
+      fillers.forEach(r => { r.bendsDealbreaker = true })
+      rows = [...clear, ...fillers]
+      if (debugInfo) debugInfo.dealbreaker = { clear: clear.length, removed: breaking.length - fillers.length, keptWithNote: fillers.length }
+    }
+
     // Safety net: if SerpAPI returned events but the past-event filter killed them all,
     // include everything (better to show something than nothing)
     if (rows.length < 3 && liveEvents.length > 0) {
@@ -1459,7 +1512,10 @@ Return ONLY a valid JSON array:
 
     const eventList = rows
       .map((r, i) => {
-        const price = r.price_min === 0 ? 'Free' : r.price_min ? `$${r.price_min}` : 'price unknown'
+        const price = r.price_min === 0 ? 'Free'
+                    : r.price_min ? `$${r.price_min}`
+                    : r.priceTier ? '$'.repeat(r.priceTier)
+                    : 'price unknown'
         const date  = r.date_start
           ? `${formatDate(r.date_start, r.tz ?? userTz, r.dateOnly)} (${relativeDay(r.date_start, r.tz ?? userTz)})`
           : 'No fixed time (venue/activity)'
@@ -1471,7 +1527,8 @@ Return ONLY a valid JSON array:
                     : r.id.startsWith('live_')     ? '[live]'
                     : '[db]'
         const dist  = r.distanceLabel ? ` | ${r.distanceLabel}` : ''
-        return `#${i + 1} ${src} | ${r.title} | ${r.venue_name ?? 'Local venue'} | ${date} | ${price} | ${r.category}${dist}${desc ? ` | ${desc}` : ''}`
+        const bends = r.bendsDealbreaker ? ' [BENDS DEALBREAKER]' : ''
+        return `#${i + 1} ${src}${bends} | ${r.title} | ${r.venue_name ?? 'Local venue'} | ${date} | ${price} | ${r.category}${dist}${desc ? ` | ${desc}` : ''}`
       })
       .join('\n')
 
@@ -1558,6 +1615,7 @@ ${pitchGuidance}
 
 7. ONE PLACE PER PITCH — Each pitch describes only the entry you picked. Never mention or borrow details from any other entry.
 8. LOCAL GEMS ONLY — YeahDoodle exists to find the local, independent, one-of-a-kind spot a friend who lives here would take them to. Never pick a national or regional chain or anything generic. If fewer than 3 entries are genuinely worth it, return fewer — an empty slot beats a forgettable pick. Never mention chains or compare a pick to them.
+9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot, and if you do, its pitch must start by owning it, e.g. "I know ${killSwitch.toLowerCase()} is a dealbreaker, but just in case —". Never call a marked entry cheap, quiet or walk-in.
 
 Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry's number from the list and "title" is that entry's title copied exactly:
 [
@@ -1583,6 +1641,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         category:       r.category,
         source:         r.source,
         distanceLabel:  r.distanceLabel,
+        dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
       }))
       await enrichPickImages(top3)
       return NextResponse.json({ ...dbg(), picks: top3 })
@@ -1614,6 +1673,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl: r.ticket_url, imageUrl: r.image_url ?? fallbackImg(r.category),
         category: r.category, source: r.source, distanceLabel: r.distanceLabel,
+        dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
       }))
       await enrichPickImages(fb)
       const errBody = await aiRes.text().catch(() => '')
@@ -1636,6 +1696,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
         ticketUrl: r.ticket_url, imageUrl: r.image_url ?? fallbackImg(r.category),
         category: r.category, source: r.source, distanceLabel: r.distanceLabel,
+        dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
       }))
       await enrichPickImages(fb)
       return NextResponse.json({ ...dbg(), picks: fb, fallbackReason: 'ai_no_json' })
@@ -1661,6 +1722,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
           category:       r.category,
           source:         r.source,
           distanceLabel:  r.distanceLabel,
+          dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
         }
       })
 
@@ -1679,6 +1741,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         category:       r.category,
         source:         r.source,
         distanceLabel:  r.distanceLabel,
+        dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
       }))
       await enrichPickImages(fallback)
       return NextResponse.json({ ...dbg(), picks: fallback, fallbackReason: `ai_unmatched: ${aiPicks.map(p => p.n ?? p.id).slice(0, 3).join(',')}` })

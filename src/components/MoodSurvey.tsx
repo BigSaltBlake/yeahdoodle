@@ -17,6 +17,8 @@ interface Pick {
   category: string
   source?: string
   distanceLabel?: string
+  /** Present when this pick bends the visitor's dealbreaker to fill a slot */
+  dealbreakerNote?: string
 }
 
 interface Props {
@@ -1150,6 +1152,9 @@ const prefetchAnswersRef = useRef<string[]>([])
                     )}
                     {pick.distanceLabel && (
                       <span className="text-xs text-[#4f9b85]/80 block">📍 {pick.distanceLabel}</span>
+                    )}
+                    {pick.dealbreakerNote && (
+                      <span className="text-xs text-amber-300/90 block mt-0.5">⚠️ {pick.dealbreakerNote}</span>
                     )}
                     <span className="text-xs text-white/40 block italic">{pick.pitch}</span>
                     <div className="flex gap-2 mt-1">

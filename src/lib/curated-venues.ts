@@ -49,6 +49,8 @@ export interface CuratedEventRow {
   ai_description: string | null
   distanceLabel: string
   source: 'activity'
+  priceTier?: number
+  reservable?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +125,8 @@ function venueToRow(
     ai_description: null,
     distanceLabel:  distLabel,
     source:         'activity',
+    priceTier:      /^\$+$/.test(venue.price_level ?? '') ? venue.price_level!.length : undefined,
+    reservable:     !!venue.reservation_url,
   }
 }
 
