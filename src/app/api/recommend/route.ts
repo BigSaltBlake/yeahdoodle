@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
 import { searchNearbyVenues, FOOD_TYPE_GROUPS, lastGooglePlacesError } from '@/lib/google-places'
 import { getCuratedVenues } from '@/lib/curated-venues'
+import { getNearbySecrets } from '@/lib/local-secrets'
 import { isChain } from '@/lib/chains'
 
 // ---------------------------------------------------------------------------
@@ -33,6 +34,8 @@ interface EventRow {
   reservable?: boolean
   /** Set when this entry breaks the visitor's dealbreaker and is only here to fill a slot */
   bendsDealbreaker?: boolean
+  /** Local secret details (source 'secret') */
+  secret?: { access: string | null; bestTime: string | null; cautions: string | null }
 }
 
 /** Ticket price → rough $–$$$$ tier, so events and venues compare the same way */
@@ -1230,6 +1233,13 @@ export async function POST(req: NextRequest) {
           .catch(() => [] as EventRow[])
       : Promise.resolve([] as EventRow[])
 
+    // Local secrets: hidden spots anyone has shared, within ~40 miles
+    const secretsPromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
+      ? getNearbySecrets({ lat, lng })
+          .then(rows => rows as EventRow[])
+          .catch(() => [] as EventRow[])
+      : Promise.resolve([] as EventRow[])
+
     let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
     if (isSupabaseConfigured() && resolvedCity) {
       let q = supabase
@@ -1248,9 +1258,9 @@ export async function POST(req: NextRequest) {
       dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
-    const [liveEvents, dbRows, placeProfile, googleRows, curatedRows] = await Promise.all([
+    const [liveEvents, dbRows, placeProfile, googleRows, curatedRows, secretRows] = await Promise.all([
       liveEventsPromise, dbRowsPromise, profilePromise,
-      googlePlacesPromise, curatedPromise,
+      googlePlacesPromise, curatedPromise, secretsPromise,
     ])
 
     // Opt-in diagnostics: counts only, so it is safe to return to any caller
@@ -1259,7 +1269,7 @@ export async function POST(req: NextRequest) {
       timeframe, window: { start: dateStart.toISOString(), end: dateEnd.toISOString() },
       counts: {
         live: liveEvents.length, db: dbRows.length,
-        google: googleRows.length, curated: curatedRows.length,
+        google: googleRows.length, curated: curatedRows.length, secrets: secretRows.length,
       },
       keys: {
         google: !!process.env.GOOGLE_PLACES_API_KEY,
@@ -1461,6 +1471,10 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 6c. Final filters — run after every backfill step so nothing undoes them ─
+    // Local secrets go first (added here so no backfill above can drop them);
+    // the filters below still decide whether they fit this request
+    rows = [...secretRows, ...rows.filter(r => r.source !== 'secret')]
+
     // Never offer a chain restaurant/venue — fewer picks beats a generic one
     const beforeChains = rows.length
     rows = rows.filter(r => !isChain(r.title) && !(r.source === 'activity' && isChain(r.venue_name)))
@@ -1562,15 +1576,18 @@ Return ONLY a valid JSON array:
 
     const eventList = rows
       .map((r, i) => {
-        const price = r.price_min === 0 ? 'Free'
+        const price = r.source === 'secret' ? 'price varies'
+                    : r.price_min === 0 ? 'Free'
                     : r.price_min ? `$${r.price_min}`
                     : r.priceTier ? '$'.repeat(r.priceTier)
                     : 'price unknown'
         const date  = r.date_start
           ? `${formatDate(r.date_start, r.tz ?? userTz, r.dateOnly)} (${relativeDay(r.date_start, r.tz ?? userTz)})`
+          : r.source === 'secret' ? 'No fixed time (place)'
           : 'No fixed time (venue/activity)'
         const desc  = r.ai_description ?? r.description?.slice(0, 150) ?? ''
-        const src   = r.id.startsWith('curated-') ? '[curated]'
+        const src   = r.source === 'secret'        ? '[LOCAL SECRET]'
+                    : r.id.startsWith('curated-') ? '[curated]'
                     : r.id.startsWith('gplace-')  ? '[google]'
                     : r.source === 'activity'      ? '[activity]'
                     : r.source === 'facebook'      ? '[facebook]'
@@ -1632,6 +1649,10 @@ Return ONLY a valid JSON array:
       ? ' Entries tagged [curated] are hand-picked YeahDoodle date-night gems — they have extra credibility and are verified great for couples. Strongly prefer them when they match the vibe.'
       : ''
 
+    const secretNote = rows.some(r => r.source === 'secret')
+      ? `\n10. LOCAL SECRETS — Entries tagged [LOCAL SECRET] are hidden spots shared by people who know the area: exactly what YeahDoodle exists to find. When one genuinely fits what they asked for, pick it first. Its card shows how to get there, so the pitch sells the experience — never invent directions, hours or prices.`
+      : ''
+
     const isDateMode = ['date-night', 'couple', 'first-date'].includes(mode) || (!mode && isDeepSurvey)
     const nowLocal = new Date().toLocaleString('en-US', {
       timeZone: userTz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -1671,7 +1692,7 @@ ${pitchGuidance}
 
 7. ONE PLACE PER PITCH — Each pitch describes only the entry you picked. Never mention or borrow details from any other entry.
 8. LOCAL GEMS ONLY — YeahDoodle exists to find the local, independent, one-of-a-kind spot a friend who lives here would take them to. Never pick a national or regional chain or anything generic. If fewer than 3 entries are genuinely worth it, return fewer — an empty slot beats a forgettable pick. Never mention chains or compare a pick to them.
-9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot. Its card already carries a note owning that, so the pitch must sell what makes it worth it — never claim the opposite of the dealbreaker (no "cheap", "no reservation needed", "quiet" for those).
+9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot. Its card already carries a note owning that, so the pitch must sell what makes it worth it — never claim the opposite of the dealbreaker (no "cheap", "no reservation needed", "quiet" for those).${secretNote}
 
 Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry's number from the list and "title" is that entry's title copied exactly:
 [
@@ -1698,6 +1719,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         source:         r.source,
         distanceLabel:  r.distanceLabel,
         dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
+        secret: r.secret,
       }))
       await enrichPickImages(top3)
       return NextResponse.json({ ...dbg(), picks: top3 })
@@ -1730,6 +1752,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         ticketUrl: r.ticket_url, imageUrl: r.image_url ?? fallbackImg(r.category),
         category: r.category, source: r.source, distanceLabel: r.distanceLabel,
         dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
+        secret: r.secret,
       }))
       await enrichPickImages(fb)
       const errBody = await aiRes.text().catch(() => '')
@@ -1753,6 +1776,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         ticketUrl: r.ticket_url, imageUrl: r.image_url ?? fallbackImg(r.category),
         category: r.category, source: r.source, distanceLabel: r.distanceLabel,
         dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
+        secret: r.secret,
       }))
       await enrichPickImages(fb)
       return NextResponse.json({ ...dbg(), picks: fb, fallbackReason: 'ai_no_json' })
@@ -1779,6 +1803,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
           source:         r.source,
           distanceLabel:  r.distanceLabel,
           dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
+          secret: r.secret,
         }
       })
 
@@ -1798,6 +1823,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         source:         r.source,
         distanceLabel:  r.distanceLabel,
         dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
+        secret: r.secret,
       }))
       await enrichPickImages(fallback)
       return NextResponse.json({ ...dbg(), picks: fallback, fallbackReason: `ai_unmatched: ${aiPicks.map(p => p.n ?? p.id).slice(0, 3).join(',')}` })

@@ -55,6 +55,7 @@ export default function Navbar() {
             {navLink('/', 'Home')}
             {navLink('/discover', 'Discover')}
             {navLink('/saved', 'Saved')}
+            {navLink('/share', '🗝️ Share a secret')}
           </div>
 
           {/* Right side actions */}
@@ -121,6 +122,7 @@ export default function Navbar() {
         {navLink('/', 'Home')}
         {navLink('/discover', 'Discover')}
         {navLink('/saved', 'Saved')}
+        {navLink('/share', '🗝️ Share a secret')}
       </div>
 
       {/* Auth modal */}

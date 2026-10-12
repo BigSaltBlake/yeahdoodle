@@ -19,6 +19,8 @@ interface Pick {
   distanceLabel?: string
   /** Present when this pick bends the visitor's dealbreaker to fill a slot */
   dealbreakerNote?: string
+  /** Present when this pick is a local secret someone shared */
+  secret?: { access: string | null; bestTime: string | null; cautions: string | null }
 }
 
 interface Props {
@@ -1203,7 +1205,17 @@ const prefetchAnswersRef = useRef<string[]>([])
                       <span className="text-xs text-amber-300/90 block mt-0.5">⚠️ {pick.dealbreakerNote}</span>
                     )}
                     <span className="text-xs text-white/40 block italic">{pick.pitch}</span>
+                    {pick.secret && (pick.secret.access || pick.secret.bestTime || pick.secret.cautions) && (
+                      <div className="mt-1.5 bg-yd-yellow/5 border border-yd-yellow/20 rounded-lg px-2.5 py-2 space-y-0.5">
+                        {pick.secret.access && <span className="text-xs text-white/70 block">🧭 {pick.secret.access}</span>}
+                        {pick.secret.bestTime && <span className="text-xs text-white/60 block">⏰ Best: {pick.secret.bestTime}</span>}
+                        {pick.secret.cautions && <span className="text-xs text-amber-300/90 block">⚠️ {pick.secret.cautions}</span>}
+                      </div>
+                    )}
                     <div className="flex gap-2 mt-1">
+                      {pick.source === 'secret' && (
+                        <span className="bg-yd-yellow/20 text-yd-yellow rounded px-1.5 py-0.5 text-[10px] font-medium">🗝️ Local secret</span>
+                      )}
                       {pick.source === 'activity' && pick.category && (
                         <span className="bg-emerald-500/20 text-emerald-400/90 rounded px-1.5 py-0.5 text-[10px] font-medium">{pick.category}</span>
                       )}
@@ -1215,7 +1227,7 @@ const prefetchAnswersRef = useRef<string[]>([])
                           className="text-xs font-medium text-[#4f9b85] hover:text-[#3d8372] transition-colors"
                           onClick={() => capture('ticket_clicked', { event_id: pick.id, title: pick.title, city, rank: pick.rank })}
                         >
-                          Let&apos;s go →
+                          {pick.source === 'secret' ? 'Map it →' : <>Let&apos;s go →</>}
                         </a>
                       )}
                     </div>
@@ -1238,6 +1250,10 @@ const prefetchAnswersRef = useRef<string[]>([])
                 </div>
               ))}
             </div>
+
+            <a href="/share" className="block text-center text-xs text-white/40 hover:text-yd-yellow mt-3 transition-colors">
+              🗝️ Know a hidden spot around here? Share a local secret →
+            </a>
 
             {/* Survey history consent banner */}
             {showHistConsent && (
