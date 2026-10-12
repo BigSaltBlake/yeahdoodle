@@ -270,6 +270,19 @@ function getQuestions(mode: string): Question[] {
   }
 }
 
+/** 11 PM – 5 AM on the visitor's clock: almost nothing is open, so ask what they're after */
+function isLateNight(): boolean {
+  const h = new Date().getHours()
+  return h >= 23 || h < 5
+}
+
+const LATE_NIGHT_OPTIONS: Array<{ label: string; desc: string; emoji: string; when: string }> = [
+  { label: 'Right now',       desc: 'Still up and ready to go',    emoji: '🌙', when: 'Now' },
+  { label: 'Tomorrow',        desc: 'The next open evening',       emoji: '🌅', when: 'Tomorrow' },
+  { label: 'Later this week', desc: 'Another day this week',       emoji: '📅', when: 'This Week' },
+  { label: 'Just exploring',  desc: "What's great here, anytime",  emoji: '🧭', when: 'Anytime' },
+]
+
 function visitorTimeZone(): string | undefined {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return undefined }
 }
@@ -314,7 +327,7 @@ const LOADING_MESSAGES = [
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
-type Phase = 'locating' | 'city' | 'confirm-location' | 'returning' | 'question' | 'loading' | 'results' | 'empty'
+type Phase = 'locating' | 'city' | 'confirm-location' | 'late-night' | 'returning' | 'question' | 'loading' | 'results' | 'empty'
 type EmailState = 'idle' | 'loading' | 'done' | 'error'
 type FeedbackRating = 'up' | 'meh' | 'down'
 type SaveIntent = 'save_for_later' | 'definitely_going'
@@ -407,7 +420,7 @@ const prefetchAnswersRef = useRef<string[]>([])
     setLastAnswers(savedAnswers)
 
     if (initialCity) {
-      setPhase(returnHist ? 'returning' : 'question')
+      setPhase(isLateNight() ? 'late-night' : returnHist ? 'returning' : 'question')
       return
     }
 
@@ -454,10 +467,11 @@ const prefetchAnswersRef = useRef<string[]>([])
   }, [phase])
 
   // Trigger conversational refinement steps after results load
+  // (skip "When?" if the late-night prompt already answered it)
   useEffect(() => {
     if (phase !== 'results') return
     setRefineStep(null)
-    const t = setTimeout(() => setRefineStep('when'), 400)
+    const t = setTimeout(() => setRefineStep(filterWhen ? 'crew' : 'when'), 400)
     return () => clearTimeout(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
@@ -553,8 +567,8 @@ const prefetchAnswersRef = useRef<string[]>([])
     setAnswers(submittedAnswers)
     setPhase('loading')
     setLoadingMsg(0)
-    // Use prefetch cache if answers match
-    if (prefetchRef.current && JSON.stringify(prefetchAnswersRef.current) === JSON.stringify(submittedAnswers)) {
+    // Use prefetch cache if answers match (it was fetched without any time/budget/crew filter)
+    if (prefetchRef.current && !activeWhen && !activeBudget && !activeCrew && JSON.stringify(prefetchAnswersRef.current) === JSON.stringify(submittedAnswers)) {
       const cached = prefetchRef.current
       prefetchRef.current = null
       setPicks(cached)
@@ -772,6 +786,38 @@ const prefetchAnswersRef = useRef<string[]>([])
         )}
 
   
+      {/* ── Late night: say so, and ask what they're after ─────────────────── */}
+      {phase === 'late-night' && (
+        <div className="p-6 sm:p-8">
+          <div className="text-4xl mb-3 text-center">🌙</div>
+          <h2 className="font-display text-xl text-white mb-2 text-center">Burning the midnight oil?</h2>
+          <p className="text-white/60 text-sm mb-6 leading-relaxed">
+            I&apos;m going to assume that since you&apos;re searching in the middle of the night, you&apos;re
+            curious generally, or looking for the next open evening or another day this week.
+            To tailor your picks, which of these suits your situation best?
+          </p>
+          <div className="grid grid-cols-2 gap-2.5">
+            {LATE_NIGHT_OPTIONS.map(o => (
+              <button
+                key={o.when}
+                onClick={() => {
+                  capture('question_answered', { question_index: -1, answer: `late-night: ${o.label}` })
+                  setFilterWhen(o.when)
+                  setPhase(hasReturnHistory ? 'returning' : 'question')
+                }}
+                className="flex items-start gap-2.5 p-3 rounded-xl border border-white/10 hover:border-yd-orange/60 hover:bg-yd-orange/10 text-left transition-all"
+              >
+                <span className="text-xl shrink-0">{o.emoji}</span>
+                <div className="min-w-0">
+                  <div className="font-semibold text-white text-sm leading-tight">{o.label}</div>
+                  <p className="text-white/40 text-[11px] leading-tight mt-0.5">{o.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Confirm location ────────────────────────────────────────────────── */}
       {phase === 'confirm-location' && (
         <div className="p-8 text-center">
@@ -783,7 +829,7 @@ const prefetchAnswersRef = useRef<string[]>([])
               onClick={() => {
                 capture('location_confirmed', { city })
                 startPrefetch(city, lastAnswers || [])
-                setPhase(hasReturnHistory ? 'returning' : 'question')
+                setPhase(isLateNight() && !filterWhen ? 'late-night' : hasReturnHistory ? 'returning' : 'question')
               }}
               className="w-full bg-yd-orange hover:bg-yd-orangeHover text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
             >

@@ -388,11 +388,21 @@ function getDateRange(timeframe: string, tz: string): { start: Date; end: Date }
     const end = new Date(now.getTime() + 18 * 60 * 60 * 1000)
     return { start: now, end }
   }
-  // Legacy 'Tomorrow'
+  const DAY_MS = 86_400_000
+  const localHour = Number(now.toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }))
+  // 'Tomorrow' = the next open day. Asked at 1 AM, that's later today.
   if (timeframe === 'Tomorrow') {
-    const start = new Date(now.getTime() + 18 * 60 * 60 * 1000)
-    const end   = new Date(now.getTime() + 42 * 60 * 60 * 1000)
-    return { start, end }
+    const day = localHour < 5 ? today : new Date(today.getTime() + DAY_MS)
+    return { start: new Date(day.getTime() + 6 * 3_600_000), end: new Date(day.getTime() + 29 * 3_600_000) }
+  }
+  // 'This Week' = from the next open day through the next 7 days
+  if (timeframe === 'This Week') {
+    const day = localHour < 5 ? today : new Date(today.getTime() + DAY_MS)
+    return { start: new Date(day.getTime() + 6 * 3_600_000), end: new Date(day.getTime() + 7 * DAY_MS) }
+  }
+  // 'Anytime' = just exploring: standout things over the next month
+  if (timeframe === 'Anytime') {
+    return { start: now, end: new Date(now.getTime() + 30 * DAY_MS) }
   }
   // 'Soon' and legacy 'This weekend' — next Friday–Sunday
   if (timeframe === 'Soon' || timeframe === 'This weekend') {
@@ -1246,6 +1256,7 @@ export async function POST(req: NextRequest) {
     // Opt-in diagnostics: counts only, so it is safe to return to any caller
     const debugInfo: Record<string, unknown> | null = body.debug ? {
       resolvedCity, hasGps, mode, catHints,
+      timeframe, window: { start: dateStart.toISOString(), end: dateEnd.toISOString() },
       counts: {
         live: liveEvents.length, db: dbRows.length,
         google: googleRows.length, curated: curatedRows.length,
@@ -1594,10 +1605,16 @@ Return ONLY a valid JSON array:
     const killIdx = questionIds ? questionIds.indexOf('killswitch') : -1
     const killSwitch = (killIdx >= 0 ? answers[killIdx] : answers[answers.length - 1]) ?? ''
 
+    const hourNow = Number(new Date().toLocaleString('en-US', { timeZone: userTz, hour: 'numeric', hourCycle: 'h23' }))
+    const lateNight = hourNow >= 23 || hourNow < 5
     const timeframeInstruction =
+      timeframe === 'Now' && lateNight
+        ? "It's the middle of the night and they want something RIGHT NOW. Only pick things that are genuinely open or doable at this hour (24-hour diners, late-night spots, stargazing, a night drive, a sunrise viewpoint to head to). Be honest that options are thin — never pretend a closed place is open." :
       timeframe === 'Now'             ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
       timeframe === 'Tonight'         ? 'Prefer events happening TODAY or TONIGHT — prioritise the soonest options.' :
-      timeframe === 'Tomorrow'        ? 'Prefer events happening TOMORROW.' :
+      timeframe === 'Tomorrow'        ? 'They want the next open day (if it is after midnight, that means later today) — prefer daytime and evening plans for that day, not anything happening right now.' :
+      timeframe === 'This Week'       ? 'They are planning a day later this week — spread picks across the coming days and name the day for each event.' :
+      timeframe === 'Anytime'         ? 'They are just exploring what this place is great for — favor timeless local gems and standout upcoming events; no urgency, no "tonight" pressure.' :
       timeframe === 'Soon'            ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
       timeframe === 'This weekend'    ? 'Prefer events happening THIS WEEKEND (Friday–Sunday).' :
       timeframe === 'Next Week'       ? 'Prefer events happening NEXT WEEK (3–14 days from now).' :
