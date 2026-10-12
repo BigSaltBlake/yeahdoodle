@@ -309,7 +309,7 @@ function categoryHints(answers: string[], mode = ''): string[] | null {
 function answerCategoryHints(answers: string[]): string[] | null {
   const feeling = (answers[0] ?? '').toLowerCase()
   // Date-night taxonomy (current)
-  if (feeling.includes('dinner date'))    return ['Food & Drink', 'Community']
+  if (feeling.includes('dinner date'))    return ['Food & Drink']
   if (feeling.includes('drinks & vibes')) return ['Nightlife', 'Food & Drink']
   if (feeling.includes('live show'))      return ['Music', 'Arts & Culture', 'Comedy']
   if (feeling.includes('get outside'))    return ['Outdoors', 'Sports & Outdoors', 'Activities']
@@ -334,7 +334,7 @@ function answerCategoryHints(answers: string[]): string[] | null {
   // Foodie bank — every option is food
   if (/bold & new|comfort done right|quick & fresh|special experience|street & casual/.test(feeling)) return ['Food & Drink']
   // Legacy Go ___ taxonomy (backwards compat)
-  if (feeling.includes('go eat'))     return ['Food & Drink', 'Community']
+  if (feeling.includes('go eat'))     return ['Food & Drink']
   if (feeling.includes('go listen'))  return ['Music', 'Nightlife']
   if (feeling.includes('go out'))     return ['Nightlife', 'Food & Drink', 'Community']
   if (feeling.includes('go move'))    return ['Sports & Outdoors', 'Outdoors', 'Nightlife']
@@ -1034,10 +1034,25 @@ function matchPicksToRows<P extends { n?: number | string; id?: string; title?: 
     }
 
     if (used.has(idx)) continue
+    // Two locations of the same place (Slackwater SLC + Slackwater Sandy) count once
+    const brand = brandWord(rows[idx].title)
+    if (brand && out.some(o => brandWord(o.r.title) === brand)) continue
     used.add(idx)
     out.push({ p, r: rows[idx] })
   }
   return out
+}
+
+// Common first words that don't identify a business on their own
+const NON_BRAND_WORDS = new Set([
+  'little', 'grand', 'golden', 'royal', 'happy', 'great', 'south', 'north', 'west', 'east', 'rocky',
+  'mountain', 'valley', 'river', 'canyon', 'desert', 'summit', 'urban', 'downtown', 'historic',
+  'original', 'famous', 'classic', 'american', 'mexican', 'italian', 'french', 'japanese', 'chinese',
+])
+
+function brandWord(title: string): string | null {
+  const first = normName(title).replace(/^the /, '').split(' ')[0] ?? ''
+  return first.length >= 6 && !NON_BRAND_WORDS.has(first) ? first : null
 }
 
 // ---------------------------------------------------------------------------
@@ -1310,33 +1325,6 @@ export async function POST(req: NextRequest) {
     // Curated venues + Google Places float to the front — highest-quality date-night signals
     let rows: EventRow[] = [...curatedUnique, ...googleUnique, ...uniqueLive, ...dbRows, ...profileUnique]
 
-    // Never offer a chain restaurant/venue — fewer picks beats a generic one
-    const beforeChains = rows.length
-    rows = rows.filter(r => !isChain(r.title) && !(r.source === 'activity' && isChain(r.venue_name)))
-    if (debugInfo) debugInfo.chainsRemoved = beforeChains - rows.length
-
-    // Category relevance: if they asked for food, show food. Off-topic entries
-    // are never used to pad the list — two great picks beat three with filler.
-    // (Only when nothing on-topic exists do the fallbacks below take over.)
-    if (catHints) {
-      const onTopic = rows.filter(r => catHints.includes(r.category))
-      if (onTopic.length > 0) rows = onTopic
-      if (debugInfo) debugInfo.onTopic = onTopic.length
-    }
-
-    // Dealbreaker: drop what breaks it — unless that would leave fewer than 3,
-    // in which case just enough of them stay to fill, flagged for a disclaimer
-    const dealIdx = questionIds ? questionIds.indexOf('killswitch') : answers.length - 1
-    const dealbreaker = dealbreakerFor(answers[dealIdx])
-    if (dealbreaker) {
-      const clear = rows.filter(r => !dealbreaker.breaks(r))
-      const breaking = rows.filter(r => dealbreaker.breaks(r))
-      const fillers = clear.length >= 3 ? [] : breaking.slice(0, 3 - clear.length)
-      fillers.forEach(r => { r.bendsDealbreaker = true })
-      rows = [...clear, ...fillers]
-      if (debugInfo) debugInfo.dealbreaker = { clear: clear.length, removed: breaking.length - fillers.length, keptWithNote: fillers.length }
-    }
-
     // Safety net: if SerpAPI returned events but the past-event filter killed them all,
     // include everything (better to show something than nothing)
     if (rows.length < 3 && liveEvents.length > 0) {
@@ -1436,6 +1424,34 @@ export async function POST(req: NextRequest) {
           }
         }
       }
+    }
+
+    // ── 6c. Final filters — run after every backfill step so nothing undoes them ─
+    // Never offer a chain restaurant/venue — fewer picks beats a generic one
+    const beforeChains = rows.length
+    rows = rows.filter(r => !isChain(r.title) && !(r.source === 'activity' && isChain(r.venue_name)))
+    if (debugInfo) debugInfo.chainsRemoved = beforeChains - rows.length
+
+    // Category relevance: if they asked for food, show food. Off-topic entries
+    // are never used to pad the list — two great picks beat three with filler.
+    // With nothing on-topic, the knowledge fallback below suggests the right kind.
+    if (catHints) {
+      const onTopic = rows.filter(r => catHints.includes(r.category))
+      rows = onTopic
+      if (debugInfo) debugInfo.onTopic = onTopic.length
+    }
+
+    // Dealbreaker: drop what breaks it — unless that would leave fewer than 3,
+    // in which case just enough of them stay to fill, flagged for a disclaimer
+    const dealIdx = questionIds ? questionIds.indexOf('killswitch') : answers.length - 1
+    const dealbreaker = dealbreakerFor(answers[dealIdx])
+    if (dealbreaker) {
+      const clear = rows.filter(r => !dealbreaker.breaks(r))
+      const breaking = rows.filter(r => dealbreaker.breaks(r))
+      const fillers = clear.length >= 3 ? [] : breaking.slice(0, 3 - clear.length)
+      fillers.forEach(r => { r.bendsDealbreaker = true })
+      rows = [...clear, ...fillers]
+      if (debugInfo) debugInfo.dealbreaker = { clear: clear.length, removed: breaking.length - fillers.length, keptWithNote: fillers.length }
     }
 
     // ── 7a. Knowledge fallback — no DB results, ask Claude from memory ─────────
@@ -1611,7 +1627,7 @@ Follow every rule:
 3. ${timeframeInstruction}
 ${pitchGuidance}
 5. MIX IT UP — 2 picks that directly match their itch + 1 that surprises them while still matching it.${activityNote}${curatedNote}
-6. BE ACCURATE — Never invent facts. Only say "tonight" or "today" for entries marked (TODAY); say "tomorrow" only for (TOMORROW); otherwise name the day. Never claim something is close, walkable or "right here" unless its distance says so. Entries with no fixed time are venues: don't call them events.
+6. BE ACCURATE — Never invent facts. Only say "tonight" or "today" for entries marked (TODAY); say "tomorrow" only for (TOMORROW); otherwise name the day. Never claim something is close, walkable or "right here" unless its distance says so. Entries with no fixed time are venues: don't call them events. Never describe an entry as something it isn't — a concert is not a dinner, a band name is not a restaurant; if an entry doesn't fit the request, skip it.
 
 7. ONE PLACE PER PITCH — Each pitch describes only the entry you picked. Never mention or borrow details from any other entry.
 8. LOCAL GEMS ONLY — YeahDoodle exists to find the local, independent, one-of-a-kind spot a friend who lives here would take them to. Never pick a national or regional chain or anything generic. If fewer than 3 entries are genuinely worth it, return fewer — an empty slot beats a forgettable pick. Never mention chains or compare a pick to them.
