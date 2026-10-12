@@ -48,23 +48,46 @@ function tierFromPrice(price: number | null | undefined): number | undefined {
 // ---------------------------------------------------------------------------
 const BIG_VENUE = /\b(arena|stadium|amphitheat(er|re)|coliseum|speedway|fairgrounds|ballpark|field house|event center|events center)\b/i
 
-const DEALBREAKERS: Record<string, { breaks: (r: EventRow) => boolean; note: string }> = {
+type Dealbreaker = {
+  breaks: (r: EventRow) => boolean
+  /** Shown on the card of any pick that bends it */
+  note: string
+  /** Sentences in a bending pick's pitch that claim the opposite get removed */
+  contradicts: RegExp
+}
+
+const DEALBREAKERS: Record<string, Dealbreaker> = {
   'too pricey': {
     breaks: r => (r.priceTier ?? tierFromPrice(r.price_min) ?? 0) >= 3,
     note: "I know “too pricey” is a dealbreaker, but here's another option, just in case.",
+    contradicts: /\b(cheap|affordable|budget|low[- ]priced?|low prices|inexpensive|bargain|won'?t break the bank|easy on the wallet|\$ prices|fair price)\b/i,
   },
   'needs a reservation': {
     breaks: r => r.reservable === true,
     note: "I know needing a reservation is a dealbreaker, but here's another option, just in case — it may have walk-in space.",
+    contradicts: /\b(no reservations?( needed| required)?|without (calling|booking|a reservation)|walk[- ]?ins?( only| welcome)?|just show up|no need to book)\b/i,
   },
   'massive crowds': {
     breaks: r => r.source === 'live' && BIG_VENUE.test(`${r.venue_name ?? ''} ${r.title}`),
     note: "I know big crowds are a dealbreaker, but here's another option, just in case.",
+    contradicts: /\b(quiet|intimate|uncrowded|no crowds?|crowd[- ]free|low[- ]key|tucked away|hidden gem)\b/i,
   },
 }
 
 function dealbreakerFor(answer: string | undefined) {
   return answer ? DEALBREAKERS[answer.trim().toLowerCase()] : undefined
+}
+
+/**
+ * A pick that bends the dealbreaker carries the code-written note, so its
+ * pitch must never claim the opposite (e.g. "no reservation needed" on a place
+ * that takes reservations). Drop any sentence that does.
+ */
+function bendSafePitch(pitch: string, deal: Dealbreaker | undefined): string {
+  if (!deal) return pitch
+  const sentences = pitch.match(/[^.!?]+[.!?]*\s*/g) ?? [pitch]
+  const kept = sentences.filter(s => !deal.contradicts.test(s)).join('').trim()
+  return kept || 'Worth a look if you can stretch on this one.'
 }
 
 interface CityQuery {
@@ -1631,7 +1654,7 @@ ${pitchGuidance}
 
 7. ONE PLACE PER PITCH — Each pitch describes only the entry you picked. Never mention or borrow details from any other entry.
 8. LOCAL GEMS ONLY — YeahDoodle exists to find the local, independent, one-of-a-kind spot a friend who lives here would take them to. Never pick a national or regional chain or anything generic. If fewer than 3 entries are genuinely worth it, return fewer — an empty slot beats a forgettable pick. Never mention chains or compare a pick to them.
-9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot, and if you do, its pitch must start by owning it, e.g. "I know ${killSwitch.toLowerCase()} is a dealbreaker, but just in case —". Never call a marked entry cheap, quiet or walk-in.
+9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot. Its card already carries a note owning that, so the pitch must sell what makes it worth it — never claim the opposite of the dealbreaker (no "cheap", "no reservation needed", "quiet" for those).
 
 Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry's number from the list and "title" is that entry's title copied exactly:
 [
@@ -1728,7 +1751,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         return {
           id:             r.id,
           rank:           p.rank,
-          pitch:          p.pitch,
+          pitch:          r.bendsDealbreaker ? bendSafePitch(p.pitch, dealbreaker) : p.pitch,
           title:          r.title,
           venue:          r.venue_name ?? '',
           dateFormatted:  formatDate(r.date_start, r.tz ?? userTz, r.dateOnly),
