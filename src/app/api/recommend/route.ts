@@ -97,6 +97,9 @@ interface CityQuery {
   name: string
   distanceLabel: string
   isLocal: boolean
+  /** The town's own point, when we have it — saves re-geocoding a bare name */
+  lat?: number
+  lng?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +196,7 @@ async function reverseGeocode(lat: number, lng: number, zoom: number): Promise<G
   const timeoutId = setTimeout(() => controller.abort(), 5000)
   try {
     const url =
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}` +
+      `https://nominatim.openstreetmap.org/reverse?format=json&accept-language=en&lat=${lat}&lon=${lng}` +
       `&zoom=${zoom}&addressdetails=1`
     const res = await fetch(url, {
       headers: { 'User-Agent': 'YeahDoodle/1.0 (blake@saltcfo.com)' },
@@ -266,8 +269,8 @@ async function geocodeCity(query: string): Promise<{ lat: number; lng: number } 
   const timeoutId = setTimeout(() => controller.abort(), 5000)
   try {
     const url =
-      `https://nominatim.openstreetmap.org/search?format=json` +
-      `&q=${encodeURIComponent(query)}&countrycodes=us&limit=1&addressdetails=0`
+      `https://nominatim.openstreetmap.org/search?format=json&accept-language=en` +
+      `&q=${encodeURIComponent(query)}&limit=1&addressdetails=0`
     const res = await fetch(url, {
       headers: { 'User-Agent': 'YeahDoodle/1.0 (blake@saltcfo.com)' },
       cache: 'no-store',
@@ -746,14 +749,18 @@ async function fetchTicketmasterLive(
   const seen = new Set<string>()
 
   await Promise.all(
-    cities.map(async ({ name: cityName, distanceLabel }) => {
+    cities.map(async (c) => {
+      const { name: cityName, distanceLabel } = c
       try {
         // Geocode city → latlong so TM can find areas like "Jackson Hole"
         // (TM's city DB uses "Jackson, WY" not "Jackson Hole, WY")
-        const geo = await geocodeCity(cityName)
+        // A bare town name can match the wrong country, so use the point we
+        // already resolved when there is one
+        const geo = typeof c.lat === 'number' && typeof c.lng === 'number'
+          ? { lat: c.lat, lng: c.lng }
+          : await geocodeCity(cityName)
         const paramObj: Record<string, string> = {
           apikey:        apiKey,
-          countryCode:   'US',
           size:          '20',
           sort:          'date,asc',
           startDateTime: dateStart.toISOString().replace(/\.\d{3}Z$/, 'Z'),
@@ -1171,13 +1178,15 @@ export async function POST(req: NextRequest) {
 
       if (localCity) {
         // City-level label only — per-venue distances replace it when we have coordinates
-        cities.push({ name: localCity, distanceLabel: `In ${localCity}`, isLocal: true })
+        cities.push({ name: localCity, distanceLabel: `In ${localCity}`, isLocal: true, lat, lng })
       }
       if (regionalCity && regionalCity !== localCity) {
         cities.push({
           name:          regionalCity,
           distanceLabel: regionalDist ? driveTimeLabel(regionalDist) : 'Nearby',
           isLocal:       false,
+          lat:           regionalGeo?.resultLat,
+          lng:           regionalGeo?.resultLng,
         })
       }
       // If geocoding returned nothing useful, fall back to provided city string

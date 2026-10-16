@@ -11,7 +11,7 @@ const clean = (v: unknown, max: number) =>
 /** Typed place → coordinates + a short label, anywhere in the world */
 async function geocodePlace(query: string): Promise<{ lat: number; lng: number; label: string } | null> {
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}` +
+    const url = `https://nominatim.openstreetmap.org/search?format=json&accept-language=en&q=${encodeURIComponent(query)}` +
                 `&limit=1&addressdetails=1`
     const res = await fetch(url, {
       headers: { 'User-Agent': 'YeahDoodle/1.0 (blake@saltcfo.com)' },
@@ -38,7 +38,7 @@ async function geocodePlace(query: string): Promise<{ lat: number; lng: number; 
 async function labelFor(lat: number, lng: number): Promise<string | null> {
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=12&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse?format=json&accept-language=en&lat=${lat}&lon=${lng}&zoom=12&addressdetails=1`,
       { headers: { 'User-Agent': 'YeahDoodle/1.0 (blake@saltcfo.com)' }, cache: 'no-store', signal: AbortSignal.timeout(6000) },
     )
     if (!res.ok) return null

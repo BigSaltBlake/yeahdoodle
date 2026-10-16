@@ -10,7 +10,7 @@ import { getPlaceProfile, getCurrentSeason, buildProfileQueries } from '@/lib/pl
 
 async function geocodeCity(query: string): Promise<{ lat: number; lng: number } | null> {
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=us&limit=1`
+    const url = `https://nominatim.openstreetmap.org/search?format=json&accept-language=en&q=${encodeURIComponent(query)}&limit=1`
     const res = await fetch(url, {
       headers: { 'User-Agent': 'YeahDoodle/1.0 (blake@saltcfo.com)' },
       signal: AbortSignal.timeout(5000),
@@ -26,7 +26,7 @@ async function geocodeCity(query: string): Promise<{ lat: number; lng: number } 
 
 async function reverseGeocode(lat: number, lng: number): Promise<{ city: string; state: string } | null> {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&accept-language=en&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`
     const res = await fetch(url, {
       headers: { 'User-Agent': 'YeahDoodle/1.0 (blake@saltcfo.com)' },
       signal: AbortSignal.timeout(5000),
