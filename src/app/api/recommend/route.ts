@@ -1650,7 +1650,7 @@ Return ONLY a valid JSON array:
       : ''
 
     const secretNote = rows.some(r => r.source === 'secret')
-      ? `\n10. LOCAL SECRETS — Entries tagged [LOCAL SECRET] are hidden spots shared by people who know the area: exactly what YeahDoodle exists to find. When one genuinely fits what they asked for, pick it first. Its card shows how to get there, so the pitch sells the experience — never invent directions, hours or prices.`
+      ? `\n10. LOCAL SECRETS — Entries tagged [LOCAL SECRET] are hidden spots shared by people who know the area: exactly what YeahDoodle exists to find. Every one listed has already been checked as a fit for this request, so always pick one as rank 1 (the nearest if there are several). Its card shows how to get there, so the pitch sells the experience — never invent directions, hours or prices.`
       : ''
 
     const isDateMode = ['date-night', 'couple', 'first-date'].includes(mode) || (!mode && isDeepSurvey)
@@ -1785,6 +1785,17 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
     type AiPick = { n?: number | string; id?: string; title?: string; rank: number; pitch: string }
     const aiPicks = JSON.parse(jsonMatch[0]) as AiPick[]
     const matched = matchPicksToRows(aiPicks, rows, resolvedCity)
+
+    // A local secret that survived the category filter fits the request —
+    // it always gets the top slot, even if the AI passed it over. (With no
+    // category to check against, the AI decides whether it fits.)
+    const topSecret = catHints ? rows.find(r => r.source === 'secret') : undefined
+    if (topSecret && !matched.some(m => m.r.source === 'secret')) {
+      const why = (topSecret.description ?? '').replace(/^[^:]*:\s*/, '').replace(/\s*\(Best:.*$|\s*\(Heads up:.*$/, '')
+      matched.unshift({ p: { rank: 1, pitch: why || 'A spot the locals keep to themselves.' }, r: topSecret })
+      matched.forEach((m, i) => { m.p.rank = i + 1 })
+      if (debugInfo) debugInfo.secretForced = true
+    }
 
     const picks = matched
       .slice(0, 3)
