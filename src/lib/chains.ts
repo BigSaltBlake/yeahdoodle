@@ -32,7 +32,7 @@ export const CHAIN_NAMES = [
   '7-eleven', 'maverik', 'circle k', "love's travel stop", 'loves travel stop', 'pilot travel center',
   'flying j', 'ta travel center', 'petro stopping', "buc-ee's", 'bucees',
   // Entertainment chains
-  "dave & buster's", 'dave and busters', 'main event', 'topgolf', 'round1', 'chuck e. cheese',
+  "dave & buster's", 'dave and busters', 'main event', 'topgolf', 'round1', 'round one', 'chuck e. cheese',
   'amc theatres', 'amc theaters', 'amc dine-in', 'regal cinemas', 'cinemark', 'megaplex', 'bowlero', 'urban air', 'sky zone',
 ].map(n => n.toLowerCase())
 

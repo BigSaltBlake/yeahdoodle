@@ -42,11 +42,15 @@ interface EventRow {
 const ARTICLE_TITLE = /\b(things to do|top \d+|\d+\+? (best|fun|unique|cool|things|places|ways|spots)|travel guide|itinerary|bucket list)\b/i
 // Plain web-search results are pages, not places: anything that reads like an
 // article title goes
-const WEB_PAGE_TITLE = /\b(best|top|guide|things|ways|places|tips|itinerary|visit|visiting|travel|review|reviews|reddit|tripadvisor|what|where|how|why|weather|crowds|\d{1,4})\b|\?|\.\.\.|…/i
+const WEB_PAGE_TITLE = /\b(best|top|guide|things|ways|places|tips|itinerary|visit|visiting|travel|review|reviews|reddit|tripadvisor|what|where|how|why|weather|crowds|favou?rites?|must|events|calendar|\d{1,4})\b|\?|\.\.\.|…/i
+// A listing page, not a thing: "Events", "Events in Paris", "Main Street Events"
+const GENERIC_TITLE = /^\s*(\S+\s+){0,2}(events?|calendar|happenings|things to do)(\s+in\s+.+)?\s*$/i
 
 function looksLikeArticle(r: EventRow): boolean {
-  if (ARTICLE_TITLE.test(r.title)) return true
-  const isWebPage = r.id.startsWith('profile-') || r.id.startsWith('activity_fallback_')
+  if (ARTICLE_TITLE.test(r.title) || GENERIC_TITLE.test(r.title)) return true
+  // Undated search results that aren't a Google place or one of ours are web pages
+  const isWebPage = r.id.startsWith('profile-') || r.id.startsWith('activity_fallback_') ||
+    (r.id.startsWith('live_') && !r.date_start)
   return isWebPage && WEB_PAGE_TITLE.test(r.title)
 }
 
