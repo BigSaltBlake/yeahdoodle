@@ -1532,8 +1532,11 @@ export async function POST(req: NextRequest) {
       if (debugInfo) debugInfo.dealbreaker = { clear: clear.length, removed: breaking.length - fillers.length, keptWithNote: fillers.length }
     }
 
-    // ── 7a. Knowledge fallback — no DB results, ask Claude from memory ─────────
-    if (rows.length === 0) {
+    // ── 7a. Knowledge fallback — nothing usable, ask Claude from memory ────────
+    // Used when no candidates survive the filters, and when the AI looks at the
+    // candidates and finds none worth recommending.
+    const knowledgeFallback = async (reason: string): Promise<NextResponse> => {
+      if (debugInfo) debugInfo.knowledgeReason = reason
       const anthropicKeyKb = process.env.ANTHROPIC_API_KEY
       if (!anthropicKeyKb) return NextResponse.json({ ...dbg(), picks: [] })
 
@@ -1558,12 +1561,15 @@ export async function POST(req: NextRequest) {
 Their profile:
 ${kbAnswerSummary}
 
-No live event data is available right now. Draw on your deep knowledge of ${locationKb || 'this city'} to suggest 3 genuinely specific, actionable things this person should do tonight. Think like a trusted local friend who knows this city and this person.
+No live event data is available right now. Draw on your deep knowledge of ${locationKb || 'this city'} to suggest 3 genuinely specific, actionable things this person should do. ${isTourist
+  ? 'They are visiting: favor what this place is genuinely known for — landmarks, signature views and experiences — done the right way. Never tell them to skip the famous spots.'
+  : 'Think like a trusted local friend: hidden local favorites over the tourist circuit.'}
 
 Requirements:
 - Real, specific venues or activity types with enough detail to actually go do them
 - Each pick must scratch the itch: "${answers[0] ?? 'a memorable evening'}"
 - Nothing that triggers: "${kbKillSwitch || 'none stated'}"
+- Never a chain, a hotel, a mall or a store
 - Pitches make not going feel like a missed opportunity — write to close, not to describe. First-person energy, present tense. Max 30 words.
 
 Return ONLY a valid JSON array:
@@ -1600,6 +1606,8 @@ Return ONLY a valid JSON array:
 
       return NextResponse.json({ ...dbg(), picks: [] })
     }
+
+    if (rows.length === 0) return knowledgeFallback('no_candidates')
 
     // ── 7. Build AI prompt ───────────────────────────────────────────────────
     const locationLabel = hasGps
@@ -1857,27 +1865,9 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         }
       })
 
-    // Fallback if AI returned bad IDs
-    if (picks.length === 0) {
-      const fallback = rows.slice(0, 3).map((r, i) => ({
-        id:             r.id,
-        rank:           i + 1,
-        pitch:          r.ai_description?.slice(0, 120) ?? 'A great local experience.',
-        title:          r.title,
-        venue:          r.venue_name ?? '',
-        dateFormatted:  formatDate(r.date_start, r.tz ?? userTz, r.dateOnly),
-        priceFormatted: formatPrice(r.price_min, r.price_max, r.is_free),
-        ticketUrl:      r.ticket_url,
-        imageUrl:       r.image_url ?? fallbackImg(r.category),
-        category:       r.category,
-        source:         r.source,
-        distanceLabel:  r.distanceLabel,
-        dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
-        secret: r.secret,
-      }))
-      await enrichPickImages(fallback)
-      return NextResponse.json({ ...dbg(), picks: fallback, fallbackReason: `ai_unmatched: ${aiPicks.map(p => p.n ?? p.id).slice(0, 3).join(',')}` })
-    }
+    // The AI found nothing here worth recommending — never pad with raw rows;
+    // suggest from knowledge instead
+    if (picks.length === 0) return knowledgeFallback(aiPicks.length === 0 ? 'ai_none_fit' : 'ai_unmatched')
 
     // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
     await enrichPickImages(picks)

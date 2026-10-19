@@ -380,8 +380,8 @@ export async function searchNearbyVenues(params: {
       // Filter: require at least some rating credibility
       if ((place.rating ?? 0) < 3.5) continue
 
-      // A hotel isn't an outing, even when it has a restaurant or bar
-      if (LODGING_TYPES.has(place.primaryType ?? '')) continue
+      // A hotel, mall or store isn't an outing, even when it has a restaurant or bar
+      if (NOT_AN_OUTING_TYPES.has(place.primaryType ?? '')) continue
 
       // openNowOnly hard filter
       if (openNowOnly && place.regularOpeningHours?.openNow === false) continue
@@ -398,10 +398,14 @@ export async function searchNearbyVenues(params: {
     .map(p => googlePlaceToRow(p, lat, lng, apiKey))
 }
 
-const LODGING_TYPES = new Set([
+const NOT_AN_OUTING_TYPES = new Set([
+  // Lodging
   'lodging', 'hotel', 'motel', 'resort_hotel', 'extended_stay_hotel', 'inn', 'bed_and_breakfast',
   'guest_house', 'hostel', 'budget_japanese_inn', 'japanese_inn', 'cottage', 'private_guest_room',
   'farmstay', 'campground', 'rv_park', 'mobile_home_park',
+  // Shopping and errands
+  'shopping_mall', 'department_store', 'store', 'supermarket', 'grocery_store', 'convenience_store',
+  'discount_store', 'warehouse_store', 'gas_station', 'truck_stop', 'rest_stop', 'food_court',
 ])
 
 /** Type groups for food-focused searches (Foodie slide, "Trending restaurant", etc.) */

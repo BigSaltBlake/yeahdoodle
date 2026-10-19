@@ -29,7 +29,8 @@ export const CHAIN_NAMES = [
   // Grocery / big-box
   'winco', 'walmart', 'costco', 'target', "sam's club", "smith's food", 'kroger', 'safeway', 'albertsons',
   'whole foods', "trader joe's", 'sprouts farmers', 'aldi', 'fred meyer', 'king soopers', 'walgreens', 'cvs',
-  '7-eleven', 'maverik', 'circle k',
+  '7-eleven', 'maverik', 'circle k', "love's travel stop", 'loves travel stop', 'pilot travel center',
+  'flying j', 'ta travel center', 'petro stopping', "buc-ee's", 'bucees',
   // Entertainment chains
   "dave & buster's", 'dave and busters', 'main event', 'topgolf', 'round1', 'chuck e. cheese',
   'amc theatres', 'amc theaters', 'amc dine-in', 'regal cinemas', 'cinemark', 'megaplex', 'bowlero', 'urban air', 'sky zone',
