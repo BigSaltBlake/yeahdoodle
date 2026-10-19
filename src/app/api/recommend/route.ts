@@ -230,7 +230,9 @@ async function reverseGeocode(lat: number, lng: number, zoom: number): Promise<G
     else if (addr.state)   { city = addr.state;     placeType = 'region'  }
 
     const state = addr.state || addr['ISO3166-2-lvl4']?.split('-')[1] || ''
-    const displayName = [city, state].filter(Boolean).join(', ')
+    // Outside the US, name the country too ("Paris, Texas" vs "Paris, Île-de-France, France")
+    const country = addr.country_code && addr.country_code !== 'us' ? addr.country : ''
+    const displayName = [city, state !== city ? state : '', country].filter(Boolean).join(', ')
     const resultLat = parseFloat(data.lat ?? String(lat))
     const resultLng = parseFloat(data.lon ?? String(lng))
     return { city, state, displayName, resultLat, resultLng, placeType }
@@ -1556,7 +1558,12 @@ export async function POST(req: NextRequest) {
                   : '- Wants to explore like a local: hidden local favorites, not the tourist circuit',
       ].filter(Boolean).join('\n')
 
-      const kbPrompt = `You are an expert local guide helping someone find the perfect thing to do tonight in ${locationKb || 'their city'}.
+      const kbNow = new Date().toLocaleString('en-US', {
+        timeZone: userTz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      })
+      const kbPoint = hasGps && typeof lat === 'number' && typeof lng === 'number'
+        ? ` (coordinates ${lat.toFixed(3)}, ${lng.toFixed(3)})` : ''
+      const kbPrompt = `You are an expert local guide helping someone find the perfect thing to do in ${locationKb || 'their city'}${kbPoint}. Right now it is ${kbNow} there.
 
 Their profile:
 ${kbAnswerSummary}
@@ -1567,6 +1574,8 @@ No live event data is available right now. Draw on your deep knowledge of ${loca
 
 Requirements:
 - Real, specific venues or activity types with enough detail to actually go do them
+- WHERE: every pick must be in or within about 30 miles of ${locationKb || 'this place'}${kbPoint}. Many towns share a name with a more famous place (Paris, Texas is not Paris, France) — never suggest anything from the other one.
+- ONLY WHAT YOU'RE SURE OF: suggest a place only if you are confident it exists there and is open to the public. If you can't name 3 with confidence, return fewer — even an empty array []. A wrong pick costs us their trust.
 - Each pick must scratch the itch: "${answers[0] ?? 'a memorable evening'}"
 - Nothing that triggers: "${kbKillSwitch || 'none stated'}"
 - Never a chain, a hotel, a mall or a store
@@ -1596,7 +1605,9 @@ Return ONLY a valid JSON array:
               id: p.id, rank: p.rank, pitch: p.pitch,
               title: p.title, venue: p.venue,
               dateFormatted: '', priceFormatted: p.price,
-              ticketUrl: null, imageUrl: fallbackImg(p.category),
+              // Lets them check it on a map before they go
+              ticketUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.title} ${locationKb}`)}`,
+              imageUrl: fallbackImg(p.category),
               category: p.category, source: 'knowledge', distanceLabel: undefined,
             }))
             return NextResponse.json({ ...dbg(), picks })
