@@ -320,6 +320,44 @@ async function lookupZip(zip: string): Promise<string | null> {
   }
 }
 
+/** Typed town → its point and a friendly name, anywhere in the world */
+async function lookupTown(query: string): Promise<{ lat: number; lng: number; name: string } | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&accept-language=en&limit=1&addressdetails=1&q=${encodeURIComponent(query)}`,
+    )
+    if (!res.ok) return null
+    const [hit] = await res.json() as Array<{ lat?: string; lon?: string; address?: Record<string, string> }>
+    if (!hit?.lat || !hit?.lon) return null
+    const a = hit.address ?? {}
+    const town = a.city || a.town || a.village || a.hamlet || a.county || ''
+    return {
+      lat: parseFloat(hit.lat),
+      lng: parseFloat(hit.lon),
+      name: [town, a.state || a.country].filter(Boolean).join(', ') || query,
+    }
+  } catch {
+    return null
+  }
+}
+
+function milesBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = Math.PI / 180
+  const h = Math.sin((b.lat - a.lat) * rad / 2) ** 2 +
+            Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin((b.lng - a.lng) * rad / 2) ** 2
+  return 3958.8 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+}
+
+type Traveler = 'local' | 'tourist'
+
+/** Our best guess at whether they're visiting the place they typed */
+function guessTraveler(place: { lat: number; lng: number }, device: { lat: number; lng: number } | null): Traveler {
+  if (device) return milesBetween(place, device) > 100 ? 'tourist' : 'local'
+  // No device location: a place hours away from the visitor's own clock is a trip
+  const myOffsetHours = -new Date().getTimezoneOffset() / 60
+  return Math.abs(myOffsetHours - place.lng / 15) > 3 ? 'tourist' : 'local'
+}
+
 const LOADING_MESSAGES = [
   'Scanning events near you...',
   'Matching your vibe...',
@@ -364,6 +402,9 @@ export default function MoodSurvey({ open, onClose, initialCity = '', mode = 'ge
   const [openFilter, setOpenFilter]     = useState<'when' | 'budget' | 'crew' | null>(null)
   const [refineStep, setRefineStep]     = useState<'when' | 'crew' | 'done' | null>(null)
   const cancelGps = useRef(false)
+  // Tourist or local: guessed from where they are vs. where they're searching, one tap to switch
+  const [traveler, setTraveler] = useState<Traveler>('local')
+  const deviceLoc = useRef<{ lat: number; lng: number } | null>(null)
 const prefetchRef = useRef<Pick[] | null>(null)
 const prefetchAnswersRef = useRef<string[]>([])
 
@@ -392,6 +433,7 @@ const prefetchAnswersRef = useRef<string[]>([])
         setCity(initialCity)
         setLat(null)
         setLng(null)
+        setTraveler('local')
         setPhase(initialCity ? 'confirm-location' : 'locating')
         setQIndex(0)
         setAnswers([])
@@ -439,6 +481,8 @@ const prefetchAnswersRef = useRef<string[]>([])
         const { latitude, longitude } = pos.coords
         setLat(latitude)
         setLng(longitude)
+        deviceLoc.current = { lat: latitude, lng: longitude }
+        setTraveler('local')
         try {
           const r = await fetch(
             `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
@@ -592,6 +636,7 @@ const prefetchAnswersRef = useRef<string[]>([])
         questionIds: activeQuestions.slice(0, submittedAnswers.length).map(q => q.id),
         mode,
         tz: visitorTimeZone(),
+        traveler,
         ...(activeBudget || activeCrew || activeWhen ? {
           filters: {
             ...(activeBudget ? { budget: activeBudget } : {}),
@@ -638,7 +683,7 @@ const prefetchAnswersRef = useRef<string[]>([])
     ;(async () => {
       try {
         // No questionIds here: remembered answers may come from a different slide's survey
-        const body: Record<string, unknown> = { city: prefetchCity, answers: prefetchAnswers, mode, tz: visitorTimeZone() }
+        const body: Record<string, unknown> = { city: prefetchCity, answers: prefetchAnswers, mode, tz: visitorTimeZone(), traveler }
         if (lat !== null) body.lat = lat
         if (lng !== null) body.lng = lng
         const res = await fetch('/api/recommend', {
@@ -708,7 +753,17 @@ const prefetchAnswersRef = useRef<string[]>([])
     capture('city_selected', { city })
     setCityName('')
     const zip = city.trim()
-    if (/^\d{5}$/.test(zip)) lookupZip(zip).then(name => { if (name) setCityName(name) })
+    if (/^\d{5}$/.test(zip)) {
+      lookupZip(zip).then(name => { if (name) setCityName(name) })
+    } else if (zip) {
+      lookupTown(zip).then(town => {
+        if (!town) return
+        setLat(town.lat)
+        setLng(town.lng)
+        setCityName(town.name)
+        setTraveler(guessTraveler(town, deviceLoc.current))
+      })
+    }
     setPhase('confirm-location')
   }
 
@@ -825,11 +880,31 @@ const prefetchAnswersRef = useRef<string[]>([])
         <div className="p-8 text-center">
           <div className="text-5xl mb-4">📍</div>
           <h2 className="font-display text-xl text-white mb-1">You’re in {cityName || city || 'your location'}?</h2>
-          <p className="text-white/40 text-sm mb-7">We’ll find the best picks near you</p>
+          <p className="text-white/40 text-sm mb-5">We’ll find the best picks near you</p>
+          <div className="grid grid-cols-2 gap-2 mb-6" role="radiogroup" aria-label="How should we pick?">
+            {([
+              { v: 'local',   emoji: '🏡', label: 'Explore like a local',    desc: 'Hidden spots locals love' },
+              { v: 'tourist', emoji: '🧳', label: 'Treat me like a tourist', desc: 'The must-sees, done right' },
+            ] as const).map(o => (
+              <button
+                key={o.v}
+                role="radio"
+                aria-checked={traveler === o.v}
+                onClick={() => setTraveler(o.v)}
+                className={`rounded-xl border px-2 py-3 text-center transition-colors ${
+                  traveler === o.v ? 'border-yd-orange bg-yd-orange/15' : 'border-white/10 bg-white/5 hover:border-white/25'
+                }`}
+              >
+                <span className="block text-xl mb-1">{o.emoji}</span>
+                <span className="block text-white text-xs font-semibold leading-tight">{o.label}</span>
+                <span className="block text-white/40 text-[11px] mt-0.5 leading-tight">{o.desc}</span>
+              </button>
+            ))}
+          </div>
           <div className="space-y-3">
             <button
               onClick={() => {
-                capture('location_confirmed', { city })
+                capture('location_confirmed', { city, traveler })
                 startPrefetch(city, lastAnswers || [])
                 setPhase(isLateNight() && !filterWhen ? 'late-night' : hasReturnHistory ? 'returning' : 'question')
               }}
@@ -838,7 +913,7 @@ const prefetchAnswersRef = useRef<string[]>([])
               ✓ Yes, {(cityName || city).split(',')[0] || 'here'}!
             </button>
             <button
-              onClick={() => { setCity(''); setCityName(''); setPhase('city') }}
+              onClick={() => { setCity(''); setCityName(''); setLat(null); setLng(null); setPhase('city') }}
               className="w-full bg-white/5 hover:bg-white/10 text-white/50 font-medium py-3 rounded-xl transition-colors text-sm border border-white/10 hover:border-white/20"
             >
               Change location

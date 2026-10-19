@@ -17,6 +17,10 @@ export const CHAIN_NAMES = [
   "carl's jr", 'popeyes', 'raising cane', 'wingstop', 'qdoba', 'del taco', 'shake shack', 'jimmy john',
   'firehouse subs', "jersey mike's", 'noodles & company', 'noodles and company', 'el pollo loco',
   "culver's", 'whataburger', 'smashburger', 'habit burger', 'cafe rio', 'café rio', 'costa vida',
+  "braum's", 'braums', 'zaxby', "bojangles", "freddy's frozen", "freddys frozen", 'steak n shake',
+  "hardee's", "rally's", 'white castle', "church's chicken", "long john silver",
+  "golden chick", "taco cabana", "torchy's", "jason's deli", "mcalister's", 'schlotzsky', 'potbelly',
+  "portillo's", "culvers", 'runza', 'cook out', 'cookout', 'krystal',
   'cafe zupas', 'café zupas', 'swig', 'crumbl', "jcw's", 'teriyaki stix', 'betos', "beto's",
   "domino's", 'pizza hut', "papa john's", 'little caesars', 'papa murphy', 'mod pizza', 'blaze pizza',
   // Coffee / dessert
