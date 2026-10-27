@@ -1021,6 +1021,8 @@ const PLACE_FILLER_WORDS = new Set([
   'national', 'state', 'area', 'recreation', 'garden', 'gardens', 'walk', 'hike', 'loop', 'system', 'network',
   'center', 'centre', 'museum', 'beach', 'lake', 'river', 'view', 'viewpoint', 'overlook', 'scenic', 'refuge',
   'wildlife', 'forest', 'grounds', 'tour', 'night', 'sunset', 'evening', 'city', 'old', 'town',
+  'historic', 'historical', 'site', 'house', 'home', 'recreational', 'walking', 'routes', 'access', 'preserve',
+  'reserve', 'monument', 'memorial', 'path', 'county', 'public',
 ])
 function placeWords(s: string): string[] {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
