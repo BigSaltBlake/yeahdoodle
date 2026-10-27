@@ -1015,6 +1015,24 @@ async function fetchLiveSerpEvents(cities: CityQuery[], timeframe = 'Tonight', e
 // ---------------------------------------------------------------------------
 // Matching the AI's picks back to candidate rows
 // ---------------------------------------------------------------------------
+// Words too common to show two names are the same place
+const PLACE_FILLER_WORDS = new Set([
+  'the', 'and', 'of', 'de', 'da', 'do', 'des', 'du', 'la', 'le', 'el', 'del', 'park', 'parque', 'trail', 'trails',
+  'national', 'state', 'area', 'recreation', 'garden', 'gardens', 'walk', 'hike', 'loop', 'system', 'network',
+  'center', 'centre', 'museum', 'beach', 'lake', 'river', 'view', 'viewpoint', 'overlook', 'scenic', 'refuge',
+  'wildlife', 'forest', 'grounds', 'tour', 'night', 'sunset', 'evening', 'city', 'old', 'town',
+])
+function placeWords(s: string): string[] {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').split(' ').filter(w => w.length >= 3 && !PLACE_FILLER_WORDS.has(w))
+}
+/** Does Google's match share a distinctive word with what was suggested? ("Lake Crook" ≈ "Lake Crook Park", "Ribeira Aberta" ≠ "Beira Rio") */
+function sameNamedPlace(suggested: string, found: string, townName = ''): boolean {
+  const town = new Set(placeWords(townName))   // "Paris" alone doesn't make two Paris places the same
+  const f = new Set(placeWords(found).filter(w => !town.has(w)))
+  return placeWords(suggested).some(w => !town.has(w) && f.has(w))
+}
+
 function normName(s: string): string {
   return s.toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim()
 }
@@ -1541,10 +1559,10 @@ export async function POST(req: NextRequest) {
     // ── 7a. Knowledge fallback — nothing usable, ask Claude from memory ────────
     // Used when no candidates survive the filters, and when the AI looks at the
     // candidates and finds none worth recommending.
-    const knowledgeFallback = async (reason: string): Promise<NextResponse> => {
+    const knowledgePicks = async (reason: string, alreadyPicked: string[] = []) => {
       if (debugInfo) debugInfo.knowledgeReason = reason
       const anthropicKeyKb = process.env.ANTHROPIC_API_KEY
-      if (!anthropicKeyKb) return NextResponse.json({ ...dbg(), picks: [] })
+      if (!anthropicKeyKb) return []
 
       const locationKb = hasGps ? geoDisplayName : city
       const kbKillIdx = questionIds ? questionIds.indexOf('killswitch') : -1
@@ -1582,7 +1600,8 @@ Requirements:
 - ONLY WHAT YOU'RE SURE OF: suggest a place only if you are confident it exists there and is open to the public. If you can't name 3 with confidence, return fewer — even an empty array []. A wrong pick costs us their trust.
 - Each pick must scratch the itch: "${answers[0] ?? 'a memorable evening'}"
 - Nothing that triggers: "${kbKillSwitch || 'none stated'}"
-- Never a chain, a hotel, a mall or a store
+- Never a chain, a hotel, a mall or a store${alreadyPicked.length ? `
+- Already recommended, so suggest different places: ${alreadyPicked.join('; ')}` : ''}
 - Pitches make not going feel like a missed opportunity — write to close, not to describe. First-person energy, present tense. Max 30 words.
 - Pitch only what's true of the place itself: no invented prices, vendors, hours, crowd levels or "open late" claims.${isTourist ? ' They are a tourist — never say "no tourists" or "locals only".' : ''}
 - "search" is what to type into Google Maps to find exactly this place: its proper name plus the town.
@@ -1618,9 +1637,10 @@ Return ONLY a valid JSON array:
               : kbPicks.map(p => ({ p, place: undefined }))
 
             const wantsNow = timeframe === 'Now'
-            const kept = checked.filter(({ place }) =>
+            const kept = checked.filter(({ p, place }) =>
               place === undefined ||                                  // couldn't check (no GPS/key)
-              (place !== null && !isChain(place.name) && !(wantsNow && place.openNow === false)))
+              (place !== null && sameNamedPlace(`${p.title} ${p.search ?? ''}`, place.name, locationKb) &&
+               !isChain(place.name) && !(wantsNow && place.openNow === false)))
             if (debugInfo) debugInfo.knowledge = {
               suggested: kbPicks.length, verified: kept.length,
               dropped: checked.filter(c => !kept.includes(c)).map(c => c.p.title),
@@ -1638,13 +1658,15 @@ Return ONLY a valid JSON array:
               category: p.category, source: 'knowledge',
               distanceLabel: place?.distanceLabel,
             }))
-            return NextResponse.json({ ...dbg(), picks })
+            return picks
           }
         }
       } catch { /* fall through */ }
 
-      return NextResponse.json({ ...dbg(), picks: [] })
+      return []
     }
+    const knowledgeFallback = async (reason: string) =>
+      NextResponse.json({ ...dbg(), picks: await knowledgePicks(reason) })
 
     if (rows.length === 0) return knowledgeFallback('no_candidates')
 
@@ -1910,6 +1932,16 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
 
     // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
     await enrichPickImages(picks)
+
+    // Only one or two real candidates fit — fill the rest with suggestions
+    // that checked out on Google Maps, never with filler
+    if (picks.length < 3) {
+      const extra = (await knowledgePicks('top_up', picks.map(p => p.title)))
+        .filter(k => !picks.some(p => sameNamedPlace(p.title, k.title)))
+        .slice(0, 3 - picks.length)
+        .map((k, i) => ({ ...k, rank: picks.length + i + 1 }))
+      return NextResponse.json({ ...dbg(), picks: [...picks, ...extra] })
+    }
 
     return NextResponse.json({ ...dbg(), picks })
 
