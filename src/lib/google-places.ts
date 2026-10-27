@@ -474,6 +474,9 @@ export async function verifyPlace(params: {
     if (!place?.location) return null
     if (place.businessStatus === 'CLOSED_PERMANENTLY') return null
     if (NOT_AN_OUTING_TYPES.has(place.primaryType ?? '')) return null
+    // Services and institutions share names with parks and lakes ("Spring Lake Assisted Living")
+    if (/health|care|medical|hospital|clinic|doctor|dentist|pharmacy|school|university|apartment|real_estate|office|bank|insurance|lawyer|funeral|storage|repair|dealer|living/
+      .test(place.primaryType ?? '')) return null
 
     const km = haversineKm(lat, lng, place.location.latitude, place.location.longitude)
     const miles = km * 0.621371

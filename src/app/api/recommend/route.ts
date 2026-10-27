@@ -1030,7 +1030,10 @@ function placeWords(s: string): string[] {
 function sameNamedPlace(suggested: string, found: string, townName = ''): boolean {
   const town = new Set(placeWords(townName))   // "Paris" alone doesn't make two Paris places the same
   const f = new Set(placeWords(found).filter(w => !town.has(w)))
-  return placeWords(suggested).some(w => !town.has(w) && f.has(w))
+  const s = new Set(placeWords(suggested).filter(w => !town.has(w)))
+  const shared = Array.from(f).filter(w => s.has(w)).length
+  // At least a third of the found name must be what was suggested
+  return shared > 0 && shared * 3 >= f.size
 }
 
 function normName(s: string): string {
