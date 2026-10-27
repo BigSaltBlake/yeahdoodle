@@ -454,7 +454,7 @@ export async function verifyPlace(params: {
         'X-Goog-Api-Key': apiKey,
         'X-Goog-FieldMask': [
           'places.id', 'places.displayName', 'places.formattedAddress', 'places.location',
-          'places.photos', 'places.regularOpeningHours', 'places.primaryType',
+          'places.photos', 'places.regularOpeningHours', 'places.primaryType', 'places.types',
           'places.websiteUri', 'places.googleMapsUri', 'places.businessStatus',
         ].join(','),
       },
@@ -477,6 +477,8 @@ export async function verifyPlace(params: {
     // Services and institutions share names with parks and lakes ("Spring Lake Assisted Living")
     if (/health|care|medical|hospital|clinic|doctor|dentist|pharmacy|school|university|apartment|real_estate|office|bank|insurance|lawyer|funeral|storage|repair|dealer|living/
       .test(place.primaryType ?? '')) return null
+    // A street or bare address that happens to share a word ("Travessa Calvário")
+    if ((place.types ?? []).some(t => /^(route|street_address|street_number|premise|subpremise|intersection|postal_code|plus_code)$/.test(t))) return null
 
     const km = haversineKm(lat, lng, place.location.latitude, place.location.longitude)
     const miles = km * 0.621371
