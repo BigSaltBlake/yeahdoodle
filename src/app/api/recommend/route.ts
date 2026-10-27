@@ -42,7 +42,7 @@ interface EventRow {
 const ARTICLE_TITLE = /\b(things to do|top \d+|\d+\+? (best|fun|unique|cool|things|places|ways|spots)|travel guide|itinerary|bucket list)\b/i
 // Plain web-search results are pages, not places: anything that reads like an
 // article title goes
-const WEB_PAGE_TITLE = /\b(best|top|guide|things|ways|places|tips|itinerary|visit|visiting|travel|review|reviews|reddit|tripadvisor|what|where|how|why|weather|crowds|favou?rites?|must|events|calendar|\d{1,4})\b|\?|\.\.\.|…/i
+const WEB_PAGE_TITLE = /\b(best|top|guide|things|ways|places|tips|itinerary|visit|visiting|travel|review|reviews|reddit|tripadvisor|what|where|how|why|weather|crowds|favou?rites?|must|events|calendar|attractions|recommendations|exploring|explore|sightseeing|\d{1,4})\b|\?|\.\.\.|…/i
 // A listing page, not a thing: "Events", "Events in Paris", "Main Street Events"
 const GENERIC_TITLE = /^\s*(\S+\s+){0,2}(events?|calendar|happenings|things to do)(\s+in\s+.+)?\s*$/i
 
@@ -1022,7 +1022,8 @@ const PLACE_FILLER_WORDS = new Set([
   'center', 'centre', 'museum', 'beach', 'lake', 'river', 'view', 'viewpoint', 'overlook', 'scenic', 'refuge',
   'wildlife', 'forest', 'grounds', 'tour', 'night', 'sunset', 'evening', 'city', 'old', 'town',
   'historic', 'historical', 'site', 'house', 'home', 'recreational', 'walking', 'routes', 'access', 'preserve',
-  'reserve', 'monument', 'memorial', 'path', 'county', 'public',
+  'reserve', 'monument', 'memorial', 'path', 'county', 'public', 'community', 'downtown', 'south', 'north',
+  'east', 'west', 'upper', 'lower', 'side', 'exploration', 'bottoms',
 ])
 function placeWords(s: string): string[] {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
