@@ -414,3 +414,83 @@ export const FOOD_TYPE_GROUPS = [
   ['cafe', 'coffee_shop', 'bakery', 'dessert_shop'],
   ['bar', 'wine_bar', 'pub'],
 ]
+
+// ---------------------------------------------------------------------------
+// Verify a place by name — used to check picks the AI suggested from memory
+// ---------------------------------------------------------------------------
+
+export interface VerifiedPlace {
+  name: string
+  address: string
+  miles: number
+  distanceLabel: string
+  photoUrl: string | null
+  mapsUrl: string
+  websiteUrl: string | null
+  /** From Google's hours; undefined when Google doesn't list hours (parks, trails) */
+  openNow?: boolean
+}
+
+/**
+ * Looks a suggested place up on Google near the searcher. Returns null when
+ * Google can't find it within `maxMiles`, it has closed for good, or it's a
+ * hotel/store — so a made-up or wrong-town suggestion never reaches anyone.
+ */
+export async function verifyPlace(params: {
+  query: string
+  lat: number
+  lng: number
+  maxMiles?: number
+}): Promise<VerifiedPlace | null> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY
+  if (!apiKey) return null
+  const { query, lat, lng, maxMiles = 30 } = params
+
+  try {
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': [
+          'places.id', 'places.displayName', 'places.formattedAddress', 'places.location',
+          'places.photos', 'places.regularOpeningHours', 'places.primaryType',
+          'places.websiteUri', 'places.googleMapsUri', 'places.businessStatus',
+        ].join(','),
+      },
+      body: JSON.stringify({
+        textQuery: query,
+        maxResultCount: 1,
+        locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 50000 } },
+      }),
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) {
+      lastGooglePlacesError = `searchText ${res.status} ${(await res.text()).slice(0, 200)}`
+      return null
+    }
+    const place = ((await res.json()).places ?? [])[0] as
+      (GooglePlace & { googleMapsUri?: string; businessStatus?: string }) | undefined
+    if (!place?.location) return null
+    if (place.businessStatus === 'CLOSED_PERMANENTLY') return null
+    if (NOT_AN_OUTING_TYPES.has(place.primaryType ?? '')) return null
+
+    const km = haversineKm(lat, lng, place.location.latitude, place.location.longitude)
+    const miles = km * 0.621371
+    if (miles > maxMiles) return null
+
+    return {
+      name: place.displayName?.text ?? query,
+      address: place.formattedAddress,
+      miles,
+      distanceLabel: driveLabel(km),
+      photoUrl: place.photos?.[0]?.name ? getPhotoUrl(place.photos[0].name) : null,
+      mapsUrl: place.googleMapsUri ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+      websiteUrl: place.websiteUri ?? null,
+      openNow: place.regularOpeningHours?.openNow,
+    }
+  } catch (err) {
+    lastGooglePlacesError = String(err).slice(0, 200)
+    return null
+  }
+}

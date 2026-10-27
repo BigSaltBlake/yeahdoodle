@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
-import { searchNearbyVenues, FOOD_TYPE_GROUPS, lastGooglePlacesError } from '@/lib/google-places'
+import { searchNearbyVenues, FOOD_TYPE_GROUPS, lastGooglePlacesError, verifyPlace } from '@/lib/google-places'
 import { getCuratedVenues } from '@/lib/curated-venues'
 import { getNearbySecrets } from '@/lib/local-secrets'
 import { isChain } from '@/lib/chains'
@@ -1572,7 +1572,7 @@ export async function POST(req: NextRequest) {
 Their profile:
 ${kbAnswerSummary}
 
-No live event data is available right now. Draw on your deep knowledge of ${locationKb || 'this city'} to suggest 3 genuinely specific, actionable things this person should do. ${isTourist
+No live event data is available right now. Draw on your deep knowledge of ${locationKb || 'this city'} to suggest up to 5 genuinely specific, actionable things this person should do, best first (each is checked on Google Maps before anyone sees it; the best 3 that check out are shown). ${isTourist
   ? 'They are visiting: favor what this place is genuinely known for — landmarks, signature views and experiences — done the right way. Never tell them to skip the famous spots.'
   : 'Think like a trusted local friend: hidden local favorites over the tourist circuit.'}
 
@@ -1584,35 +1584,59 @@ Requirements:
 - Nothing that triggers: "${kbKillSwitch || 'none stated'}"
 - Never a chain, a hotel, a mall or a store
 - Pitches make not going feel like a missed opportunity — write to close, not to describe. First-person energy, present tense. Max 30 words.
+- Pitch only what's true of the place itself: no invented prices, vendors, hours, crowd levels or "open late" claims.${isTourist ? ' They are a tourist — never say "no tourists" or "locals only".' : ''}
+- "search" is what to type into Google Maps to find exactly this place: its proper name plus the town.
 
 Return ONLY a valid JSON array:
 [
-  {"id":"kb_1","rank":1,"title":"<specific activity or venue>","venue":"<venue name or neighborhood>","date":"Tonight","price":"<rough cost or Free>","category":"<music|food|art|sports|outdoor|general>","pitch":"<urgent, personal, makes them want to go tonight>"},
-  {"id":"kb_2","rank":2,"title":"...","venue":"...","date":"Tonight","price":"...","category":"...","pitch":"..."},
-  {"id":"kb_3","rank":3,"title":"...","venue":"...","date":"Tonight","price":"...","category":"...","pitch":"..."}
+  {"id":"kb_1","rank":1,"title":"<specific activity or venue>","search":"<place name, town>","price":"<rough cost or Free>","category":"<music|food|art|sports|outdoor|general>","pitch":"<urgent, personal, accurate>"},
+  {"id":"kb_2","rank":2,"title":"...","search":"...","price":"...","category":"...","pitch":"..."}
 ]`
 
       try {
         const kbRes = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: { 'x-api-key': anthropicKeyKb, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 700, messages: [{ role: 'user', content: kbPrompt }] }),
+          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1000, messages: [{ role: 'user', content: kbPrompt }] }),
         })
         if (kbRes.ok) {
           const kbData = await kbRes.json()
           const kbText: string = kbData.content?.[0]?.text ?? '[]'
           const kbMatch = kbText.match(/\[[\s\S]*\]/)
           if (kbMatch) {
-            type KbPick = { id: string; rank: number; title: string; venue: string; date: string; price: string; category: string; pitch: string }
-            const kbPicks = JSON.parse(kbMatch[0]) as KbPick[]
-            const picks = kbPicks.slice(0, 3).map(p => ({
-              id: p.id, rank: p.rank, pitch: p.pitch,
-              title: p.title, venue: p.venue,
-              dateFormatted: '', priceFormatted: p.price,
-              // Lets them check it on a map before they go
-              ticketUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.title} ${locationKb}`)}`,
-              imageUrl: fallbackImg(p.category),
-              category: p.category, source: 'knowledge', distanceLabel: undefined,
+            type KbPick = { id: string; rank: number; title: string; search?: string; venue?: string; price: string; category: string; pitch: string }
+            const kbPicks = (JSON.parse(kbMatch[0]) as KbPick[]).slice(0, 5)
+
+            // Every suggestion from memory must check out on Google Maps near
+            // the searcher — made-up or wrong-town places never reach anyone
+            const canVerify = hasGps && typeof lat === 'number' && typeof lng === 'number' && !!process.env.GOOGLE_PLACES_API_KEY
+            const checked = canVerify
+              ? await Promise.all(kbPicks.map(async p => ({
+                  p,
+                  place: await verifyPlace({ query: p.search || `${p.title} ${locationKb}`, lat: lat as number, lng: lng as number }),
+                })))
+              : kbPicks.map(p => ({ p, place: undefined }))
+
+            const wantsNow = timeframe === 'Now'
+            const kept = checked.filter(({ place }) =>
+              place === undefined ||                                  // couldn't check (no GPS/key)
+              (place !== null && !isChain(place.name) && !(wantsNow && place.openNow === false)))
+            if (debugInfo) debugInfo.knowledge = {
+              suggested: kbPicks.length, verified: kept.length,
+              dropped: checked.filter(c => !kept.includes(c)).map(c => c.p.title),
+            }
+
+            const picks = kept.slice(0, 3).map(({ p, place }, i) => ({
+              id: p.id, rank: i + 1, pitch: p.pitch,
+              title: p.title,
+              venue: place ? (place.name !== p.title ? place.name : '') : (p.venue ?? ''),
+              dateFormatted: place?.openNow === true ? 'Open now' : place?.openNow === false ? 'Closed right now' : '',
+              priceFormatted: p.price,
+              // The verified Google Maps listing, so they can check it before they go
+              ticketUrl: place?.mapsUrl ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.title} ${locationKb}`)}`,
+              imageUrl: place?.photoUrl ?? fallbackImg(p.category),
+              category: p.category, source: 'knowledge',
+              distanceLabel: place?.distanceLabel,
             }))
             return NextResponse.json({ ...dbg(), picks })
           }
