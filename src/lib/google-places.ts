@@ -429,6 +429,14 @@ export interface VerifiedPlace {
   websiteUrl: string | null
   /** From Google's hours; undefined when Google doesn't list hours (parks, trails) */
   openNow?: boolean
+  /** What Google knows about the place — pitches are written from this, not memory */
+  facts: {
+    type?: string
+    summary?: string
+    rating?: number
+    ratingCount?: number
+    reviews: string[]
+  }
 }
 
 /**
@@ -456,6 +464,8 @@ export async function verifyPlace(params: {
           'places.id', 'places.displayName', 'places.formattedAddress', 'places.location',
           'places.photos', 'places.regularOpeningHours', 'places.primaryType', 'places.types',
           'places.websiteUri', 'places.googleMapsUri', 'places.businessStatus',
+          'places.primaryTypeDisplayName', 'places.editorialSummary', 'places.rating',
+          'places.userRatingCount', 'places.reviews',
         ].join(','),
       },
       body: JSON.stringify({
@@ -470,7 +480,11 @@ export async function verifyPlace(params: {
       return null
     }
     const place = ((await res.json()).places ?? [])[0] as
-      (GooglePlace & { googleMapsUri?: string; businessStatus?: string }) | undefined
+      (GooglePlace & {
+        googleMapsUri?: string; businessStatus?: string
+        primaryTypeDisplayName?: { text: string }
+        reviews?: Array<{ text?: { text: string }; originalText?: { text: string } }>
+      }) | undefined
     if (!place?.location) return null
     if (place.businessStatus === 'CLOSED_PERMANENTLY') return null
     if (NOT_AN_OUTING_TYPES.has(place.primaryType ?? '')) return null
@@ -493,6 +507,16 @@ export async function verifyPlace(params: {
       mapsUrl: place.googleMapsUri ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
       websiteUrl: place.websiteUri ?? null,
       openNow: place.regularOpeningHours?.openNow,
+      facts: {
+        type: place.primaryTypeDisplayName?.text,
+        summary: place.editorialSummary?.text,
+        rating: place.rating,
+        ratingCount: place.userRatingCount,
+        reviews: (place.reviews ?? [])
+          .map(r => (r.text?.text ?? r.originalText?.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 280))
+          .filter(Boolean)
+          .slice(0, 4),
+      },
     }
   } catch (err) {
     lastGooglePlacesError = String(err).slice(0, 200)

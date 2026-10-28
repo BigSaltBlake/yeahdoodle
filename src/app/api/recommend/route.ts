@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
-import { searchNearbyVenues, FOOD_TYPE_GROUPS, lastGooglePlacesError, verifyPlace } from '@/lib/google-places'
+import { searchNearbyVenues, FOOD_TYPE_GROUPS, lastGooglePlacesError, verifyPlace, type VerifiedPlace } from '@/lib/google-places'
 import { getCuratedVenues } from '@/lib/curated-venues'
 import { getNearbySecrets } from '@/lib/local-secrets'
 import { isChain } from '@/lib/chains'
@@ -1039,6 +1039,64 @@ function sameNamedPlace(suggested: string, found: string, townName = ''): boolea
   return shared > 0 && shared * 3 >= f.size
 }
 
+/**
+ * Rewrites each verified pick's title and pitch using only what Google says
+ * about the place (type, description, reviews). Returns null per pick — or for
+ * the whole call — when it can't, so the caller keeps the original wording.
+ */
+async function groundPitches(
+  apiKey: string,
+  items: Array<{ title: string; pitch: string; place: VerifiedPlace | null }>,
+  ctx: { want: string; town: string; isTourist: boolean },
+): Promise<Array<{ title: string; pitch: string } | null> | null> {
+  const blocks = items.map((it, i) => {
+    if (!it.place) return `PLACE ${i + 1}: (no facts — skip)`
+    const f = it.place.facts
+    return [
+      `PLACE ${i + 1}: ${it.place.name}`,
+      f.type ? `Type: ${f.type}` : '',
+      f.summary ? `Google's description: ${f.summary}` : '',
+      f.rating ? `Rating: ${f.rating}★ from ${f.ratingCount ?? 0} reviews` : '',
+      it.place.openNow === true ? 'Open right now' : it.place.openNow === false ? 'Closed right now' : '',
+      `Drive: ${it.place.distanceLabel}`,
+      ...f.reviews.map(r => `Review: "${r}"`),
+      `Draft idea (from memory, may be wrong): ${it.title} — ${it.pitch}`,
+    ].filter(Boolean).join('\n')
+  }).join('\n\n')
+
+  const prompt = `You write short picks for someone in ${ctx.town} who wants: "${ctx.want}". ${ctx.isTourist
+    ? 'They are visiting — never say "no tourists" or "locals only".'
+    : 'They want to explore like a local.'}
+
+For each place, write a title (max 8 words) and a pitch (max 30 words, present tense, makes not going feel like a missed opportunity).
+
+STRICT: use only facts stated in the place's type, Google description or reviews. The draft idea comes from memory and may be wrong — keep anything from it only if the facts back it up. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. If the facts are thin, keep the pitch simple and true.
+
+${blocks}
+
+Return ONLY a JSON array with one entry per place, in order: [{"title":"...","pitch":"..."}]. Use null for a place marked "skip".`
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 700, messages: [{ role: 'user', content: prompt }] }),
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return null
+    const text: string = (await res.json()).content?.[0]?.text ?? ''
+    const m = text.match(/\[[\s\S]*\]/)
+    if (!m) return null
+    const out = JSON.parse(m[0]) as Array<{ title?: string; pitch?: string } | null>
+    return items.map((_, i) => {
+      const o = out[i]
+      return o?.title && o?.pitch ? { title: o.title, pitch: o.pitch } : null
+    })
+  } catch {
+    return null
+  }
+}
+
 function normName(s: string): string {
   return s.toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim()
 }
@@ -1652,10 +1710,19 @@ Return ONLY a valid JSON array:
               dropped: checked.filter(c => !kept.includes(c)).map(c => c.p.title),
             }
 
-            const picks = kept.slice(0, 3).map(({ p, place }, i) => ({
-              id: p.id, rank: i + 1, pitch: p.pitch,
-              title: p.title,
-              venue: place ? (place.name !== p.title ? place.name : '') : (p.venue ?? ''),
+            // Memory gets the place right but embellishes it ("climb to the
+            // observation deck"), so rewrite each pitch from Google's facts only
+            const top = kept.slice(0, 3)
+            const grounded = top.some(k => k.place)
+              ? await groundPitches(anthropicKeyKb, top.map(k => ({ title: k.p.title, pitch: k.p.pitch, place: k.place ?? null })),
+                  { want: answers[0] ?? '', town: locationKb, isTourist })
+              : null
+            if (debugInfo) (debugInfo.knowledge as Record<string, unknown>).grounded =grounded ? grounded.filter(Boolean).length : 0
+
+            const picks = top.map(({ p, place }, i) => ({
+              id: p.id, rank: i + 1, pitch: grounded?.[i]?.pitch ?? p.pitch,
+              title: grounded?.[i]?.title ?? p.title,
+              venue: place ? (place.name !== (grounded?.[i]?.title ?? p.title) ? place.name : '') : (p.venue ?? ''),
               dateFormatted: place?.openNow === true ? 'Open now' : place?.openNow === false ? 'Closed right now' : '',
               priceFormatted: p.price,
               // The verified Google Maps listing, so they can check it before they go
