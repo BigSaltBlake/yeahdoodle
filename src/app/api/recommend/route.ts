@@ -4,6 +4,7 @@ import { getPlaceProfile, buildProfileQueries } from '@/lib/place-profile'
 import { searchNearbyVenues, FOOD_TYPE_GROUPS, lastGooglePlacesError, verifyPlace, type VerifiedPlace } from '@/lib/google-places'
 import { getCuratedVenues } from '@/lib/curated-venues'
 import { getNearbySecrets } from '@/lib/local-secrets'
+import { getNearbyWikiPlaces } from '@/lib/wiki-places'
 import { isChain } from '@/lib/chains'
 
 // ---------------------------------------------------------------------------
@@ -1352,6 +1353,16 @@ export async function POST(req: NextRequest) {
           .catch(() => [] as EventRow[])
       : Promise.resolve([] as EventRow[])
 
+    // Real, well-known places (Wikipedia), anywhere in the world — landmarks,
+    // shrines, lakes, parks — so a pick never depends on Google or memory alone
+    const wantsOutdoors = !catHints || catHints.some(c => c === 'Outdoors' || c === 'Sports & Outdoors')
+    const wantsCulture  = !catHints || catHints.includes('Arts & Culture')
+    const wikiPromise = hasGps && typeof lat === 'number' && typeof lng === 'number' && !wantsFoodOnly
+      ? getNearbyWikiPlaces({ lat, lng, outdoors: wantsOutdoors, culture: wantsCulture })
+          .then(rows => rows as EventRow[])
+          .catch(() => [] as EventRow[])
+      : Promise.resolve([] as EventRow[])
+
     let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
     if (isSupabaseConfigured() && resolvedCity) {
       let q = supabase
@@ -1370,9 +1381,9 @@ export async function POST(req: NextRequest) {
       dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
-    const [liveEvents, dbRows, placeProfile, googleRows, curatedRows, secretRows] = await Promise.all([
+    const [liveEvents, dbRows, placeProfile, googleRows, curatedRows, secretRows, wikiRows] = await Promise.all([
       liveEventsPromise, dbRowsPromise, profilePromise,
-      googlePlacesPromise, curatedPromise, secretsPromise,
+      googlePlacesPromise, curatedPromise, secretsPromise, wikiPromise,
     ])
 
     // Opt-in diagnostics: counts only, so it is safe to return to any caller
@@ -1381,7 +1392,7 @@ export async function POST(req: NextRequest) {
       timeframe, window: { start: dateStart.toISOString(), end: dateEnd.toISOString() },
       counts: {
         live: liveEvents.length, db: dbRows.length,
-        google: googleRows.length, curated: curatedRows.length, secrets: secretRows.length,
+        google: googleRows.length, curated: curatedRows.length, secrets: secretRows.length, wiki: wikiRows.length,
       },
       keys: {
         google: !!process.env.GOOGLE_PLACES_API_KEY,
@@ -1586,6 +1597,9 @@ export async function POST(req: NextRequest) {
     // Local secrets go first (added here so no backfill above can drop them);
     // the filters below still decide whether they fit this request
     rows = [...secretRows, ...rows.filter(r => r.source !== 'secret')]
+    // Wikipedia places go last, skipping any another source already lists
+    const listed = rows.map(r => r.title)
+    rows = [...rows, ...wikiRows.filter(w => !listed.some(t => sameNamedPlace(t, w.title) || sameNamedPlace(w.title, t)))]
 
     // Never offer a chain restaurant/venue — fewer picks beats a generic one
     const beforeChains = rows.length
@@ -1757,10 +1771,11 @@ Return ONLY a valid JSON array:
                     : 'price unknown'
         const date  = r.date_start
           ? `${formatDate(r.date_start, r.tz ?? userTz, r.dateOnly)} (${relativeDay(r.date_start, r.tz ?? userTz)})`
-          : r.source === 'secret' ? 'No fixed time (place)'
+          : r.source === 'secret' || r.source === 'wiki' ? 'No fixed time (place)'
           : 'No fixed time (venue/activity)'
         const desc  = r.ai_description ?? r.description?.slice(0, 150) ?? ''
         const src   = r.source === 'secret'        ? '[LOCAL SECRET]'
+                    : r.source === 'wiki'          ? '[wikipedia]'
                     : r.id.startsWith('curated-') ? '[curated]'
                     : r.id.startsWith('gplace-')  ? '[google]'
                     : r.source === 'activity'      ? '[activity]'
@@ -1834,6 +1849,13 @@ Return ONLY a valid JSON array:
       ? `\n10. LOCAL SECRETS — Entries tagged [LOCAL SECRET] are hidden spots shared by people who know the area: exactly what YeahDoodle exists to find. Every one listed has already been checked as a fit for this request, so always pick one as rank 1 (the nearest if there are several). Its card shows how to get there, so the pitch sells the experience — never invent directions, hours or prices.`
       : ''
 
+    const wikiNote = rows.some(r => r.source === 'wiki')
+      ? `
+12. WIKIPEDIA PLACES — Entries tagged [wikipedia] are real, well-known places. ${isTourist
+          ? 'Great for a visitor: pick them freely when they fit.'
+          : 'Fine when nothing more local fits, but prefer a local favorite.'} Their description is all we know — pitch only that, never invent features, hours or prices.`
+      : ''
+
     const isDateMode = ['date-night', 'couple', 'first-date'].includes(mode) || (!mode && isDeepSurvey)
     const nowLocal = new Date().toLocaleString('en-US', {
       timeZone: userTz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -1873,7 +1895,7 @@ ${pitchGuidance}
 
 7. ONE PLACE PER PITCH — Each pitch describes only the entry you picked. Never mention or borrow details from any other entry.
 8. LOCAL GEMS ONLY — YeahDoodle exists to find the local, independent, one-of-a-kind spot a friend who lives here would take them to. Never pick a national or regional chain or anything generic. If fewer than 3 entries are genuinely worth it, return fewer — an empty slot beats a forgettable pick. Never mention chains or compare a pick to them.
-9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot. Its card already carries a note owning that, so the pitch must sell what makes it worth it — never claim the opposite of the dealbreaker (no "cheap", "no reservation needed", "quiet" for those).${secretNote}${travelerNote}
+9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot. Its card already carries a note owning that, so the pitch must sell what makes it worth it — never claim the opposite of the dealbreaker (no "cheap", "no reservation needed", "quiet" for those).${secretNote}${travelerNote}${wikiNote}
 
 Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry's number from the list and "title" is that entry's title copied exactly:
 [
