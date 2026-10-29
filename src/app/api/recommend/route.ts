@@ -43,7 +43,7 @@ interface EventRow {
 const ARTICLE_TITLE = /\b(things to do|top \d+|\d+\+? (best|fun|unique|cool|things|places|ways|spots)|travel guide|itinerary|bucket list)\b/i
 // Plain web-search results are pages, not places: anything that reads like an
 // article title goes
-const WEB_PAGE_TITLE = /\b(best|top|guide|things|ways|places|tips|itinerary|visit|visiting|travel|review|reviews|reddit|tripadvisor|what|where|how|why|weather|crowds|favou?rites?|must|events|calendar|attractions|recommendations|exploring|explore|sightseeing|\d{1,4})\b|\?|\.\.\.|…/i
+const WEB_PAGE_TITLE = /\b(best|top|guide|things|ways|places|tips|itinerary|visit|visiting|travel|review|reviews|reddit|tripadvisor|what|where|how|why|weather|crowds|favou?rites?|must|events|calendar|attractions|recommendations|exploring|explore|sightseeing|home|homepage|welcome|official site|chamber of commerce|visitors? bureau|cvb|tourism board|\d{1,4})\b|\?|\.\.\.|…/i
 // A listing page, not a thing: "Events", "Events in Paris", "Main Street Events"
 const GENERIC_TITLE = /^\s*(\S+\s+){0,2}(events?|calendar|happenings|things to do)(\s+in\s+.+)?\s*$/i
 
