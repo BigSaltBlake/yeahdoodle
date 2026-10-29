@@ -30,7 +30,7 @@ type WikiPage = {
 }
 
 // Judged from Wikipedia's short description ("Shinto shrine in Kyoto, Japan")
-const NOT_A_PLACE_TO_GO = /\b(station|stop|school|college|university|academy|district|ward|county|prefecture|municipality|city|town|village|hamlet|neighbou?rhood|suburb|incident|battle|siege|rebellion|war|period|restoration|era|agency|ministry|department|company|corporation|brand|street|road|highway|avenue|railway|line|route|hospital|office|court|prison|cemetery|stadium|venue|arena|airport|person|politician|footballer|born|band|film|novel|album|newspaper|radio|television|organization|organisation|government|parliament|embassy|bank|hotel|mall|store|shopping)\b/i
+const NOT_A_PLACE_TO_GO = /\b(defunct|former|demolished|destroyed|closed|proposed|planned|station|stop|school|college|university|academy|district|ward|county|prefecture|municipality|city|town|village|hamlet|neighbou?rhood|suburb|incident|battle|siege|rebellion|war|period|restoration|era|agency|ministry|department|company|corporation|brand|street|road|highway|avenue|railway|line|route|hospital|office|court|prison|cemetery|stadium|venue|arena|airport|person|politician|footballer|born|band|film|novel|album|newspaper|radio|television|organization|organisation|government|parliament|embassy|bank|hotel|mall|store|shopping)\b/i
 const OUTDOORS = /\b(park|garden|gardens|lake|pond|reservoir|beach|bay|waterfall|falls|mountain|mount|peak|hill|volcano|island|forest|woods|grove|canyon|gorge|cave|hot spring|onsen|river|creek|trail|nature reserve|wildlife|national park|state park|grassland|wetland|cliff|coast|viewpoint|lookout)\b/i
 const CULTURE = /\b(castle|palace|shrine|temple|church|cathedral|basilica|mosque|synagogue|monastery|abbey|museum|gallery|monument|memorial|landmark|historic|ruins|fort|fortress|tower|bridge|square|plaza|market|theatre|theater|opera|library|zoo|aquarium|observatory|lighthouse|house|mansion|villa|tomb|pagoda|statue|art)\b/i
 
@@ -64,8 +64,9 @@ export async function getNearbyWikiPlaces(params: {
   // Rounded to ~1 km so nearby searches share a cached answer for a day
   const q = new URLSearchParams({
     action: 'query', format: 'json', generator: 'geosearch',
-    ggscoord: `${lat.toFixed(2)}|${lng.toFixed(2)}`, ggsradius: '10000', ggslimit: '100',
-    prop: 'description|coordinates|pageimages', piprop: 'thumbnail', pithumbsize: '640',
+    ggscoord: `${lat.toFixed(2)}|${lng.toFixed(2)}`, ggsradius: '10000', ggslimit: '400',
+    // Without colimit Wikipedia only returns coordinates for 10 pages
+    prop: 'description|coordinates', colimit: 'max',
   })
   let pages: WikiPage[] = []
   try {
@@ -84,7 +85,7 @@ export async function getNearbyWikiPlaces(params: {
     return []
   }
 
-  return pages
+  const chosen = pages
     .flatMap(p => {
       const d = p.description ?? ''
       const c = p.coordinates?.[0]
@@ -97,7 +98,29 @@ export async function getNearbyWikiPlaces(params: {
     })
     .sort((a, b) => a.miles - b.miles)
     .slice(0, limit)
-    .map(({ p, d, c, category, miles }) => ({
+
+  // Photos only for the places we keep (Wikipedia gives at most 50 per request)
+  const photos = new Map<number, string>()
+  if (chosen.length) {
+    try {
+      const pq = new URLSearchParams({
+        action: 'query', format: 'json', prop: 'pageimages', piprop: 'thumbnail', pithumbsize: '640',
+        pilimit: 'max', pageids: chosen.map(x => x.p.pageid).join('|'),
+      })
+      const res = await fetch(`https://en.wikipedia.org/w/api.php?${pq}`, {
+        headers: { 'User-Agent': 'YeahDoodle/1.0 (https://yeahdoodle.com)' },
+        signal: AbortSignal.timeout(3000),
+        next: { revalidate: 86400 },
+      })
+      if (res.ok) {
+        for (const p of Object.values((await res.json()).query?.pages ?? {}) as WikiPage[]) {
+          if (p.thumbnail?.source) photos.set(p.pageid, p.thumbnail.source)
+        }
+      }
+    } catch { /* cards fall back to a stock photo */ }
+  }
+
+  return chosen.map(({ p, d, c, category, miles }) => ({
       id:             `wiki-${p.pageid}`,
       // "Eiffel Tower (Paris, Texas)" → "Eiffel Tower"
       title:          p.title.replace(/\s*\([^)]*\)\s*$/, ''),
@@ -109,7 +132,7 @@ export async function getNearbyWikiPlaces(params: {
       category,
       // A pin on the exact spot — a name search can land on a same-named place elsewhere
       ticket_url:     `https://www.google.com/maps/search/?api=1&query=${c.lat.toFixed(5)},${c.lon.toFixed(5)}`,
-      image_url:      p.thumbnail?.source ?? null,
+      image_url:      photos.get(p.pageid) ?? null,
       description:    `${d} (on Wikipedia — a well-known place)`,
       ai_description: null,
       distanceLabel:  driveLabel(miles),
