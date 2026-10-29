@@ -1047,19 +1047,20 @@ function sameNamedPlace(suggested: string, found: string, townName = ''): boolea
  */
 async function groundPitches(
   apiKey: string,
-  items: Array<{ title: string; pitch: string; place: VerifiedPlace | null }>,
+  items: Array<{ title: string; pitch: string; place: VerifiedPlace | null; note?: string }>,
   ctx: { want: string; town: string; isTourist: boolean },
 ): Promise<Array<{ title: string; pitch: string } | null> | null> {
   const blocks = items.map((it, i) => {
-    if (!it.place) return `PLACE ${i + 1}: (no facts — skip)`
-    const f = it.place.facts
+    if (!it.place && !it.note) return `PLACE ${i + 1}: (no facts — skip)`
+    const f = it.place?.facts ?? { reviews: [] as string[] } as VerifiedPlace['facts']
     return [
-      `PLACE ${i + 1}: ${it.place.name}`,
+      `PLACE ${i + 1}: ${it.place?.name ?? it.title}`,
+      it.note ? `Wikipedia: ${it.note}` : '',
       f.type ? `Type: ${f.type}` : '',
       f.summary ? `Google's description: ${f.summary}` : '',
       f.rating ? `Rating: ${f.rating}★ from ${f.ratingCount ?? 0} reviews` : '',
-      it.place.openNow === true ? 'Open right now' : it.place.openNow === false ? 'Closed right now' : '',
-      `Drive: ${it.place.distanceLabel}`,
+      it.place?.openNow === true ? 'Open right now' : it.place?.openNow === false ? 'Closed right now' : '',
+      it.place ? `Drive: ${it.place.distanceLabel}` : '',
       ...f.reviews.map(r => `Review: "${r}"`),
       `Draft idea (from memory, may be wrong): ${it.title} — ${it.pitch}`,
     ].filter(Boolean).join('\n')
@@ -1071,7 +1072,7 @@ async function groundPitches(
 
 For each place, write a title (max 8 words) and a pitch (max 30 words, present tense, makes not going feel like a missed opportunity).
 
-STRICT: use only facts stated in the place's type, Google description or reviews. The draft idea comes from memory and may be wrong — keep anything from it only if the facts back it up. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. If the facts are thin, keep the pitch simple and true.
+STRICT: use only facts stated in the place's type, Wikipedia or Google description, or reviews. The draft idea comes from memory and may be wrong — keep anything from it only if the facts back it up. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. If the facts are thin, keep the pitch simple and true.
 
 ${blocks}
 
@@ -2027,6 +2028,29 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
 
     // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
     await enrichPickImages(picks)
+
+    // A Wikipedia place comes with one line of description, so the AI's pitch
+    // tends to embellish it — rewrite it from Wikipedia plus Google's facts
+    const wikiAt = picks.flatMap((p, i) => p.source === 'wiki' ? [i] : [])
+    const groundKey = process.env.ANTHROPIC_API_KEY
+    if (wikiAt.length && groundKey) {
+      const town = hasGps ? geoDisplayName : resolvedCity
+      const canCheck = hasGps && typeof lat === 'number' && typeof lng === 'number'
+      const found = await Promise.all(wikiAt.map(i => canCheck
+        ? verifyPlace({ query: `${picks[i].title} ${town}`, lat: lat as number, lng: lng as number })
+        : Promise.resolve(null)))
+      const grounded = await groundPitches(groundKey, wikiAt.map((i, k) => {
+        const place = found[k]
+        const r = rows.find(x => x.id === picks[i].id)
+        return {
+          title: picks[i].title, pitch: picks[i].pitch,
+          place: place && sameNamedPlace(picks[i].title, place.name, town) ? place : null,
+          note: (r?.description ?? '').replace(/\s*\(on Wikipedia[^)]*\)\s*$/, ''),
+        }
+      }), { want: answers[0] ?? '', town, isTourist })
+      wikiAt.forEach((i, k) => { const g = grounded?.[k]; if (g) picks[i].pitch = g.pitch })
+      if (debugInfo) debugInfo.wikiGrounded = grounded ? grounded.filter(Boolean).length : 0
+    }
 
     // Only one or two real candidates fit — fill the rest with suggestions
     // that checked out on Google Maps, never with filler
