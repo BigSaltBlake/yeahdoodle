@@ -5,6 +5,7 @@ import { searchNearbyVenues, FOOD_TYPE_GROUPS, lastGooglePlacesError, verifyPlac
 import { getCuratedVenues } from '@/lib/curated-venues'
 import { getNearbySecrets } from '@/lib/local-secrets'
 import { getNearbyWikiPlaces } from '@/lib/wiki-places'
+import { getArticlePlaces } from '@/lib/article-places'
 import { isChain } from '@/lib/chains'
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,10 @@ interface EventRow {
   bendsDealbreaker?: boolean
   /** Local secret details (source 'secret') */
   secret?: { access: string | null; bestTime: string | null; cautions: string | null }
+  /** The article that named this place (source 'article') */
+  credit?: { site: string; url: string }
+  /** What to type into Google Maps to find this place (source 'article') */
+  search?: string
 }
 
 // Listicles and guides, whatever source they came from
@@ -1047,7 +1052,7 @@ function sameNamedPlace(suggested: string, found: string, townName = ''): boolea
  */
 async function groundPitches(
   apiKey: string,
-  items: Array<{ title: string; pitch: string; place: VerifiedPlace | null; note?: string }>,
+  items: Array<{ title: string; pitch: string; place: VerifiedPlace | null; note?: string; noteFrom?: string }>,
   ctx: { want: string; town: string; isTourist: boolean },
 ): Promise<Array<{ title: string; pitch: string } | null> | null> {
   const blocks = items.map((it, i) => {
@@ -1055,7 +1060,7 @@ async function groundPitches(
     const f = it.place?.facts ?? { reviews: [] as string[] } as VerifiedPlace['facts']
     return [
       `PLACE ${i + 1}: ${it.place?.name ?? it.title}`,
-      it.note ? `Wikipedia: ${it.note}` : '',
+      it.note ? `${it.noteFrom ?? 'Wikipedia'}: ${it.note}` : '',
       f.type ? `Type: ${f.type}` : '',
       f.summary ? `Google's description: ${f.summary}` : '',
       f.rating ? `Rating: ${f.rating}★ from ${f.ratingCount ?? 0} reviews` : '',
@@ -1072,7 +1077,7 @@ async function groundPitches(
 
 For each place, write a title (max 8 words) and a pitch (max 30 words, present tense, makes not going feel like a missed opportunity).
 
-STRICT: use only facts stated in the place's type, Wikipedia or Google description, or reviews. The draft idea comes from memory and may be wrong — keep anything from it only if the facts back it up. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. If the facts are thin, keep the pitch simple and true.
+STRICT: use only facts stated in the place's type, Wikipedia, article or Google description, or reviews. The draft idea comes from memory and may be wrong — keep anything from it only if the facts back it up. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. If the facts are thin, keep the pitch simple and true.
 
 ${blocks}
 
@@ -1364,6 +1369,17 @@ export async function POST(req: NextRequest) {
           .catch(() => [] as EventRow[])
       : Promise.resolve([] as EventRow[])
 
+    // Places named in local blogs and travel stories — the article is never
+    // the pick, but the spots it names can be, checked on Google Maps first
+    const articlePromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
+      ? getArticlePlaces({
+          want: answers[0] ?? '', town: geoDisplayName, isTourist,
+          categories: catHints ?? ['Outdoors', 'Arts & Culture', 'Food & Drink', 'Activities', 'Nightlife', 'Music'],
+        })
+          .then(rows => rows as EventRow[])
+          .catch(() => [] as EventRow[])
+      : Promise.resolve([] as EventRow[])
+
     let dbRowsPromise: Promise<EventRow[]> = Promise.resolve([])
     if (isSupabaseConfigured() && resolvedCity) {
       let q = supabase
@@ -1382,9 +1398,9 @@ export async function POST(req: NextRequest) {
       dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
-    const [liveEvents, dbRows, placeProfile, googleRows, curatedRows, secretRows, wikiRows] = await Promise.all([
+    const [liveEvents, dbRows, placeProfile, googleRows, curatedRows, secretRows, wikiRows, articleRows] = await Promise.all([
       liveEventsPromise, dbRowsPromise, profilePromise,
-      googlePlacesPromise, curatedPromise, secretsPromise, wikiPromise,
+      googlePlacesPromise, curatedPromise, secretsPromise, wikiPromise, articlePromise,
     ])
 
     // Opt-in diagnostics: counts only, so it is safe to return to any caller
@@ -1393,7 +1409,7 @@ export async function POST(req: NextRequest) {
       timeframe, window: { start: dateStart.toISOString(), end: dateEnd.toISOString() },
       counts: {
         live: liveEvents.length, db: dbRows.length,
-        google: googleRows.length, curated: curatedRows.length, secrets: secretRows.length, wiki: wikiRows.length,
+        google: googleRows.length, curated: curatedRows.length, secrets: secretRows.length, wiki: wikiRows.length, articles: articleRows.length,
       },
       keys: {
         google: !!process.env.GOOGLE_PLACES_API_KEY,
@@ -1601,6 +1617,9 @@ export async function POST(req: NextRequest) {
     // Wikipedia places go last, skipping any another source already lists
     const listed = rows.map(r => r.title)
     rows = [...rows, ...wikiRows.filter(w => !listed.some(t => sameNamedPlace(t, w.title) || sameNamedPlace(w.title, t)))]
+    // Then places articles name, likewise
+    const listedNow = rows.map(r => r.title)
+    rows = [...rows, ...articleRows.filter(a => !listedNow.some(t => sameNamedPlace(t, a.title) || sameNamedPlace(a.title, t)))]
 
     // Never offer a chain restaurant/venue — fewer picks beats a generic one
     const beforeChains = rows.length
@@ -1772,11 +1791,12 @@ Return ONLY a valid JSON array:
                     : 'price unknown'
         const date  = r.date_start
           ? `${formatDate(r.date_start, r.tz ?? userTz, r.dateOnly)} (${relativeDay(r.date_start, r.tz ?? userTz)})`
-          : r.source === 'secret' || r.source === 'wiki' ? 'No fixed time (place)'
+          : r.source === 'secret' || r.source === 'wiki' || r.source === 'article' ? 'No fixed time (place)'
           : 'No fixed time (venue/activity)'
         const desc  = r.ai_description ?? r.description?.slice(0, 150) ?? ''
         const src   = r.source === 'secret'        ? '[LOCAL SECRET]'
                     : r.source === 'wiki'          ? '[wikipedia]'
+                    : r.source === 'article'       ? '[from an article]'
                     : r.id.startsWith('curated-') ? '[curated]'
                     : r.id.startsWith('gplace-')  ? '[google]'
                     : r.source === 'activity'      ? '[activity]'
@@ -1857,6 +1877,13 @@ Return ONLY a valid JSON array:
           : 'Fine when nothing more local fits, but prefer a local favorite.'} Their description is all we know — pitch only that, never invent features, hours or prices.`
       : ''
 
+    const articleNote = rows.some(r => r.source === 'article')
+      ? `
+13. PLACES FROM ARTICLES — Entries tagged [from an article] are places a local blog or travel story names. ${isTourist
+          ? 'Good picks when they fit.'
+          : 'A place a local writer singles out is often exactly the local favorite they want.'} Pitch only what the description says — never invent features, hours or prices.`
+      : ''
+
     const isDateMode = ['date-night', 'couple', 'first-date'].includes(mode) || (!mode && isDeepSurvey)
     const nowLocal = new Date().toLocaleString('en-US', {
       timeZone: userTz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -1896,7 +1923,7 @@ ${pitchGuidance}
 
 7. ONE PLACE PER PITCH — Each pitch describes only the entry you picked. Never mention or borrow details from any other entry.
 8. LOCAL GEMS ONLY — YeahDoodle exists to find the local, independent, one-of-a-kind spot a friend who lives here would take them to. Never pick a national or regional chain or anything generic. If fewer than 3 entries are genuinely worth it, return fewer — an empty slot beats a forgettable pick. Never mention chains or compare a pick to them.
-9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot. Its card already carries a note owning that, so the pitch must sell what makes it worth it — never claim the opposite of the dealbreaker (no "cheap", "no reservation needed", "quiet" for those).${secretNote}${travelerNote}${wikiNote}
+9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot. Its card already carries a note owning that, so the pitch must sell what makes it worth it — never claim the opposite of the dealbreaker (no "cheap", "no reservation needed", "quiet" for those).${secretNote}${travelerNote}${wikiNote}${articleNote}
 
 Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry's number from the list and "title" is that entry's title copied exactly:
 [
@@ -1909,7 +1936,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
 
     // ── 8. No API key: return top 3 ──────────────────────────────────────────
     if (!anthropicKey) {
-      const top3 = rows.slice(0, 3).map((r, i) => ({
+      const top3 = rows.filter(r => r.source !== 'article').slice(0, 3).map((r, i) => ({
         id:             r.id,
         rank:           i + 1,
         pitch:          r.ai_description?.slice(0, 120) ?? r.description?.slice(0, 120) ?? 'A local favorite worth checking out tonight.',
@@ -1947,7 +1974,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
     if (!aiRes.ok) {
       // Anthropic unavailable — serve raw top-3 rather than returning empty
       console.warn('[recommend] Anthropic non-ok:', aiRes.status, '— raw fallback')
-      const fb = rows.slice(0, 3).map((r, i) => ({
+      const fb = rows.filter(r => r.source !== 'article').slice(0, 3).map((r, i) => ({
         id: r.id, rank: i + 1,
         pitch: r.ai_description?.slice(0, 120) ?? 'A great local experience.',
         title: r.title, venue: r.venue_name ?? '',
@@ -1971,7 +1998,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
     if (!jsonMatch) {
       // Bad AI response — serve raw top-3 rather than returning empty
       console.warn('[recommend] No JSON in AI response — raw fallback')
-      const fb = rows.slice(0, 3).map((r, i) => ({
+      const fb = rows.filter(r => r.source !== 'article').slice(0, 3).map((r, i) => ({
         id: r.id, rank: i + 1,
         pitch: r.ai_description?.slice(0, 120) ?? 'A great local experience.',
         title: r.title, venue: r.venue_name ?? '',
@@ -2019,8 +2046,40 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
           distanceLabel:  r.distanceLabel,
           dealbreakerNote: r.bendsDealbreaker ? dealbreaker?.note : undefined,
           secret: r.secret,
+          credit: r.credit,
         }
       })
+
+    // A place an article names must check out on Google Maps near them, like
+    // anything from memory — one that doesn't is dropped, and the top-up below
+    // fills its slot
+    const articleChecks = new Map<string, VerifiedPlace>()
+    const articleAt = picks.filter(p => p.source === 'article')
+    if (articleAt.length) {
+      const canCheck = hasGps && typeof lat === 'number' && typeof lng === 'number'
+      const town = hasGps ? geoDisplayName : resolvedCity
+      await Promise.all(articleAt.map(async p => {
+        const r = rows.find(x => x.id === p.id)
+        const place = canCheck
+          ? await verifyPlace({ query: r?.search || `${p.title} ${town}`, lat: lat as number, lng: lng as number })
+          : null
+        if (place && sameNamedPlace(p.title, place.name, town) && !isChain(place.name) &&
+            !(timeframe === 'Now' && place.openNow === false)) articleChecks.set(p.id, place)
+      }))
+      for (let i = picks.length - 1; i >= 0; i--) {
+        const p = picks[i]
+        if (p.source !== 'article') continue
+        const place = articleChecks.get(p.id)
+        if (!place) { picks.splice(i, 1); continue }
+        p.ticketUrl = place.mapsUrl
+        p.imageUrl = place.photoUrl ?? p.imageUrl
+        p.distanceLabel = place.distanceLabel
+        if (place.name !== p.title) p.venue = place.name
+        p.dateFormatted = place.openNow === true ? 'Open now' : place.openNow === false ? 'Closed right now' : ''
+      }
+      picks.forEach((p, i) => { p.rank = i + 1 })
+      if (debugInfo) debugInfo.articlePicks = { chosen: articleAt.length, verified: articleChecks.size }
+    }
 
     // The AI found nothing here worth recommending — never pad with raw rows;
     // suggest from knowledge instead
@@ -2029,26 +2088,30 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
     // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
     await enrichPickImages(picks)
 
-    // A Wikipedia place comes with one line of description, so the AI's pitch
-    // tends to embellish it — rewrite it from Wikipedia plus Google's facts
-    const wikiAt = picks.flatMap((p, i) => p.source === 'wiki' ? [i] : [])
+    // A Wikipedia or article place comes with one line of description, so the
+    // AI's pitch tends to embellish it — rewrite it from that line plus Google's facts
+    const groundAt = picks.flatMap((p, i) => p.source === 'wiki' || p.source === 'article' ? [i] : [])
     const groundKey = process.env.ANTHROPIC_API_KEY
-    if (wikiAt.length && groundKey) {
+    if (groundAt.length && groundKey) {
       const town = hasGps ? geoDisplayName : resolvedCity
       const canCheck = hasGps && typeof lat === 'number' && typeof lng === 'number'
-      const found = await Promise.all(wikiAt.map(i => canCheck
-        ? verifyPlace({ query: `${picks[i].title} ${town}`, lat: lat as number, lng: lng as number })
-        : Promise.resolve(null)))
-      const grounded = await groundPitches(groundKey, wikiAt.map((i, k) => {
+      const found = await Promise.all(groundAt.map(i => picks[i].source === 'article'
+        ? Promise.resolve(articleChecks.get(picks[i].id) ?? null)
+        : canCheck
+          ? verifyPlace({ query: `${picks[i].title} ${town}`, lat: lat as number, lng: lng as number })
+          : Promise.resolve(null)))
+      const grounded = await groundPitches(groundKey, groundAt.map((i, k) => {
         const place = found[k]
         const r = rows.find(x => x.id === picks[i].id)
+        const fromArticle = picks[i].source === 'article'
         return {
           title: picks[i].title, pitch: picks[i].pitch,
           place: place && sameNamedPlace(picks[i].title, place.name, town) ? place : null,
-          note: (r?.description ?? '').replace(/\s*\(on Wikipedia[^)]*\)\s*$/, ''),
+          note: (r?.description ?? '').replace(/\s*\((on Wikipedia|named in)[^)]*\)\s*$/, ''),
+          noteFrom: fromArticle ? `What ${r?.credit?.site ?? 'an article'} says` : 'Wikipedia',
         }
       }), { want: answers[0] ?? '', town, isTourist })
-      wikiAt.forEach((i, k) => { const g = grounded?.[k]; if (g) picks[i].pitch = g.pitch })
+      groundAt.forEach((i, k) => { const g = grounded?.[k]; if (g) picks[i].pitch = g.pitch })
       if (debugInfo) debugInfo.wikiGrounded = grounded ? grounded.filter(Boolean).length : 0
     }
 

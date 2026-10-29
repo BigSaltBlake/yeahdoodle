@@ -21,6 +21,8 @@ interface Pick {
   dealbreakerNote?: string
   /** Present when this pick is a local secret someone shared */
   secret?: { access: string | null; bestTime: string | null; cautions: string | null }
+  /** Present when an article named this place — credit it */
+  credit?: { site: string; url: string }
 }
 
 interface Props {
@@ -1295,6 +1297,12 @@ const prefetchAnswersRef = useRef<string[]>([])
                         <span className="bg-emerald-500/20 text-emerald-400/90 rounded px-1.5 py-0.5 text-[10px] font-medium">{pick.category}</span>
                       )}
                       {pick.source === 'facebook' && <span className="bg-blue-600/20 text-blue-400/90 rounded px-1.5 py-0.5 text-[10px] font-medium">📘 Facebook</span>}
+                      {pick.credit && (
+                        <a href={pick.credit.url} target="_blank" rel="noopener noreferrer"
+                          className="bg-white/10 text-white/60 hover:text-white/80 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors">
+                          📰 Found in {pick.credit.site}
+                        </a>
+                      )}
                       {pick.ticketUrl && (
                         <a href={pick.ticketUrl}
                           target="_blank"
