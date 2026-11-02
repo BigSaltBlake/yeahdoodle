@@ -6,6 +6,7 @@ import { getCuratedVenues } from '@/lib/curated-venues'
 import { getNearbySecrets } from '@/lib/local-secrets'
 import { getNearbyWikiPlaces } from '@/lib/wiki-places'
 import { getArticlePlaces } from '@/lib/article-places'
+import { getNearbyOsmPlaces } from '@/lib/osm-places'
 import { isChain } from '@/lib/chains'
 
 // ---------------------------------------------------------------------------
@@ -1369,6 +1370,14 @@ export async function POST(req: NextRequest) {
           .catch(() => [] as EventRow[])
       : Promise.resolve([] as EventRow[])
 
+    // Lesser-known mapped places (OpenStreetMap) — waterfalls, viewpoints,
+    // swimming holes, murals — loaded ahead of time by the worker
+    const osmPromise = hasGps && typeof lat === 'number' && typeof lng === 'number' && !wantsFoodOnly
+      ? getNearbyOsmPlaces({ lat, lng, outdoors: wantsOutdoors, culture: wantsCulture })
+          .then(rows => rows as EventRow[])
+          .catch(() => [] as EventRow[])
+      : Promise.resolve([] as EventRow[])
+
     // Places named in local blogs and travel stories — the article is never
     // the pick, but the spots it names can be, checked on Google Maps first
     const articlePromise = hasGps && typeof lat === 'number' && typeof lng === 'number'
@@ -1398,9 +1407,9 @@ export async function POST(req: NextRequest) {
       dbRowsPromise = Promise.resolve(q).then(({ data }) => (data ?? []) as EventRow[])
     }
 
-    const [liveEvents, dbRows, placeProfile, googleRows, curatedRows, secretRows, wikiRows, articleRows] = await Promise.all([
+    const [liveEvents, dbRows, placeProfile, googleRows, curatedRows, secretRows, wikiRows, articleRows, osmRows] = await Promise.all([
       liveEventsPromise, dbRowsPromise, profilePromise,
-      googlePlacesPromise, curatedPromise, secretsPromise, wikiPromise, articlePromise,
+      googlePlacesPromise, curatedPromise, secretsPromise, wikiPromise, articlePromise, osmPromise,
     ])
 
     // Opt-in diagnostics: counts only, so it is safe to return to any caller
@@ -1409,7 +1418,7 @@ export async function POST(req: NextRequest) {
       timeframe, window: { start: dateStart.toISOString(), end: dateEnd.toISOString() },
       counts: {
         live: liveEvents.length, db: dbRows.length,
-        google: googleRows.length, curated: curatedRows.length, secrets: secretRows.length, wiki: wikiRows.length, articles: articleRows.length,
+        google: googleRows.length, curated: curatedRows.length, secrets: secretRows.length, wiki: wikiRows.length, articles: articleRows.length, osm: osmRows.length,
       },
       keys: {
         google: !!process.env.GOOGLE_PLACES_API_KEY,
@@ -1617,9 +1626,11 @@ export async function POST(req: NextRequest) {
     // Wikipedia places go last, skipping any another source already lists
     const listed = rows.map(r => r.title)
     rows = [...rows, ...wikiRows.filter(w => !listed.some(t => sameNamedPlace(t, w.title) || sameNamedPlace(w.title, t)))]
-    // Then places articles name, likewise
-    const listedNow = rows.map(r => r.title)
-    rows = [...rows, ...articleRows.filter(a => !listedNow.some(t => sameNamedPlace(t, a.title) || sameNamedPlace(a.title, t)))]
+    // Then lesser-known mapped places and places articles name, likewise
+    for (const extra of [osmRows, articleRows]) {
+      const listedNow = rows.map(r => r.title)
+      rows = [...rows, ...extra.filter(a => !listedNow.some(t => sameNamedPlace(t, a.title) || sameNamedPlace(a.title, t)))]
+    }
 
     // Never offer a chain restaurant/venue — fewer picks beats a generic one
     const beforeChains = rows.length
@@ -1791,12 +1802,13 @@ Return ONLY a valid JSON array:
                     : 'price unknown'
         const date  = r.date_start
           ? `${formatDate(r.date_start, r.tz ?? userTz, r.dateOnly)} (${relativeDay(r.date_start, r.tz ?? userTz)})`
-          : r.source === 'secret' || r.source === 'wiki' || r.source === 'article' ? 'No fixed time (place)'
+          : r.source === 'secret' || r.source === 'wiki' || r.source === 'article' || r.source === 'osm' ? 'No fixed time (place)'
           : 'No fixed time (venue/activity)'
         const desc  = r.ai_description ?? r.description?.slice(0, 150) ?? ''
         const src   = r.source === 'secret'        ? '[LOCAL SECRET]'
                     : r.source === 'wiki'          ? '[wikipedia]'
                     : r.source === 'article'       ? '[from an article]'
+                    : r.source === 'osm'           ? '[lesser-known]'
                     : r.id.startsWith('curated-') ? '[curated]'
                     : r.id.startsWith('gplace-')  ? '[google]'
                     : r.source === 'activity'      ? '[activity]'
@@ -1884,6 +1896,13 @@ Return ONLY a valid JSON array:
           : 'A place a local writer singles out is often exactly the local favorite they want.'} Pitch only what the description says — never invent features, hours or prices.`
       : ''
 
+    const osmNote = rows.some(r => r.source === 'osm')
+      ? `
+14. LESSER-KNOWN SPOTS — Entries tagged [lesser-known] are real mapped places (waterfalls, viewpoints, trailheads, murals, small museums) that guidebooks skip. ${isTourist
+          ? 'Fine when they fit, but a visitor mostly wants what the place is known for.'
+          : 'Exactly what someone exploring like a local wants — after any local secret, prefer these over well-known places when they fit.'} Their description is all we know — pitch only that, never invent features, hours or prices.`
+      : ''
+
     const isDateMode = ['date-night', 'couple', 'first-date'].includes(mode) || (!mode && isDeepSurvey)
     const nowLocal = new Date().toLocaleString('en-US', {
       timeZone: userTz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -1923,7 +1942,7 @@ ${pitchGuidance}
 
 7. ONE PLACE PER PITCH — Each pitch describes only the entry you picked. Never mention or borrow details from any other entry.
 8. LOCAL GEMS ONLY — YeahDoodle exists to find the local, independent, one-of-a-kind spot a friend who lives here would take them to. Never pick a national or regional chain or anything generic. If fewer than 3 entries are genuinely worth it, return fewer — an empty slot beats a forgettable pick. Never mention chains or compare a pick to them.
-9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot. Its card already carries a note owning that, so the pitch must sell what makes it worth it — never claim the opposite of the dealbreaker (no "cheap", "no reservation needed", "quiet" for those).${secretNote}${travelerNote}${wikiNote}${articleNote}
+9. BENDING THE DEALBREAKER — Entries marked [BENDS DEALBREAKER] break "${killSwitch}" and are only listed because few options clear it. Pick one only when no unmarked entry fits that slot. Its card already carries a note owning that, so the pitch must sell what makes it worth it — never claim the opposite of the dealbreaker (no "cheap", "no reservation needed", "quiet" for those).${secretNote}${travelerNote}${wikiNote}${articleNote}${osmNote}
 
 Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry's number from the list and "title" is that entry's title copied exactly:
 [
@@ -2090,7 +2109,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
 
     // A Wikipedia or article place comes with one line of description, so the
     // AI's pitch tends to embellish it — rewrite it from that line plus Google's facts
-    const groundAt = picks.flatMap((p, i) => p.source === 'wiki' || p.source === 'article' ? [i] : [])
+    const groundAt = picks.flatMap((p, i) => p.source === 'wiki' || p.source === 'article' || p.source === 'osm' ? [i] : [])
     const groundKey = process.env.ANTHROPIC_API_KEY
     if (groundAt.length && groundKey) {
       const town = hasGps ? geoDisplayName : resolvedCity
@@ -2107,11 +2126,17 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         return {
           title: picks[i].title, pitch: picks[i].pitch,
           place: place && sameNamedPlace(picks[i].title, place.name, town) ? place : null,
-          note: (r?.description ?? '').replace(/\s*\((on Wikipedia|named in)[^)]*\)\s*$/, ''),
-          noteFrom: fromArticle ? `What ${r?.credit?.site ?? 'an article'} says` : 'Wikipedia',
+          note: (r?.description ?? '').replace(/\s*\((on Wikipedia|named in|a lesser-known spot)[^)]*\)\s*$/, ''),
+          noteFrom: fromArticle ? `What ${r?.credit?.site ?? 'an article'} says`
+                  : picks[i].source === 'osm' ? 'OpenStreetMap' : 'Wikipedia',
         }
       }), { want: answers[0] ?? '', town, isTourist })
       groundAt.forEach((i, k) => { const g = grounded?.[k]; if (g) picks[i].pitch = g.pitch })
+      // A mapped spot has no photo of its own — use Google's when it's the same place
+      groundAt.forEach((i, k) => {
+        const place = found[k]
+        if (picks[i].source === 'osm' && place?.photoUrl && sameNamedPlace(picks[i].title, place.name, town)) picks[i].imageUrl = place.photoUrl
+      })
       if (debugInfo) debugInfo.wikiGrounded = grounded ? grounded.filter(Boolean).length : 0
     }
 

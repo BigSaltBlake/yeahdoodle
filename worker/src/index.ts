@@ -23,6 +23,7 @@ import { syncBandsintown } from './sources/bandsintown'
 import { enrichDescriptions } from './enrich'
 import { deleteExpiredEvents } from './cleanup'
 import { runDedup } from './dedup'
+import { syncOsmAreas, refreshOsmAreas } from './osm'
 
 // ---------------------------------------------------------------------------
 // Config
@@ -52,6 +53,7 @@ async function runSync(name: string, fn: () => Promise<void>) {
 async function bootSync() {
   const db = createDb()
   await runSync('Cleanup',       () => deleteExpiredEvents(db))
+  await runSync('OSM places',    () => syncOsmAreas(db))
   await runSync('Ticketmaster',  () => syncTicketmaster(db, CITIES))
   await runSync('SeatGeek',      () => syncSeatGeek(db, CITIES))
   await runSync('Eventbrite',    () => syncEventbrite(db, CITIES))
@@ -73,6 +75,7 @@ async function bootSync() {
 // Meetup        — every 12h (placeholder, no-op until implemented)
 // AI Enrich     — daily 04:00 UTC
 // Cleanup       — daily 07:00 UTC
+// OSM places    — every 2 min (areas people searched); refresh check daily 08:00 UTC
 // ---------------------------------------------------------------------------
 function startScheduler() {
   // Ticketmaster: 00:00, 06:00, 12:00, 18:00 UTC
@@ -127,8 +130,20 @@ function startScheduler() {
     await runSync('Cleanup', () => deleteExpiredEvents(db))
   })
 
+  // OSM places: areas people searched, a couple at a time — quiet when there's nothing to load
+  cron.schedule('*/2 * * * *', async () => {
+    try { await syncOsmAreas(createDb()) }
+    catch (err) { console.error('[OSM] sync failed:', (err as Error).message) }
+  })
+
+  // OSM refresh: 08:00 UTC daily
+  cron.schedule('0 8 * * *', async () => {
+    const db = createDb()
+    await runSync('OSM refresh', () => refreshOsmAreas(db))
+  })
+
   console.log('Scheduler running. Syncing cities:', CITIES.join(', '))
-  console.log('Schedule: TM every 6h | SG/EB/BIT every 12h | AI Enrich daily 04:00 | Cleanup daily 07:00')
+  console.log('Schedule: TM every 6h | SG/EB/BIT every 12h | AI Enrich daily 04:00 | Cleanup daily 07:00 | OSM every 2 min')
 }
 
 // ---------------------------------------------------------------------------
