@@ -15,7 +15,8 @@ const OVERPASS_SERVERS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
 ]
-const AREAS_PER_RUN = 2
+const AREAS_PER_RUN = 40
+const RUN_MINUTES   = 30
 const MAX_ATTEMPTS  = 3
 const REFRESH_DAYS  = 60
 
@@ -181,15 +182,20 @@ export async function syncOsmAreas(db: Db) {
   if (running) return
   running = true
   try {
-    const { data, error } = await db
-      .from('osm_areas')
-      .select('key, attempts')
-      .eq('status', 'pending')
-      .order('requested_at', { ascending: true })
-      .limit(AREAS_PER_RUN)
-    if (error) throw error
-    // One at a time — the public Overpass servers ask for that
-    for (const a of data ?? []) await loadArea(db, a.key, a.attempts)
+    // Back to back until the queue is empty (the 2-minute schedule only
+    // restarts this) — one at a time, as the public Overpass servers ask
+    const started = Date.now()
+    for (let n = 0; n < AREAS_PER_RUN && Date.now() - started < RUN_MINUTES * 60_000; n++) {
+      const { data, error } = await db
+        .from('osm_areas')
+        .select('key, attempts')
+        .eq('status', 'pending')
+        .order('requested_at', { ascending: true })
+        .limit(1)
+      if (error) throw error
+      if (!data?.length) break
+      await loadArea(db, data[0].key, data[0].attempts)
+    }
   } finally {
     running = false
   }

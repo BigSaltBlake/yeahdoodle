@@ -75,7 +75,7 @@ async function bootSync() {
 // Meetup        — every 12h (placeholder, no-op until implemented)
 // AI Enrich     — daily 04:00 UTC
 // Cleanup       — daily 07:00 UTC
-// OSM places    — every 2 min (areas people searched); refresh check daily 08:00 UTC
+// OSM places    — every 2 min, back to back until the queue is empty; refresh check daily 08:00 UTC
 // ---------------------------------------------------------------------------
 function startScheduler() {
   // Ticketmaster: 00:00, 06:00, 12:00, 18:00 UTC
