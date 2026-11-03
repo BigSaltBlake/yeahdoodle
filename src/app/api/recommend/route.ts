@@ -724,7 +724,8 @@ async function enrichPickImages(
       if (!pick.imageUrl.includes('unsplash.com')) return
 
       // 1. OG image from the event's ticket/listing page — event-specific, free
-      if (pick.ticketUrl) {
+      // (A Google Maps link has none — its preview is a map, often of somewhere else)
+      if (pick.ticketUrl && !/google\.com\/maps/.test(pick.ticketUrl)) {
         const og = await fetchOgImage(pick.ticketUrl)
         if (og) { pick.imageUrl = og; return }
       }
@@ -1078,7 +1079,7 @@ async function groundPitches(
 
 For each place, write a title (max 8 words) and a pitch (max 30 words, present tense, makes not going feel like a missed opportunity).
 
-STRICT: use only facts stated in the place's type, Wikipedia, article or Google description, or reviews. The draft idea comes from memory and may be wrong — keep anything from it only if the facts back it up. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. If the facts are thin, keep the pitch simple and true.
+STRICT: use only facts stated in the place's type, Wikipedia, article or Google description, or reviews. The draft idea comes from memory and may be wrong — keep anything from it only if the facts back it up. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. Never claim how locals or visitors use it, how hidden or crowded it is, or what season to go, unless a fact says so. If the facts are thin, keep the pitch simple and true — say what it is and how close.
 
 ${blocks}
 

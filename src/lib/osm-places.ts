@@ -47,7 +47,7 @@ function driveLabel(miles: number): string {
   return '~' + driveMin + ' min away'
 }
 
-/** Lesser-known places within `radiusMiles`, the unusual kinds before plain parks */
+/** Lesser-known places within `radiusMiles`, nearest first */
 export async function getNearbyOsmPlaces(params: {
   lat: number
   lng: number
@@ -77,6 +77,8 @@ export async function getNearbyOsmPlaces(params: {
       sb.from('osm_places')
         .select('id,name,local_name,kind,category,lat,lng,facts')
         .eq('well_known', false)
+        // Every block has a named park, and Google lists them — a waterfall or a mural is the real find
+        .neq('kind', 'Park')
         .in('category', categories)
         .gte('lat', lat - dLat).lte('lat', lat + dLat)
         .gte('lng', lng - dLng).lte('lng', lng + dLng)
@@ -100,11 +102,8 @@ export async function getNearbyOsmPlaces(params: {
       .map(p => ({ p, miles: haversineMiles(lat, lng, p.lat, p.lng) }))
       .filter(x => x.miles <= radiusMiles)
       .sort((a, b) => a.miles - b.miles)
-    // Every block has a named park — a waterfall or a mural is the real find
-    const unusual = near.filter(x => x.p.kind !== 'Park')
-    const parks   = near.filter(x => x.p.kind === 'Park')
     const seen = new Set<string>()
-    return [...unusual, ...parks]
+    return near
       .filter(x => { const k = x.p.name.toLowerCase(); return !seen.has(k) && !!seen.add(k) })
       .slice(0, limit)
       .map(({ p, miles }) => ({
