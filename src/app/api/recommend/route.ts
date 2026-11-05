@@ -634,13 +634,14 @@ function getSerpQueriesForCity(timeframe: string, city: string, _isLocal: boolea
 // ---------------------------------------------------------------------------
 function inferCategory(text: string): string {
   const t = text.toLowerCase()
-  if (/music|concert|band|jazz|rock|hip.?hop|festival|dj|live show/.test(t))          return 'Music'
-  if (/comedy|standup|stand-up|open.?mic|improv/.test(t))                              return 'Comedy'
-  if (/art|gallery|exhibit|museum|theater|theatre|dance|ballet|opera/.test(t))         return 'Arts & Culture'
-  if (/food|drink|wine|beer|tasting|dinner|brunch|restaurant|cocktail|bar/.test(t))    return 'Food & Drink'
-  if (/hike|hiking|trail|kayak|paddle|climb|fish|camp|nature|park|outdoor|river|lake/.test(t)) return 'Outdoors'
-  if (/sport|game|race|fitness|yoga|run/.test(t))                                      return 'Sports & Outdoors'
-  if (/night|club|lounge|dj|party/.test(t))                                            return 'Nightlife'
+  // Whole words only — "Rocky Mountain" isn't rock music, "party" isn't art
+  if (/\b(music|concerts?|bands?|jazz|rock|hip.?hop|festivals?|dj|live show)\b/.test(t))  return 'Music'
+  if (/\b(comedy|standup|stand-up|open.?mic|improv)\b/.test(t))                           return 'Comedy'
+  if (/\b(arts?|galler(y|ies)|exhibits?|exhibition|museums?|theat(er|re)s?|dance|ballet|opera)\b/.test(t)) return 'Arts & Culture'
+  if (/\b(food|drinks?|wines?|beers?|tastings?|dinner|brunch|restaurants?|cocktails?|bars?|deli|cafe|coffee|bakery|bistro|brewery|pub|tavern|eatery|small plates)\b/.test(t)) return 'Food & Drink'
+  if (/\b(hikes?|hiking|trails?|kayak(ing)?|paddl(e|ing)|climb(ing)?|fish(ing)?|camp(ing)?|nature|parks?|outdoors?|rivers?|lakes?)\b/.test(t)) return 'Outdoors'
+  if (/\b(sports?|games?|races?|fitness|yoga|run|running)\b/.test(t))                     return 'Sports & Outdoors'
+  if (/\b(night|nightlife|clubs?|lounges?|party|parties)\b/.test(t))                      return 'Nightlife'
   return 'Community'
 }
 
@@ -1069,7 +1070,6 @@ async function groundPitches(
       it.place?.openNow === true ? 'Open right now' : it.place?.openNow === false ? 'Closed right now' : '',
       it.place ? `Drive: ${it.place.distanceLabel}` : '',
       ...f.reviews.map(r => `Review: "${r}"`),
-      `Draft idea (from memory, may be wrong): ${it.title} — ${it.pitch}`,
     ].filter(Boolean).join('\n')
   }).join('\n\n')
 
@@ -1077,9 +1077,9 @@ async function groundPitches(
     ? 'They are visiting — never say "no tourists" or "locals only".'
     : 'They want to explore like a local.'}
 
-For each place, write a title (max 8 words) and a pitch (max 30 words, present tense, makes not going feel like a missed opportunity).
+For each place, write a title (max 8 words) and a pitch (max 30 words, present tense, plain and specific).
 
-STRICT: use only facts stated in the place's type, Wikipedia, article or Google description, or reviews. The draft idea comes from memory and may be wrong — keep anything from it only if the facts back it up. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. Never claim how locals or visitors use it, how hidden or crowded it is, or what season to go, unless a fact says so. If the facts are thin, keep the pitch simple and true — say what it is and how close.
+STRICT: use only facts stated above for that place. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. Never claim how locals or visitors use it, how hidden or crowded it is, how it feels, or what time or season to go, unless a fact says so. No urgency ("go now", "before it fills up"). If the facts are thin, keep the pitch simple and true — say what it is and how close.
 
 ${blocks}
 
@@ -1104,6 +1104,13 @@ Return ONLY a JSON array with one entry per place, in order: [{"title":"...","pi
   } catch {
     return null
   }
+}
+
+/** What we can stand behind when no checked pitch came back: the first line of what's known, and how close */
+function plainPitch(note: string, distanceLabel?: string): string {
+  const line = (note.match(/^.{30,}?[.!?](?=\s|$)/)?.[0] ?? note).trim().slice(0, 160)
+  const away = distanceLabel?.startsWith('~') ? `About ${distanceLabel.slice(1)}.` : ''
+  return [line ? (/[.!?]$/.test(line) ? line : `${line}.`) : 'Worth a look.', away].filter(Boolean).join(' ')
 }
 
 function normName(s: string): string {
@@ -1447,6 +1454,8 @@ export async function POST(req: NextRequest) {
             const data = await res.json()
             const organic = (data.organic ?? []) as Record<string, string>[]
             organic.slice(0, 3).forEach((r, i) => {
+              // A town result can be anything — a deli must not pass as a hike
+              const kind = inferCategory(`${r.title ?? ''} ${r.snippet ?? ''}`)
               profileActivityRows.push({
                 id:             `profile-${i}`,
                 title:          r.title ?? 'Local Activity',
@@ -1455,7 +1464,7 @@ export async function POST(req: NextRequest) {
                 is_free:        false,
                 price_min:      null,
                 price_max:      null,
-                category:       'Activities',
+                category:       kind === 'Community' ? 'Activities' : kind,
                 ticket_url:     r.link ?? null,
                 image_url:      null,
                 description:    r.snippet ?? null,
@@ -2108,9 +2117,9 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
     // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
     await enrichPickImages(picks)
 
-    // A Wikipedia or article place comes with one line of description, so the
-    // AI's pitch tends to embellish it — rewrite it from that line plus Google's facts
-    const groundAt = picks.flatMap((p, i) => p.source === 'wiki' || p.source === 'article' || p.source === 'osm' ? [i] : [])
+    // A place or web result comes with one line of description, so the AI's
+    // pitch tends to embellish it — rewrite it from that line plus Google's facts
+    const groundAt = picks.flatMap((p, i) => ['wiki', 'article', 'osm', 'activity'].includes(p.source ?? '') ? [i] : [])
     const groundKey = process.env.ANTHROPIC_API_KEY
     if (groundAt.length && groundKey) {
       const town = hasGps ? geoDisplayName : resolvedCity
@@ -2120,7 +2129,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
         : canCheck
           ? verifyPlace({ query: `${picks[i].title} ${town}`, lat: lat as number, lng: lng as number })
           : Promise.resolve(null)))
-      const grounded = await groundPitches(groundKey, groundAt.map((i, k) => {
+      const toGround = groundAt.map((i, k) => {
         const place = found[k]
         const r = rows.find(x => x.id === picks[i].id)
         const fromArticle = picks[i].source === 'article'
@@ -2129,10 +2138,17 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
           place: place && sameNamedPlace(picks[i].title, place.name, town) ? place : null,
           note: (r?.description ?? '').replace(/\s*\((on Wikipedia|named in|a lesser-known spot)[^)]*\)\s*$/, ''),
           noteFrom: fromArticle ? `What ${r?.credit?.site ?? 'an article'} says`
-                  : picks[i].source === 'osm' ? 'OpenStreetMap' : 'Wikipedia',
+                  : picks[i].source === 'osm' ? 'OpenStreetMap'
+                  : picks[i].source === 'activity' ? 'The web listing' : 'Wikipedia',
         }
-      }), { want: answers[0] ?? '', town, isTourist })
-      groundAt.forEach((i, k) => { const g = grounded?.[k]; if (g) picks[i].pitch = g.pitch })
+      })
+      const grounded = await groundPitches(groundKey, toGround, { want: answers[0] ?? '', town, isTourist })
+      // Nothing checked came back — say only what's known, never the unchecked draft
+      groundAt.forEach((i, k) => {
+        const t = toGround[k]
+        picks[i].pitch = grounded?.[k]?.pitch
+          ?? plainPitch(t.note || t.place?.facts.summary || t.place?.facts.type || '', picks[i].distanceLabel)
+      })
       // A mapped spot has no photo of its own — use Google's when it's the same place
       groundAt.forEach((i, k) => {
         const place = found[k]
