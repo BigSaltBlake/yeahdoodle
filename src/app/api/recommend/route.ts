@@ -53,6 +53,8 @@ const WEB_PAGE_TITLE = /\b(january|february|march|april|may|june|july|august|sep
 // A listing page, not a thing: "Events", "Events in Paris", "Main Street Events"
 const GENERIC_TITLE = /^\s*(\S+\s+){0,2}(events?|calendar|happenings|things to do)(\s+in\s+.+)?\s*$/i
 
+const INDOOR_VENUE = /\b(arena|center|centre|coliseum|colosseum|field ?house|forum|dome|gym|gymnasium|pavilion)\b/i
+
 function looksLikeArticle(r: EventRow): boolean {
   if (ARTICLE_TITLE.test(r.title) || GENERIC_TITLE.test(r.title)) return true
   // Undated search results that aren't a Google place or one of ours are web pages
@@ -1674,7 +1676,9 @@ export async function POST(req: NextRequest) {
     // are never used to pad the list — two great picks beat three with filler.
     // With nothing on-topic, the knowledge fallback below suggests the right kind.
     if (catHints) {
-      const onTopic = rows.filter(r => catHints.includes(r.category))
+      // A game in an arena is sports, but it isn't getting outside
+      const onTopic = rows.filter(r => catHints.includes(r.category) && !(catHints.includes('Outdoors')
+        && r.category === 'Sports & Outdoors' && r.date_start && INDOOR_VENUE.test(r.venue_name ?? '')))
       rows = onTopic
       if (debugInfo) debugInfo.onTopic = onTopic.length
     }
@@ -2135,37 +2139,43 @@ Return ONLY a valid JSON array — no markdown, no explanation. "n" is the entry
     // Enrich images for the 3 AI-selected picks (free: OG tag → Unsplash → fallback)
     await enrichPickImages(picks)
 
-    // A place or web result comes with one line of description, so the AI's
-    // pitch tends to embellish it — rewrite it from that line plus Google's facts
-    const groundAt = picks.flatMap((p, i) => ['wiki', 'article', 'osm', 'activity'].includes(p.source ?? '') ? [i] : [])
+    // A place, web result or event comes with a line or two of description, so
+    // the AI's pitch tends to embellish it — rewrite it from that plus Google's facts
+    const isPlaceRow = (p: { source?: string }) => ['wiki', 'article', 'osm', 'activity'].includes(p.source ?? '')
+    const groundAt = picks.flatMap((p, i) => isPlaceRow(p) || (p.dateFormatted && p.source !== 'secret') ? [i] : [])
     const groundKey = process.env.ANTHROPIC_API_KEY
     if (groundAt.length && groundKey) {
       const town = hasGps ? geoDisplayName : resolvedCity
       const canCheck = hasGps && typeof lat === 'number' && typeof lng === 'number'
       const found = await Promise.all(groundAt.map(i => picks[i].source === 'article'
         ? Promise.resolve(articleChecks.get(picks[i].id) ?? null)
-        : canCheck
+        : canCheck && isPlaceRow(picks[i])
           ? verifyPlace({ query: `${picks[i].title} ${town}`, lat: lat as number, lng: lng as number })
           : Promise.resolve(null)))
       const toGround = groundAt.map((i, k) => {
         const place = found[k]
-        const r = rows.find(x => x.id === picks[i].id)
-        const fromArticle = picks[i].source === 'article'
+        const p = picks[i]
+        const r = rows.find(x => x.id === p.id)
+        const fromArticle = p.source === 'article'
         return {
-          title: picks[i].title, pitch: picks[i].pitch,
-          place: place && sameNamedPlace(picks[i].title, place.name, town) ? place : null,
-          note: (r?.description ?? '').replace(/\s*\((on Wikipedia|named in|a lesser-known spot)[^)]*\)\s*$/, ''),
+          title: p.title, pitch: p.pitch,
+          place: place && sameNamedPlace(p.title, place.name, town) ? place : null,
+          note: isPlaceRow(p)
+            ? (r?.description ?? '').replace(/\s*\((on Wikipedia|named in|a lesser-known spot)[^)]*\)\s*$/, '')
+            : [r?.description?.slice(0, 400), `${p.title}${p.venue ? ` at ${p.venue}` : ''}`, p.dateFormatted, p.priceFormatted].filter(Boolean).join('. '),
           noteFrom: fromArticle ? `What ${r?.credit?.site ?? 'an article'} says`
-                  : picks[i].source === 'osm' ? 'OpenStreetMap'
-                  : picks[i].source === 'activity' ? 'The web listing' : 'Wikipedia',
+                  : p.source === 'osm' ? 'OpenStreetMap'
+                  : p.source === 'activity' ? 'The web listing'
+                  : p.source === 'wiki' ? 'Wikipedia' : 'The event listing',
         }
       })
       const grounded = await groundPitches(groundKey, toGround, { want: answers[0] ?? '', town, isTourist })
       // Nothing checked came back — say only what's known, never the unchecked draft
       groundAt.forEach((i, k) => {
         const t = toGround[k]
-        picks[i].pitch = grounded?.[k]?.pitch
+        const pitch = grounded?.[k]?.pitch
           ?? plainPitch(t.note || t.place?.facts.summary || t.place?.facts.type || '', picks[i].distanceLabel)
+        picks[i].pitch = picks[i].dealbreakerNote ? bendSafePitch(pitch, dealbreaker) : pitch
       })
       // A mapped spot has no photo of its own — use Google's when it's the same place
       groundAt.forEach((i, k) => {
