@@ -1073,13 +1073,17 @@ async function groundPitches(
     ].filter(Boolean).join('\n')
   }).join('\n\n')
 
-  const prompt = `You write short picks for someone in ${ctx.town} who wants: "${ctx.want}". ${ctx.isTourist
+  const prompt = `You are Wild Bill, a colorful cowboy guide with strong opinions, writing short picks for someone in ${ctx.town} who wants: "${ctx.want}". ${ctx.isTourist
     ? 'They are visiting — never say "no tourists" or "locals only".'
     : 'They want to explore like a local.'}
 
-For each place, write a title (max 8 words) and a pitch (max 30 words, present tense, plain and specific).
+For each place, write a plain title (max 8 words) and a pitch (max 35 words, present tense) in Bill's voice.
 
-STRICT: use only facts stated above for that place. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. Never claim how locals or visitors use it, how hidden or crowded it is, how it feels, or what time or season to go, unless a fact says so. No urgency ("go now", "before it fills up"). If the facts are thin, keep the pitch simple and true — say what it is and how close.
+VOICE: lead with the strangest or most striking fact, then give Bill's take on it — a wry aside, a cowboy comparison, a bit of brag. The color goes in how he says it and what he thinks of it, so it's fun to read aloud. At most one cowboy word per pick ("partner", "shoot", "hot dog", "saddle up"), and start each pick differently. Skip brochure words: gem, nestled, magical, serene, stunning.
+Example — facts say an 1890s iron footbridge, 10 minutes off: "Hot dog, an 1890s iron bridge that's feet only. Ten minutes out, and it's older than anything you own that still works."
+Example — facts say only a viewpoint, 5 minutes off: "A viewpoint five minutes off. That's the whole story, partner, and I've ridden farther for less."
+
+STRICT: every fact must come from what's listed below for that place — Bill's opinion may be loud, the facts may not grow. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. Never claim how locals or visitors use it, how hidden or crowded it is, what it feels like there, or what time or season to go, unless a fact says so. No urgency ("go now", "before it fills up"). If the facts are thin, stay short: say what it is and how close, with one line of Bill's attitude.
 
 ${blocks}
 
@@ -1109,7 +1113,7 @@ Return ONLY a JSON array with one entry per place, in order: [{"title":"...","pi
 /** What we can stand behind when no checked pitch came back: the first line of what's known, and how close */
 function plainPitch(note: string, distanceLabel?: string): string {
   const line = (note.match(/^.{30,}?[.!?](?=\s|$)/)?.[0] ?? note).trim().slice(0, 160)
-  const away = distanceLabel?.startsWith('~') ? `About ${distanceLabel.slice(1)}.` : ''
+  const away = distanceLabel?.startsWith('~') ? `About ${distanceLabel.slice(1)}.` : distanceLabel ? `${distanceLabel}.` : ''
   return [line ? (/[.!?]$/.test(line) ? line : `${line}.`) : 'Worth a look.', away].filter(Boolean).join(' ')
 }
 
