@@ -49,7 +49,7 @@ interface EventRow {
 const ARTICLE_TITLE = /\b(things to do|top \d+|\d+\+? (best|fun|unique|cool|things|places|ways|spots)|travel guide|itinerary|bucket list)\b/i
 // Plain web-search results are pages, not places: anything that reads like an
 // article title goes
-const WEB_PAGE_TITLE = /\b(best|top|guide|things|ways|places|tips|itinerary|visit|visiting|travel|review|reviews|reddit|tripadvisor|what|where|how|why|weather|crowds|favou?rites?|must|events|calendar|attractions|recommendations|exploring|explore|sightseeing|landmarks|history|heritage|activities|recreation|discover|overview|information|about|home|homepage|welcome|official site|chamber of commerce|visitors? bureau|cvb|tourism board|\d{1,4})\b|\?|\.\.\.|…/i
+const WEB_PAGE_TITLE = /\b(january|february|march|april|may|june|july|august|september|october|november|december|best|top|guide|things|ways|places|tips|itinerary|visit|visiting|travel|review|reviews|reddit|tripadvisor|what|where|how|why|weather|crowds|favou?rites?|must|events|calendar|attractions|recommendations|exploring|explore|sightseeing|landmarks|history|heritage|activities|recreation|discover|overview|information|about|home|homepage|welcome|official site|chamber of commerce|visitors? bureau|cvb|tourism board|\d{1,4})\b|\?|\.\.\.|…/i
 // A listing page, not a thing: "Events", "Events in Paris", "Main Street Events"
 const GENERIC_TITLE = /^\s*(\S+\s+){0,2}(events?|calendar|happenings|things to do)(\s+in\s+.+)?\s*$/i
 
@@ -1048,6 +1048,17 @@ function sameNamedPlace(suggested: string, found: string, townName = ''): boolea
   return shared > 0 && shared * 3 >= f.size
 }
 
+// Bill's favorite embellishments: who goes there and how busy it is
+const PEOPLE_CLAIM = /\b(locals?|tourists?|crowds?|crowded|packed|busy|quiet|hidden|secret|folks|regulars?|selfies|nobody|everybody|everyone)\b/gi
+
+/** Drops any sentence making a people claim the facts don't back up */
+function dropUnbacked(pitch: string, facts: string): string {
+  const known = facts.toLowerCase()
+  return (pitch.match(/[^.!?]+[.!?]*\s*/g) ?? [pitch])
+    .filter(s => (s.match(PEOPLE_CLAIM) ?? []).every(w => known.includes(w.toLowerCase())))
+    .join('').trim()
+}
+
 /**
  * Rewrites each verified pick's title and pitch using only what Google says
  * about the place (type, description, reviews). Returns null per pick — or for
@@ -1077,13 +1088,13 @@ async function groundPitches(
     ? 'They are visiting — never say "no tourists" or "locals only".'
     : 'They want to explore like a local.'}
 
-For each place, write a plain title (max 8 words) and a pitch (max 35 words, present tense) in Bill's voice.
+For each place, write a plain title (max 8 words) and a pitch (max 35 words, present tense) in Bill's voice, speaking as "I". Every place gets a pitch unless it's marked "skip", however thin its facts.
 
 VOICE: lead with the strangest or most striking fact, then give Bill's take on it — a wry aside, a cowboy comparison, a bit of brag. The color goes in how he says it and what he thinks of it, so it's fun to read aloud. At most one cowboy word per pick ("partner", "shoot", "hot dog", "saddle up"), and start each pick differently. Skip brochure words: gem, nestled, magical, serene, stunning.
 Example — facts say an 1890s iron footbridge, 10 minutes off: "Hot dog, an 1890s iron bridge that's feet only. Ten minutes out, and it's older than anything you own that still works."
 Example — facts say only a viewpoint, 5 minutes off: "A viewpoint five minutes off. That's the whole story, partner, and I've ridden farther for less."
 
-STRICT: every fact must come from what's listed below for that place — Bill's opinion may be loud, the facts may not grow. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. Never claim how locals or visitors use it, how hidden or crowded it is, what it feels like there, or what time or season to go, unless a fact says so. No urgency ("go now", "before it fills up"). If the facts are thin, stay short: say what it is and how close, with one line of Bill's attitude.
+STRICT: every fact must come from what's listed below for that place — Bill's opinion may be loud, the facts may not grow. Never invent features (decks, trails, overlooks, tours, exhibits), history, prices, hours or crowd levels. Never mention locals, tourists, crowds or who goes there, how hidden it is, what it feels like there, or what time or season to go, unless a fact says so. One reviewer's own story is not a fact about the place. No urgency ("go now", "before it fills up"). If the facts are thin, stay short: say what it is and how close, with one line of Bill's attitude.
 
 ${blocks}
 
@@ -1101,9 +1112,11 @@ Return ONLY a JSON array with one entry per place, in order: [{"title":"...","pi
     const m = text.match(/\[[\s\S]*\]/)
     if (!m) return null
     const out = JSON.parse(m[0]) as Array<{ title?: string; pitch?: string } | null>
-    return items.map((_, i) => {
+    return items.map((it, i) => {
       const o = out[i]
-      return o?.title && o?.pitch ? { title: o.title, pitch: o.pitch } : null
+      const f = it.place?.facts
+      const pitch = o?.pitch ? dropUnbacked(o.pitch, [it.note, f?.type, f?.summary, ...(f?.reviews ?? [])].join(' ')) : ''
+      return o?.title && pitch ? { title: o.title, pitch } : null
     })
   } catch {
     return null
@@ -1779,7 +1792,8 @@ Return ONLY a valid JSON array:
             if (debugInfo) (debugInfo.knowledge as Record<string, unknown>).grounded =grounded ? grounded.filter(Boolean).length : 0
 
             const picks = top.map(({ p, place }, i) => ({
-              id: p.id, rank: i + 1, pitch: grounded?.[i]?.pitch ?? p.pitch,
+              id: p.id, rank: i + 1,
+              pitch: grounded?.[i]?.pitch ?? (place?.facts.summary ? plainPitch(place.facts.summary, place.distanceLabel) : p.pitch),
               title: grounded?.[i]?.title ?? p.title,
               venue: place ? (place.name !== (grounded?.[i]?.title ?? p.title) ? place.name : '') : (p.venue ?? ''),
               dateFormatted: place?.openNow === true ? 'Open now' : place?.openNow === false ? 'Closed right now' : '',
