@@ -1675,12 +1675,23 @@ export async function POST(req: NextRequest) {
     // Category relevance: if they asked for food, show food. Off-topic entries
     // are never used to pad the list — two great picks beat three with filler.
     // With nothing on-topic, the knowledge fallback below suggests the right kind.
+    let catHintsRelaxed = false
     if (catHints) {
       // A game in an arena is sports, but it isn't getting outside
       const onTopic = rows.filter(r => catHints.includes(r.category) && !(catHints.includes('Outdoors')
         && r.category === 'Sports & Outdoors' && r.date_start && INDOOR_VENUE.test(r.venue_name ?? '')))
-      rows = onTopic
       if (debugInfo) debugInfo.onTopic = onTopic.length
+
+      if (onTopic.length === 0 && answers.length >= 4) {
+        // Deep-survey rescue: nothing on-topic survived the category filter.
+        // Keep all non-article, non-chain candidates so the user gets picks
+        // rather than nothing — the prompt note tells the AI what happened.
+        catHintsRelaxed = true
+        if (debugInfo) debugInfo.catHintsRelaxed = true
+        // rows stays as-is (already filtered for chains/articles above)
+      } else {
+        rows = onTopic
+      }
     }
 
     // Dealbreaker: drop what breaks it — unless that would leave fewer than 3,
@@ -1965,7 +1976,7 @@ ${eventList}
 ${missionLine}
 
 Follow every rule:
-1. SCRATCH THE ITCH — They said "${expType}". Every pick must deliver exactly that — no substitutes, no watered-down versions.${catHints ? ` Only pick entries whose category is ${catHints.join(' or ')} — if fewer than 3 qualify, return fewer.` : ''}
+1. SCRATCH THE ITCH — They said "${expType}". Every pick must deliver exactly that — no substitutes, no watered-down versions.${catHints && !catHintsRelaxed ? ` Only pick entries whose category is ${catHints.join(' or ')} — if fewer than 3 qualify, return fewer.` : catHints ? ` They're looking for ${catHints.join(' or ')}. Nothing exactly on-topic was found — pick the best alternatives that could still scratch a similar itch, and lean into whichever comes closest.` : ''}
 2. KILL THE DEALBREAKER — They want to avoid "${killSwitch}". Any pick that even hints at this is disqualified, no exceptions.
 3. ${timeframeInstruction}
 ${pitchGuidance}
