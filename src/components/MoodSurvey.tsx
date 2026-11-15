@@ -404,6 +404,8 @@ export default function MoodSurvey({ open, onClose, initialCity = '', mode = 'ge
   const [openFilter, setOpenFilter]     = useState<'when' | 'budget' | 'crew' | null>(null)
   const [refineStep, setRefineStep]     = useState<'when' | 'crew' | 'done' | null>(null)
   const cancelGps = useRef(false)
+  const [speakingPickId, setSpeakingPickId] = useState<string | null>(null)
+  const speakAudioRef = useRef<HTMLAudioElement | null>(null)
   // Tourist or local: guessed from where they are vs. where they're searching, one tap to switch
   const [traveler, setTraveler] = useState<Traveler>('local')
   const deviceLoc = useRef<{ lat: number; lng: number } | null>(null)
@@ -592,6 +594,37 @@ const prefetchAnswersRef = useRef<string[]>([])
       })
     } catch {}
     capture('event_unsaved', { event_id: pick.id, title: pick.title, city })
+  }
+
+  // ---------------------------------------------------------------------------
+  // TTS: speak a pick card via /api/wild-bill-tts
+  // ---------------------------------------------------------------------------
+  async function speakPick(pick: Pick) {
+    if (speakingPickId === pick.id) {
+      if (speakAudioRef.current) { speakAudioRef.current.pause(); speakAudioRef.current = null }
+      setSpeakingPickId(null)
+      return
+    }
+    if (speakAudioRef.current) { speakAudioRef.current.pause(); speakAudioRef.current = null }
+    setSpeakingPickId(pick.id)
+    const text = `${pick.title}. ${pick.pitch}`
+    try {
+      const res = await fetch('/api/wild-bill-tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, intensity: 1 }),
+      })
+      if (!res.ok) throw new Error('TTS failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      speakAudioRef.current = audio
+      audio.onended = () => { URL.revokeObjectURL(url); speakAudioRef.current = null; setSpeakingPickId(null) }
+      audio.onerror = () => { URL.revokeObjectURL(url); speakAudioRef.current = null; setSpeakingPickId(null) }
+      await audio.play()
+    } catch {
+      setSpeakingPickId(null)
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1235,6 +1268,15 @@ const prefetchAnswersRef = useRef<string[]>([])
                       />
                     )}
                     <span className="absolute top-2 left-2 text-xl leading-none drop-shadow-lg">{MEDALS[i]}</span>
+                    {/* TTS speaker */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); speakPick(pick) }}
+                      className="absolute top-2 right-10 text-xl leading-none drop-shadow-lg transition-transform hover:scale-125 active:scale-110 block"
+                      title={speakingPickId === pick.id ? 'Stop' : 'Hear Wild Bill pitch this'}
+                      style={{ opacity: speakingPickId === pick.id ? 1 : 0.45 }}
+                    >
+                      {speakingPickId === pick.id ? '🔊' : '🔈'}
+                    </button>
                     {/* Heart / Save */}
                     <div className="absolute top-2 right-2">
                       <button
