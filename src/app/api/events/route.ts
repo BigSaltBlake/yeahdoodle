@@ -43,22 +43,22 @@ function getDateRange(when: WhenFilter): { start: string; end: string } | null {
 }
 
 // ---------------------------------------------------------------------------
-// Category inference (mirrors route.ts logic)
+// Category inference (mirrors recommend/route.ts logic)
 // ---------------------------------------------------------------------------
 function inferEventCategory(text: string): EventCategory {
   const t = text.toLowerCase()
   if (/music|concert|band|jazz|rock|hip.?hop|festival|dj|live show/.test(t)) return 'Music'
-  if (/comedy|standup|stand-up|improv/.test(t))                               return 'Other'
+  if (/comedy|standup|stand-up|improv/.test(t))                               return 'Comedy'
   if (/art|gallery|exhibit|museum|theater|theatre|dance|ballet|opera/.test(t)) return 'Arts & Culture'
   if (/food|drink|wine|beer|tasting|dinner|brunch|restaurant|cocktail/.test(t)) return 'Food & Drink'
   if (/hike|hiking|trail|kayak|paddle|climb|fish|camp|nature|park|outdoor|river|lake/.test(t)) return 'Outdoors'
-  if (/sport|game|race|fitness|yoga|run/.test(t))                              return 'Sports'
+  if (/sport|game|race|fitness|yoga|run/.test(t))                              return 'Sports & Outdoors'
   if (/night|club|lounge|party/.test(t))                                       return 'Nightlife'
   return 'Community'
 }
 
 // ---------------------------------------------------------------------------
-// SerpAPI live-event fetch — fires when DB returns nothing
+// Serper.dev live-event fetch — fires when DB returns nothing
 // ---------------------------------------------------------------------------
 async function fetchSerpLiveEvents(
   city: string,
@@ -235,7 +235,7 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // ── DB returned nothing — fire SerpAPI live crawl ────────────────────────
+  // ── DB returned nothing — fire Serper.dev live fetch ────────────────────
   const serpKey = process.env.SERPER_API_KEY
   if (serpKey) {
     let liveEvents = await fetchSerpLiveEvents(city.trim(), when, serpKey)
