@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/components/AuthProvider'
 import AuthModal from '@/components/AuthModal'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
 
 type SaveIntent = 'save_for_later' | 'definitely_going'
 
@@ -35,9 +36,12 @@ const INTENT_LABELS: Record<SaveIntent, string> = {
 
 export default function SavedPage() {
   const [localSaved, setLocalSaved] = useState<LocalSaved[]>([])
+  const [cloudSaved, setCloudSaved] = useState<LocalSaved[]>([])
+  const [cloudLoading, setCloudLoading] = useState(false)
   const [authModal, setAuthModal] = useState(false)
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
 
+  // Always load localStorage (instant, works without auth)
   useEffect(() => {
     try {
       const raw = localStorage.getItem('yd_saved')
@@ -45,16 +49,58 @@ export default function SavedPage() {
     } catch {}
   }, [])
 
-  function removeLocal(event_id: string) {
-    const updated = localSaved.filter(e => e.event_id !== event_id)
-    setLocalSaved(updated)
+  // Load from Supabase when authenticated
+  useEffect(() => {
+    if (!user) {
+      setCloudSaved([])
+      return
+    }
+    setCloudLoading(true)
+    const sb = getSupabaseBrowser()
+    sb.from('saved_events')
+      .select('event_id, event_title, event_data, intent, city, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        setCloudLoading(false)
+        if (!error && data) {
+          setCloudSaved(
+            data.map(row => ({
+              event_id:    row.event_id as string,
+              event_title: (row.event_title as string) ?? '',
+              event_data:  (row.event_data as LocalSaved['event_data']) ?? { id: '', title: '' },
+              intent:      (row.intent as SaveIntent) ?? 'save_for_later',
+              city:        (row.city as string) ?? '',
+              saved_at:    row.created_at as string,
+            })),
+          )
+        }
+      })
+  }, [user])
+
+  // When signed in, cloud is source of truth; merge local saves not yet synced
+  const displaySaved: LocalSaved[] = user
+    ? [
+        ...cloudSaved,
+        ...localSaved.filter(l => !cloudSaved.some(c => c.event_id === l.event_id)),
+      ]
+    : localSaved
+
+  function removeItem(event_id: string) {
+    // Optimistic UI update
+    setLocalSaved(prev => prev.filter(e => e.event_id !== event_id))
+    setCloudSaved(prev => prev.filter(e => e.event_id !== event_id))
+
+    // Update localStorage
     try {
+      const updated = localSaved.filter(e => e.event_id !== event_id)
       localStorage.setItem('yd_saved', JSON.stringify(updated))
       const map = JSON.parse(localStorage.getItem('yd_saved_map') || '{}')
       delete map[event_id]
       localStorage.setItem('yd_saved_map', JSON.stringify(map))
     } catch {}
-    // Fire-and-forget unsave from Supabase
+
+    // Fire-and-forget delete from Supabase (handles both session and user_id)
     try {
       const sid = localStorage.getItem('yd_sid')
       fetch('/api/save', {
@@ -65,7 +111,8 @@ export default function SavedPage() {
     } catch {}
   }
 
-  const isEmpty = localSaved.length === 0
+  const isEmpty = displaySaved.length === 0
+  const isLoading = authLoading || cloudLoading
 
   return (
     <div className="min-h-screen bg-yd-bg text-white">
@@ -75,7 +122,12 @@ export default function SavedPage() {
           <Link href="/" className="text-sm text-white/40 hover:text-white/70 transition-colors">← Back</Link>
         </div>
 
-        {isEmpty ? (
+        {isLoading && isEmpty ? (
+          <div className="text-center py-16 text-white/40">
+            <div className="text-3xl mb-3 animate-pulse">⌛</div>
+            <p className="text-sm">Loading your saved events…</p>
+          </div>
+        ) : isEmpty ? (
           <div className="text-center py-16 text-white/40">
             <div className="text-5xl mb-4">🤍</div>
             <p className="text-lg mb-2">No saved events yet</p>
@@ -84,14 +136,19 @@ export default function SavedPage() {
           </div>
         ) : (
           <>
-            {!user && (
+            {!user && !authLoading && (
               <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 mb-4 text-sm">
                 <span className="text-white/60">Sign in to sync saved events across devices</span>
                 <button onClick={() => setAuthModal(true)} className="text-[#4f9b85] hover:underline ml-3 shrink-0">Sign in</button>
               </div>
             )}
+            {user && (
+              <div className="flex items-center gap-2 mb-4 text-xs text-white/30">
+                <span>☁️ Synced to your account</span>
+              </div>
+            )}
             <div className="space-y-3">
-              {localSaved.map((item) => {
+              {displaySaved.map((item) => {
                 const ev = item.event_data
                 return (
                   <div key={item.event_id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors">
@@ -111,7 +168,7 @@ export default function SavedPage() {
                           {ev.pitch && <p className="text-xs text-white/40 italic mt-1">{ev.pitch}</p>}
                         </div>
                         <button
-                          onClick={() => removeLocal(item.event_id)}
+                          onClick={() => removeItem(item.event_id)}
                           className="text-white/30 hover:text-white/60 transition-colors shrink-0 text-lg leading-none mt-0.5"
                           title="Remove"
                         >

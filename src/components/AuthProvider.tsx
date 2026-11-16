@@ -44,14 +44,56 @@ const AuthContext = createContext<AuthCtx>({
 })
 
 // ---------------------------------------------------------------------------
-// Sync any locally-saved event IDs to Supabase when the user signs in
+// Sync any locally-saved events to Supabase when the user signs in.
+// Reads from the yd_saved key (written by MoodSurvey) which holds the full
+// event objects — not just the IDs in yd_profile.savedEventIds.
 // ---------------------------------------------------------------------------
 async function syncLocalSavesToCloud(userId: string) {
-  const localIds = getSavedEventIds()
-  if (!localIds.length) return
+  // Read full saved event data from the key MoodSurvey writes to
+  let localSaved: Array<{
+    event_id: string
+    event_title?: string
+    event_data?: Record<string, unknown>
+    intent?: string
+    city?: string
+  }> = []
+  try {
+    const raw = localStorage.getItem('yd_saved')
+    if (raw) localSaved = JSON.parse(raw)
+  } catch {}
+
+  // Fallback: also check the older profile.savedEventIds (IDs only)
+  const legacyIds = getSavedEventIds().filter(
+    id => !localSaved.some(item => item.event_id === id),
+  )
+  if (legacyIds.length) {
+    localSaved = [...localSaved, ...legacyIds.map(id => ({ event_id: id }))]
+  }
+
+  if (!localSaved.length) return
+
   const sb = getSupabaseBrowser()
-  const rows = localIds.map(id => ({ user_id: userId, event_id: id }))
-  await sb.from('saved_events').upsert(rows, { onConflict: 'user_id,event_id', ignoreDuplicates: true })
+
+  // Fetch already-saved event_ids for this user to avoid duplicates
+  const { data: existing } = await sb
+    .from('saved_events')
+    .select('event_id')
+    .eq('user_id', userId)
+
+  const existingIds = new Set((existing ?? []).map((r: { event_id: string }) => r.event_id))
+  const newRows = localSaved
+    .filter(item => !existingIds.has(item.event_id))
+    .map(item => ({
+      user_id:     userId,
+      event_id:    item.event_id,
+      event_title: item.event_title ?? null,
+      event_data:  item.event_data ?? null,
+      intent:      item.intent ?? 'save_for_later',
+      city:        item.city ?? null,
+    }))
+
+  if (!newRows.length) return
+  await sb.from('saved_events').insert(newRows)
 }
 
 // ---------------------------------------------------------------------------
