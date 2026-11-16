@@ -26,6 +26,9 @@ export const DEFAULT_CITIES = [
   'Salt Lake City', 'Raleigh', 'Tampa', 'Orlando', 'Cincinnati',
   'Pittsburgh', 'Kansas City', 'Columbus', 'Indianapolis', 'Charlotte',
   'Sacramento', 'Oklahoma City', 'Memphis', 'Richmond', 'Tucson',
+  // Tier 4 — added to match SEO city pages
+  'Jacksonville', 'Fort Worth', 'El Paso', 'Washington DC',
+  'Milwaukee', 'Albuquerque', 'Fresno', 'Omaha', 'Cleveland',
 ]
 
 // ---------------------------------------------------------------------------

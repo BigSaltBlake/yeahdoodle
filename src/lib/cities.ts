@@ -46,6 +46,8 @@ export const CITIES: CityConfig[] = [
   { slug: 'tampa', display: 'Tampa', state: 'FL' },
   { slug: 'orlando', display: 'Orlando', state: 'FL' },
   { slug: 'boston', display: 'Boston', state: 'MA' },
+  { slug: 'sacramento', display: 'Sacramento', state: 'CA' },
+  { slug: 'richmond', display: 'Richmond', state: 'VA' },
 ]
 export const CITY_SLUGS = CITIES.map(c => c.slug)
 export function getCityBySlug(slug: string): CityConfig | undefined { return CITIES.find(c => c.slug === slug) }

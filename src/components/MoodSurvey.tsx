@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import CategoryPlaceholder from './CategoryPlaceholder'
 import { capture } from '@/lib/analytics'
+import { saveEvent as trackSaveEvent, unsaveEvent as trackUnsaveEvent } from '@/lib/history'
 
 interface Pick {
   id: string
@@ -565,6 +566,7 @@ const prefetchAnswersRef = useRef<string[]>([])
       filtered.unshift({ event_id: pick.id, event_title: pick.title, event_data: pick as unknown as Record<string, unknown>, intent, city, saved_at: new Date().toISOString() })
       localStorage.setItem('yd_saved', JSON.stringify(filtered))
     } catch {}
+    trackSaveEvent(pick.id, pick.category, [])
     if (Object.keys(saved).length === 0) setShowSignInNudge(true)
     try {
       await fetch('/api/save', {
@@ -586,6 +588,7 @@ const prefetchAnswersRef = useRef<string[]>([])
       const list: SavedEventLocal[] = JSON.parse(localStorage.getItem('yd_saved') || '[]')
       localStorage.setItem('yd_saved', JSON.stringify(list.filter(e => e.event_id !== pick.id)))
     } catch {}
+    trackUnsaveEvent(pick.id)
     try {
       await fetch('/api/save', {
         method: 'DELETE',
