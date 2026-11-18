@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { deriveVibe, markVibeSetup, saveVibePreferences, getProfile } from '@/lib/history'
+import { useAuth } from './AuthProvider'
 import type { EventCategory, GroupType } from '@/types'
 
 interface Props {
@@ -10,12 +11,14 @@ interface Props {
 }
 
 const CATEGORY_OPTIONS: { value: EventCategory; icon: string }[] = [
-  { value: 'Music',          icon: '🎵' },
-  { value: 'Food & Drink',   icon: '🍻' },
-  { value: 'Arts & Culture', icon: '🎨' },
-  { value: 'Sports',         icon: '⚽' },
-  { value: 'Nightlife',      icon: '🌙' },
-  { value: 'Outdoors',       icon: '🌲' },
+  { value: 'Music',            icon: '🎵' },
+  { value: 'Comedy',           icon: '😂' },
+  { value: 'Food & Drink',     icon: '🍻' },
+  { value: 'Arts & Culture',   icon: '🎨' },
+  { value: 'Sports & Outdoors',icon: '⚽' },
+  { value: 'Outdoors',         icon: '🌲' },
+  { value: 'Nightlife',        icon: '🌙' },
+  { value: 'Community',        icon: '🤝' },
 ]
 
 const GROUP_OPTIONS: { value: GroupType; icon: string; label: string }[] = [
@@ -32,7 +35,10 @@ export default function VibeModal({ open, onClose }: Props) {
   const [selectedCats, setSelectedCats] = useState<EventCategory[]>([])
   const [selectedGroup, setSelectedGroup] = useState<GroupType | null>(null)
   const [email, setEmail] = useState('')
+  const [emailSent, setEmailSent] = useState(false)
+  const [emailError, setEmailError] = useState('')
   const [saveCount, setSaveCount] = useState(0)
+  const { signInWithEmail } = useAuth()
 
   useEffect(() => {
     if (open) {
@@ -67,12 +73,16 @@ export default function VibeModal({ open, onClose }: Props) {
     setTimeout(onClose, 1800)
   }
 
-  function handleSetupAccount(e: React.FormEvent) {
+  async function handleSetupAccount(e: React.FormEvent) {
     e.preventDefault()
-    // TODO: wire to Supabase Auth sign-up
+    setEmailError('')
+    const { error } = await signInWithEmail(email)
+    if (error) {
+      setEmailError('Something went wrong — please try again.')
+      return
+    }
     markVibeSetup()
-    setStep('done')
-    setTimeout(onClose, 1800)
+    setEmailSent(true)
   }
 
   if (!open) return null
@@ -178,11 +188,11 @@ export default function VibeModal({ open, onClose }: Props) {
           )}
 
           {/* STEP: Account (optional) */}
-          {step === 'account' && (
+          {step === 'account' && !emailSent && (
             <div>
               <h2 className="font-display text-lg text-white mb-1">Save your vibe?</h2>
               <p className="text-sm text-white/50 mb-4 leading-relaxed">
-                Create an account to keep your picks across devices. Totally optional — we&apos;ll remember you on this browser either way.
+                Enter your email to sync picks across devices. We&apos;ll send a magic link — no password needed.
               </p>
 
               <form onSubmit={handleSetupAccount} className="space-y-3 mb-4">
@@ -193,12 +203,13 @@ export default function VibeModal({ open, onClose }: Props) {
                   placeholder="your@email.com"
                   className="w-full bg-yd-card border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-yd-orange transition-colors"
                 />
+                {emailError && <p className="text-xs text-red-400">{emailError}</p>}
                 <button
                   type="submit"
                   disabled={!email}
                   className="w-full bg-yd-orange hover:bg-yd-orangeHover disabled:opacity-40 text-white font-semibold py-3 rounded-xl transition-colors"
                 >
-                  Create account
+                  Send magic link
                 </button>
               </form>
 
@@ -208,6 +219,16 @@ export default function VibeModal({ open, onClose }: Props) {
               >
                 Just remember me on this browser
               </button>
+            </div>
+          )}
+
+          {step === 'account' && emailSent && (
+            <div className="text-center py-2">
+              <div className="text-4xl mb-3">📬</div>
+              <h2 className="font-display text-lg text-white mb-2">Check your inbox!</h2>
+              <p className="text-sm text-white/50 leading-relaxed">
+                We sent a magic link to <span className="text-white/80">{email}</span>. Click it to sync your vibe across devices.
+              </p>
             </div>
           )}
 

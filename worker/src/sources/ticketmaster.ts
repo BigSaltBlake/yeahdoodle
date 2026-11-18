@@ -67,7 +67,7 @@ interface TMEvent {
 // ---------------------------------------------------------------------------
 const SEGMENT_TO_CATEGORY: Record<string, string> = {
   'Music':          'Music',
-  'Sports':         'Sports',
+  'Sports':         'Sports & Outdoors',
   'Arts & Theatre': 'Arts & Culture',
   'Film':           'Arts & Culture',
   'Miscellaneous':  'Community',
@@ -92,10 +92,10 @@ function inferCategory(event: TMEvent): string {
   if (n.includes('hike') || n.includes('outdoor') || n.includes('trail') || n.includes('kayak') || n.includes('camp') || n.includes('cycling') || n.includes('marathon') || n.includes('5k') || n.includes('10k') || n.includes('run') && n.includes('park')) return 'Outdoors'
   if (n.includes('nightclub') || n.includes(' dj ') || n.includes('rave') || n.includes('edm') || n.includes('techno') || n.includes('afterparty') || n.includes('after party')) return 'Nightlife'
   if (n.includes('concert') || n.includes('band') || n.includes('festival') || n.includes('live music') || n.includes('tour')) return 'Music'
-  if (n.includes('comedy') || n.includes('improv') || n.includes('stand-up') || n.includes('standup')) return 'Arts & Culture'
-  if (n.includes('game') || n.includes('match') || n.includes('championship') || n.includes('tournament') || n.includes('league')) return 'Sports'
+  if (n.includes('comedy') || n.includes('improv') || n.includes('stand-up') || n.includes('standup')) return 'Comedy'
+  if (n.includes('game') || n.includes('match') || n.includes('championship') || n.includes('tournament') || n.includes('league')) return 'Sports & Outdoors'
 
-  return 'Other'
+  return 'Community'
 }
 
 function inferGroupSuitability(event: TMEvent): string[] {

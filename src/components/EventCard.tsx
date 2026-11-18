@@ -6,8 +6,16 @@ import type React from 'react'
 import type { YDEvent } from '@/types'
 import { saveEvent, unsaveEvent, isEventSaved, trackEventView, shouldPromptVibe } from '@/lib/history'
 import { useAuth } from './AuthProvider'
-import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import CategoryPlaceholder from './CategoryPlaceholder'
+
+function getSessionId(): string {
+  try {
+    const k = 'yd_sid'
+    let sid = localStorage.getItem(k)
+    if (!sid) { sid = crypto.randomUUID(); localStorage.setItem(k, sid) }
+    return sid
+  } catch { return 'unknown' }
+}
 
 interface Props {
   event: YDEvent
@@ -16,14 +24,14 @@ interface Props {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  'Music':         'bg-purple-500/20 text-purple-300',
-  'Food & Drink':  'bg-amber-500/20 text-amber-300',
-  'Arts & Culture':'bg-pink-500/20 text-pink-300',
-  'Sports':        'bg-blue-500/20 text-blue-300',
-  'Nightlife':     'bg-indigo-500/20 text-indigo-300',
-  'Outdoors':      'bg-green-500/20 text-green-300',
-  'Community':     'bg-teal-500/20 text-teal-300',
-  'Other':         'bg-white/10 text-white/60',
+  'Music':            'bg-purple-500/20 text-purple-300',
+  'Comedy':           'bg-yellow-500/20 text-yellow-300',
+  'Food & Drink':     'bg-amber-500/20 text-amber-300',
+  'Arts & Culture':   'bg-pink-500/20 text-pink-300',
+  'Sports & Outdoors':'bg-blue-500/20 text-blue-300',
+  'Outdoors':         'bg-green-500/20 text-green-300',
+  'Nightlife':        'bg-indigo-500/20 text-indigo-300',
+  'Community':        'bg-teal-500/20 text-teal-300',
 }
 
 function formatDate(dateStr: string, time?: string): string {
@@ -59,14 +67,38 @@ export default function EventCard({ event, onOpenDetail, onVibePrompt }: Props) 
     setSaved(isEventSaved(event.id))
   }, [event.id])
 
-  async function syncToSupabase(action: 'save' | 'unsave') {
-    if (!user) return
-    const sb = getSupabaseBrowser()
-    if (action === 'save') {
-      await sb.from('saved_events').upsert({ user_id: user.id, event_id: event.id })
-    } else {
-      await sb.from('saved_events').delete().match({ user_id: user.id, event_id: event.id })
-    }
+  function persistSave() {
+    try {
+      const map = JSON.parse(localStorage.getItem('yd_saved_map') || '{}')
+      map[event.id] = 'save_for_later'
+      localStorage.setItem('yd_saved_map', JSON.stringify(map))
+
+      const list = JSON.parse(localStorage.getItem('yd_saved') || '[]')
+      const filtered = list.filter((e: { event_id: string }) => e.event_id !== event.id)
+      filtered.unshift({ event_id: event.id, event_title: event.title, event_data: event, intent: 'save_for_later', city: event.city, saved_at: new Date().toISOString() })
+      localStorage.setItem('yd_saved', JSON.stringify(filtered))
+    } catch {}
+    fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: event.id, event_title: event.title, event_data: event, intent: 'save_for_later', session_id: getSessionId(), city: event.city }),
+    }).catch(() => {})
+  }
+
+  function persistUnsave() {
+    try {
+      const map = JSON.parse(localStorage.getItem('yd_saved_map') || '{}')
+      delete map[event.id]
+      localStorage.setItem('yd_saved_map', JSON.stringify(map))
+
+      const list = JSON.parse(localStorage.getItem('yd_saved') || '[]')
+      localStorage.setItem('yd_saved', JSON.stringify(list.filter((e: { event_id: string }) => e.event_id !== event.id)))
+    } catch {}
+    fetch('/api/save', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: event.id, session_id: getSessionId() }),
+    }).catch(() => {})
   }
 
   function handleSave(e: React.MouseEvent) {
@@ -74,11 +106,11 @@ export default function EventCard({ event, onOpenDetail, onVibePrompt }: Props) 
     if (saved) {
       unsaveEvent(event.id)
       setSaved(false)
-      syncToSupabase('unsave')
+      persistUnsave()
     } else {
       saveEvent(event.id, event.category, event.groupSuitability)
       setSaved(true)
-      syncToSupabase('save')
+      persistSave()
       if (shouldPromptVibe()) onVibePrompt?.()
     }
   }

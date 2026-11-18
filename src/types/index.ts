@@ -23,12 +23,15 @@ export interface YDEvent {
 
 export type EventCategory =
   | 'Music'
+  | 'Comedy'
   | 'Food & Drink'
   | 'Arts & Culture'
-  | 'Sports'
-  | 'Nightlife'
+  | 'Sports & Outdoors'
   | 'Outdoors'
+  | 'Nightlife'
   | 'Community'
+  // Legacy values — kept for backward compat with existing DB rows
+  | 'Sports'
   | 'Other'
 
 export type GroupType =

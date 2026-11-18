@@ -24,7 +24,7 @@ const EB_CATEGORY_TO_YD: Record<string, string> = {
   '110': 'Food & Drink',
   '105': 'Arts & Culture',
   '104': 'Arts & Culture',
-  '108': 'Sports',
+  '108': 'Sports & Outdoors',
   '107': 'Community',
   '113': 'Community',
   '117': 'Community',
@@ -90,10 +90,11 @@ function inferCategory(event: EBEvent): string {
   if (n.includes('hike') || n.includes('outdoor') || n.includes('trail') || n.includes('kayak') || n.includes('camp') || n.includes('5k') || n.includes('10k') || n.includes('marathon') || n.includes('cycling')) return 'Outdoors'
   if (n.includes('nightclub') || n.includes(' dj ') || n.includes('rave') || n.includes('edm') || n.includes('afterparty') || n.includes('club night') || n.includes('techno')) return 'Nightlife'
   if (n.includes('concert') || n.includes('live music') || n.includes('band')) return 'Music'
-  if (n.includes('art') || n.includes('gallery') || n.includes('theatre') || n.includes('theater') || n.includes('comedy') || n.includes('improv') || n.includes('film') || n.includes('standup')) return 'Arts & Culture'
-  if (n.includes('game') || n.includes('match') || n.includes('tournament') || n.includes('race') || n.includes('sport') || n.includes('fitness') || n.includes('yoga') || n.includes('workout')) return 'Sports'
+  if (n.includes('comedy') || n.includes('improv') || n.includes('standup') || n.includes('stand-up')) return 'Comedy'
+  if (n.includes('art') || n.includes('gallery') || n.includes('theatre') || n.includes('theater') || n.includes('film')) return 'Arts & Culture'
+  if (n.includes('game') || n.includes('match') || n.includes('tournament') || n.includes('race') || n.includes('sport') || n.includes('fitness') || n.includes('yoga') || n.includes('workout')) return 'Sports & Outdoors'
   if (n.includes('community') || n.includes('meetup') || n.includes('networking') || n.includes('workshop') || n.includes('class') || n.includes('seminar') || n.includes('talk') || n.includes('conference')) return 'Community'
-  return 'Other'
+  return 'Community'
 }
 
 function inferGroupSuitability(event: EBEvent): string[] {

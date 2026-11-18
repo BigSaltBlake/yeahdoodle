@@ -57,17 +57,17 @@ interface SGEvent {
 // Category mapping from SeatGeek taxonomy
 // ---------------------------------------------------------------------------
 const TAXONOMY_TO_CATEGORY: Record<string, string> = {
-  concert:       'Music',
-  music_festival: 'Music',
-  sports:        'Sports',
-  theater:       'Arts & Culture',
-  comedy:        'Arts & Culture',
-  classical:     'Arts & Culture',
-  dance_performance: 'Arts & Culture',
-  opera:         'Arts & Culture',
-  family:        'Community',
+  concert:          'Music',
+  music_festival:   'Music',
+  sports:           'Sports & Outdoors',
+  theater:          'Arts & Culture',
+  comedy:           'Comedy',
+  classical:        'Arts & Culture',
+  dance_performance:'Arts & Culture',
+  opera:            'Arts & Culture',
+  family:           'Community',
   cirque_du_soleil: 'Arts & Culture',
-  magic:         'Arts & Culture',
+  magic:            'Arts & Culture',
 }
 
 function inferCategory(event: SGEvent): string {
@@ -83,10 +83,10 @@ function inferCategory(event: SGEvent): string {
   if (title.includes('hike') || title.includes('outdoor') || title.includes('trail') || title.includes('kayak') || title.includes('camp') || title.includes('cycling') || title.includes('marathon') || title.includes('5k') || title.includes('10k')) return 'Outdoors'
   if (title.includes('nightclub') || title.includes(' dj ') || title.includes('rave') || title.includes('edm') || title.includes('techno') || title.includes('afterparty') || title.includes('after party') || title.includes('club night')) return 'Nightlife'
   if (title.includes('concert') || title.includes('live music') || title.includes('tour')) return 'Music'
-  if (title.includes('comedy') || title.includes('improv') || title.includes('stand-up') || title.includes('standup')) return 'Arts & Culture'
-  if (title.includes('game') || title.includes('match') || title.includes('championship') || title.includes('tournament')) return 'Sports'
+  if (title.includes('comedy') || title.includes('improv') || title.includes('stand-up') || title.includes('standup')) return 'Comedy'
+  if (title.includes('game') || title.includes('match') || title.includes('championship') || title.includes('tournament')) return 'Sports & Outdoors'
 
-  return 'Other'
+  return 'Community'
 }
 
 function inferGroupSuitability(event: SGEvent): string[] {

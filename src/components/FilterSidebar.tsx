@@ -15,12 +15,14 @@ interface Props {
 }
 
 const ALL_CATEGORIES: { value: EventCategory; icon: string }[] = [
-  { value: 'Music',          icon: '🎵' },
-  { value: 'Food & Drink',   icon: '🍻' },
-  { value: 'Arts & Culture', icon: '🎨' },
-  { value: 'Sports',         icon: '⚽' },
-  { value: 'Nightlife',      icon: '🌙' },
-  { value: 'Outdoors',       icon: '🌲' },
+  { value: 'Music',            icon: '🎵' },
+  { value: 'Comedy',           icon: '😂' },
+  { value: 'Food & Drink',     icon: '🍻' },
+  { value: 'Arts & Culture',   icon: '🎨' },
+  { value: 'Sports & Outdoors',icon: '⚽' },
+  { value: 'Outdoors',         icon: '🌲' },
+  { value: 'Nightlife',        icon: '🌙' },
+  { value: 'Community',        icon: '🤝' },
 ]
 
 const ALL_GROUPS: { value: GroupType; label: string; icon: string }[] = [

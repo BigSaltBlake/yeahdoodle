@@ -12,14 +12,14 @@ export const revalidate = 3600
 // Category config
 // ---------------------------------------------------------------------------
 const CATEGORIES: { slug: string; display: EventCategory; emoji: string }[] = [
-  { slug: 'music',         display: 'Music',         emoji: '🎵' },
-  { slug: 'food-drink',    display: 'Food & Drink',  emoji: '🍔' },
-  { slug: 'arts-culture',  display: 'Arts & Culture',emoji: '🎨' },
-  { slug: 'sports',        display: 'Sports',        emoji: '🏆' },
-  { slug: 'nightlife',     display: 'Nightlife',     emoji: '🌙' },
-  { slug: 'outdoors',      display: 'Outdoors',      emoji: '🌲' },
-  { slug: 'community',     display: 'Community',     emoji: '🤝' },
-  { slug: 'other',         display: 'Other',         emoji: '📅' },
+  { slug: 'music',           display: 'Music',           emoji: '🎵' },
+  { slug: 'comedy',          display: 'Comedy',          emoji: '😂' },
+  { slug: 'food-drink',      display: 'Food & Drink',    emoji: '🍔' },
+  { slug: 'arts-culture',    display: 'Arts & Culture',  emoji: '🎨' },
+  { slug: 'sports',          display: 'Sports & Outdoors', emoji: '🏆' },
+  { slug: 'outdoors',        display: 'Outdoors',        emoji: '🌲' },
+  { slug: 'nightlife',       display: 'Nightlife',       emoji: '🌙' },
+  { slug: 'community',       display: 'Community',       emoji: '🤝' },
 ]
 
 function getCategoryBySlug(slug: string) {
@@ -89,25 +89,27 @@ async function fetchCategoryEvents(city: string, category: EventCategory, limit 
 // Helpers
 // ---------------------------------------------------------------------------
 const CATEGORY_COLORS: Record<string, string> = {
-  'Music':         'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  'Food & Drink':  'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  'Arts & Culture':'bg-pink-500/20 text-pink-300 border-pink-500/30',
-  'Sports':        'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  'Nightlife':     'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-  'Outdoors':      'bg-green-500/20 text-green-300 border-green-500/30',
-  'Community':     'bg-teal-500/20 text-teal-300 border-teal-500/30',
-  'Other':         'bg-white/10 text-white/60 border-white/10',
+  'Music':            'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  'Comedy':           'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  'Food & Drink':     'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  'Arts & Culture':   'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  'Sports & Outdoors':'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  'Sports':           'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  'Outdoors':         'bg-green-500/20 text-green-300 border-green-500/30',
+  'Nightlife':        'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+  'Community':        'bg-teal-500/20 text-teal-300 border-teal-500/30',
 }
 
 const CATEGORY_GRADIENTS: Record<string, string> = {
-  'Music':         'from-purple-900 via-purple-800 to-indigo-900',
-  'Food & Drink':  'from-amber-900 via-orange-800 to-red-900',
-  'Arts & Culture':'from-pink-900 via-rose-800 to-fuchsia-900',
-  'Sports':        'from-blue-900 via-sky-800 to-cyan-900',
-  'Nightlife':     'from-indigo-950 via-violet-900 to-purple-950',
-  'Outdoors':      'from-green-900 via-emerald-800 to-teal-900',
-  'Community':     'from-teal-900 via-cyan-800 to-emerald-900',
-  'Other':         'from-slate-800 via-gray-800 to-zinc-900',
+  'Music':            'from-purple-900 via-purple-800 to-indigo-900',
+  'Comedy':           'from-yellow-900 via-amber-800 to-orange-900',
+  'Food & Drink':     'from-amber-900 via-orange-800 to-red-900',
+  'Arts & Culture':   'from-pink-900 via-rose-800 to-fuchsia-900',
+  'Sports & Outdoors':'from-blue-900 via-sky-800 to-cyan-900',
+  'Sports':           'from-blue-900 via-sky-800 to-cyan-900',
+  'Outdoors':         'from-green-900 via-emerald-800 to-teal-900',
+  'Nightlife':        'from-indigo-950 via-violet-900 to-purple-950',
+  'Community':        'from-teal-900 via-cyan-800 to-emerald-900',
 }
 
 function formatDate(dateStr: string, time?: string): string {

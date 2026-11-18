@@ -5,7 +5,15 @@ import { useEffect, useState } from 'react'
 import type { YDEvent } from '@/types'
 import { saveEvent, unsaveEvent, isEventSaved } from '@/lib/history'
 import { useAuth } from './AuthProvider'
-import { getSupabaseBrowser } from '@/lib/supabase-browser'
+
+function getSessionId(): string {
+  try {
+    const k = 'yd_sid'
+    let sid = localStorage.getItem(k)
+    if (!sid) { sid = crypto.randomUUID(); localStorage.setItem(k, sid) }
+    return sid
+  } catch { return 'unknown' }
+}
 
 interface Props {
   event: YDEvent | null
@@ -58,14 +66,37 @@ export default function EventModal({ event, onClose, onVibePrompt }: Props) {
     if (event) setSaved(isEventSaved(event.id))
   }, [event])
 
-  async function syncToSupabase(eventId: string, action: 'save' | 'unsave') {
-    if (!user) return
-    const sb = getSupabaseBrowser()
-    if (action === 'save') {
-      await sb.from('saved_events').upsert({ user_id: user.id, event_id: eventId })
-    } else {
-      await sb.from('saved_events').delete().match({ user_id: user.id, event_id: eventId })
-    }
+  function persistSave() {
+    if (!event) return
+    try {
+      const map = JSON.parse(localStorage.getItem('yd_saved_map') || '{}')
+      map[event.id] = 'save_for_later'
+      localStorage.setItem('yd_saved_map', JSON.stringify(map))
+      const list = JSON.parse(localStorage.getItem('yd_saved') || '[]')
+      const filtered = list.filter((e: { event_id: string }) => e.event_id !== event.id)
+      filtered.unshift({ event_id: event.id, event_title: event.title, event_data: event, intent: 'save_for_later', city: event.city, saved_at: new Date().toISOString() })
+      localStorage.setItem('yd_saved', JSON.stringify(filtered))
+    } catch {}
+    fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: event.id, event_title: event.title, event_data: event, intent: 'save_for_later', session_id: getSessionId(), city: event.city }),
+    }).catch(() => {})
+  }
+
+  function persistUnsave(eventId: string) {
+    try {
+      const map = JSON.parse(localStorage.getItem('yd_saved_map') || '{}')
+      delete map[eventId]
+      localStorage.setItem('yd_saved_map', JSON.stringify(map))
+      const list = JSON.parse(localStorage.getItem('yd_saved') || '[]')
+      localStorage.setItem('yd_saved', JSON.stringify(list.filter((e: { event_id: string }) => e.event_id !== eventId)))
+    } catch {}
+    fetch('/api/save', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, session_id: getSessionId() }),
+    }).catch(() => {})
   }
 
   useEffect(() => {
@@ -87,11 +118,11 @@ export default function EventModal({ event, onClose, onVibePrompt }: Props) {
     if (saved) {
       unsaveEvent(event.id)
       setSaved(false)
-      syncToSupabase(event.id, 'unsave')
+      persistUnsave(event.id)
     } else {
       saveEvent(event.id, event.category, event.groupSuitability)
       setSaved(true)
-      syncToSupabase(event.id, 'save')
+      persistSave()
       onVibePrompt?.()
     }
   }
