@@ -37,16 +37,12 @@ function inferCategory(title: string, description?: string): string {
   const text = `${title} ${description ?? ''}`.toLowerCase()
   if (/concert|music|band|live music|dj|festival|perform/.test(text)) return 'Music'
   if (/comedy|stand.?up|improv/.test(text)) return 'Comedy'
-  if (/art|gallery|exhibit|museum|paint/.test(text)) return 'Arts'
+  if (/art|gallery|exhibit|museum|paint|film|movie|screening|theatre|theater/.test(text)) return 'Arts & Culture'
   if (/food|drink|wine|beer|tasting|restaurant|brunch|dinner/.test(text)) return 'Food & Drink'
-  if (/sport|run|race|marathon|yoga|fitness|hike|climb/.test(text)) return 'Sports'
-  if (/market|fair|vendor|craft|flea/.test(text)) return 'Markets'
-  if (/networking|conference|startup|tech/.test(text)) return 'Business'
-  if (/family|kid|child|parent|baby/.test(text)) return 'Family'
-  if (/class|workshop|learn|seminar|course/.test(text)) return 'Education'
-  if (/grand opening|opening|launch|promo/.test(text)) return 'Local'
-  if (/film|movie|screening|cinema/.test(text)) return 'Film'
-  return 'Other'
+  if (/hike|trail|outdoor|climb|kayak|paddl|camp|nature|park|river|lake/.test(text)) return 'Outdoors'
+  if (/sport|run|race|marathon|yoga|fitness/.test(text)) return 'Sports & Outdoors'
+  if (/bar|nightlife|club|lounge|night/.test(text)) return 'Nightlife'
+  return 'Community'
 }
 
 function parseEventDate(event: SerpEvent): string {
